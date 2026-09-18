@@ -1,0 +1,139 @@
+{
+  "layouts": {
+    "459": {
+      "left_edge": 459,
+      "left_edge_manual": 447,
+      "right_edge": 826,
+      "count": 4,
+      "probes": [
+        492,
+        570,
+        639,
+        740
+      ],
+      "source": "manual",
+      "recorded_at": "2026-09-10 23:28:14"
+    },
+    "390": {
+      "left_edge": 390,
+      "left_edge_manual": 395,
+      "right_edge": 886,
+      "count": 6,
+      "probes": [
+        434,
+        499,
+        566,
+        634,
+        703,
+        802
+      ],
+      "source": "manual",
+      "recorded_at": "2026-09-10 23:20:58"
+    },
+    "368": {
+      "left_edge": 368,
+      "left_edge_manual": 369,
+      "right_edge": 915,
+      "count": 7,
+      "probes": [
+        405,
+        466,
+        530,
+        596,
+        660,
+        727,
+        821
+      ],
+      "source": "manual",
+      "recorded_at": "2026-09-10 23:22:45"
+    },
+    "357": {
+      "left_edge": 357,
+      "left_edge_manual": 353,
+      "right_edge": 925,
+      "count": 8,
+      "probes": [
+        388,
+        443,
+        503,
+        562,
+        620,
+        681,
+        744,
+        827
+      ],
+      "source": "manual",
+      "recorded_at": "2026-09-10 23:24:18"
+    },
+    "358": {
+      "left_edge": 358,
+      "left_edge_manual": 355,
+      "right_edge": 915,
+      "count": 9,
+      "probes": [
+        389,
+        437,
+        483,
+        539,
+        589,
+        636,
+        690,
+        740,
+        829
+      ],
+      "source": "manual",
+      "recorded_at": "2026-09-10 23:25:43"
+    },
+    "421": {
+      "left_edge": 421,
+      "left_edge_manual": 411,
+      "right_edge": 860,
+      "count": 5,
+      "probes": [
+        455,
+        531,
+        602,
+        677,
+        777
+      ],
+      "source": "manual",
+      "recorded_at": "2026-09-10 23:26:57"
+    },
+    "498": {
+      "left_edge": 498,
+      "left_edge_manual": 488,
+      "right_edge": 794,
+      "count": 3,
+      "probes": [
+        536,
+        605,
+        711
+      ],
+      "source": "manual",
+      "recorded_at": "2026-09-10 23:29:11"
+    },
+    "536": {
+      "left_edge": 536,
+      "left_edge_manual": 518,
+      "right_edge": 772,
+      "count": 2,
+      "probes": [
+        568,
+        677
+      ],
+      "source": "manual",
+      "recorded_at": "2026-09-10 23:30:40"
+    },
+    "570": {
+      "left_edge": 570,
+      "left_edge_manual": 556,
+      "right_edge": 735,
+      "count": 1,
+      "probes": [
+        645
+      ],
+      "source": "manual",
+      "recorded_at": "2026-09-10 23:31:05"
+    }
+  }
+}

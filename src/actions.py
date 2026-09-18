@@ -1,0 +1,240 @@
+"""
+actions.py - human-ish mouse input (click at template-matched locations).
+
+Coordinates come from template match regions. Movement is stepped with
+randomized delays instead of teleporting, and click position jitters a few
+pixels around the box center to avoid pixel-perfect repetition.
+"""
+
+from __future__ import annotations
+
+import random
+import time
+from typing import Optional
+
+import win32api
+import win32con
+
+CLICK_DOWN_MS = (40, 90)
+
+# ★★ 安全点(和 `hand_scanner_v2.SAFE_POINT` 同一个点:屏幕中线最右侧,悬停不弹面板)。
+#   2026-09-12 实机抓到的后果:攻击/上前线阶段**从不把光标挪走** ——
+#   上一次拖拽把光标留在落点(战场上),于是 KARDS 弹出**放大的悬停面板**,
+#   把旁边那张卡**整张盖住**:那一帧我方支援线 2 张卡只检出 1 张、徽章 0 个
+#   (`shots/attack_frames/0912_032521_attack.png` 能看到那个面板把中间的坦克卡盖掉了)。
+#   → 凡是要**读战场**,先把光标停到 SAFE_POINT(§10 坑 #3 那条规矩)。
+SAFE_POINT_CLIENT = (1270, 360)
+
+
+def park_cursor(hwnd, settle: float = 0.20) -> bool:
+    """
+    把光标停到安全点,让悬停面板消失,再读战场。
+
+    返回是否成功(截图/坐标转换失败时返回 False,调用方照常继续 ——
+    这只是让读数更干净,不该因为它失败就中断动作)。
+    """
+    try:
+        from win import client_to_screen
+        sx, sy = client_to_screen(hwnd, *SAFE_POINT_CLIENT)
+        set_cursor(sx, sy)
+        time.sleep(settle)
+        return True
+    except Exception:
+        return False
+
+
+# ---- 拖拽时序(2026-09-11 下午按实机观察重标;**2026-09-13 按用户要求提速**)----
+# 用户实测(小号测试对局,两条都**稳定复现**):
+#   ① 拖到**已有卡的位置**上松手 -> 牌**回手**(游戏不会自动吸附到邻近空位)
+#   ② **快松 vs 停一秒再松**,结果不一样 -> 松太早这次投放不算数
+# 所以把三段等待都摆出来。★ 2026-09-13 用户明确说:
+#   "**拖动之后的确认时间(就是在目标上停留的时间)缩短到 400ms 就够**"
+#   —— 于是 DWELL 1.0 -> **0.4**(实测这条占掉每回合好几秒:一个回合要拖 6~8 次)。
+#   PRESS_DELAY(进拖拽态)和 RELEASE_SETTLE(结算)不动太多:
+#   前者太短会被当成"点了一下卡",后者要够游戏把这次投放记下来。
+PRESS_DELAY = 0.20
+DWELL = 0.40
+RELEASE_SETTLE = 0.20
+# 停顿期间原地做的"小抖动"次数:有些 UI 只在收到鼠标**移动**事件时才刷新投放判定,
+# 光标一动不动可能被当成"没在拖"。
+DWELL_JIGGLE = 3
+DWELL_JIGGLE_PX = 2
+
+
+def set_cursor(x: int, y: int) -> None:
+    win32api.SetCursorPos((int(x), int(y)))
+
+
+def cursor_position() -> tuple:
+    """当前鼠标屏幕坐标。"""
+    return win32api.GetCursorPos()
+
+
+def set_cursor_checked(x: int, y: int):
+    """
+    把光标放到 (x,y),返回**实际**落点(读不到返回 None)。
+
+    为什么不能想当然地认为"请求点 = 落点":Windows 会把光标裁剪在屏幕
+    (或多显示器组成的桌面)范围内,窗口位置/DPI 一旦让目标点落到屏幕外,
+    SetCursorPos 就会静默地把它拉回来。
+
+    这在自动化里是要命的:如果按【请求点】记账,下一次 `cursor_moved_from()`
+    就会把这点误差当成"用户正在操作鼠标",于是扫描在第一个探针就中止 ——
+    实测表现就是 `hand scan #N: 0 cards in 0.8s`(根本没扫,但日志看不出原因)。
+    """
+    set_cursor(x, y)
+    try:
+        return win32api.GetCursorPos()
+    except Exception:
+        return None
+
+
+def cursor_moved_from(x: int, y: int, tol: int = 8) -> bool:
+    """
+    鼠标是否已经离开 (x,y) 超过 tol 像素。
+
+    用途:自动化脚本把鼠标放到某处后,如果光标自己跑掉了,说明【用户正在操作】,
+    脚本应当让路而不是继续抢鼠标。
+    """
+    try:
+        cx, cy = win32api.GetCursorPos()
+    except Exception:
+        return False
+    return abs(cx - x) > tol or abs(cy - y) > tol
+
+
+def cursor_is_moving(samples: int = 4, interval: float = 0.07,
+                     tol: int = 3) -> bool:
+    """
+    采样几次判断用户是否正在移动鼠标。
+
+    和 cursor_moved_from 的区别:这个不需要脚本先"占位"再检查,所以可以在
+    【还没碰鼠标之前】就判断用户忙不忙 —— 校准脚本用它来决定要不要开始。
+    """
+    try:
+        prev = win32api.GetCursorPos()
+    except Exception:
+        return False
+    for _ in range(max(1, samples - 1)):
+        time.sleep(interval)
+        try:
+            cur = win32api.GetCursorPos()
+        except Exception:
+            return False
+        if abs(cur[0] - prev[0]) > tol or abs(cur[1] - prev[1]) > tol:
+            return True
+        prev = cur
+    return False
+
+
+def move_stepped(x0: int, y0: int, x1: int, y1: int, steps: Optional[int] = None) -> None:
+    """Move the cursor in a few steps with jitter (looks less robotic)."""
+    dx = x1 - x0
+    dy = y1 - y0
+    dist = max(abs(dx), abs(dy))
+    steps = steps or max(2, min(14, int(dist / 60)))
+    for i in range(1, steps + 1):
+        t = i / steps
+        # slight easing + lateral jitter
+        jx = random.randint(-3, 3)
+        jy = random.randint(-3, 3)
+        cx = int(x0 + dx * t + jx)
+        cy = int(y0 + dy * t + jy)
+        set_cursor(cx, cy)
+        time.sleep(random.uniform(0.006, 0.022))
+
+
+def click(x: int, y: int, jitter: int = 5) -> None:
+    """Stepped move + click at (x,y) with small random offset."""
+    jx = x + random.randint(-jitter, jitter)
+    jy = y + random.randint(-jitter, jitter)
+    cur = win32api.GetCursorPos()
+    move_stepped(cur[0], cur[1], jx, jy)
+    win32api.mouse_event(win32con.MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0)
+    time.sleep(random.uniform(*CLICK_DOWN_MS) / 1000.0)
+    win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
+
+
+def click_center_of(region: dict, jitter: int = 5) -> None:
+    """region: {x,y,w,h} -> click its center (screen coords expected)."""
+    cx = region["x"] + region["w"] // 2
+    cy = region["y"] + region["h"] // 2
+    click(cx, cy, jitter)
+
+
+def move_drag(sx: int, sy: int, ex: int, ey: int,
+              press_delay: float = None,
+              settle: float = 0.15,
+              dwell: float = None,
+              jiggle: int = None,
+              on_pressed=None) -> bool:
+    """
+    在**屏幕坐标**之间做一次拖拽(按下 -> 分步移动 -> **在目标上停住** -> 松开)。
+
+    部署(手牌 -> 我方阵线)和攻击(场上单位 -> 敌方目标)都是这个鼠标序列,
+    所以抽到这里共用。
+
+    ★★ 2026-09-13 下午(第十个会话):**`settle` 现在有两个语义,别搞混** ——
+      它既是"光标到位后等多久才按下",也是**按下那一刻画面处在哪个状态**的开关。
+      从**手牌**拖牌时它必须是**悬停等待**(`hand_scanner_v2.HOLD`,0.30s):
+        · 识别身份是在"悬停之后(扇形已展开)"那一帧做的;
+        · 而旧代码只等 `settle=0.15s` 就按下 —— 那一刻扇形**还在展开动画里**,
+          同一个 x 底下的牌可能已经换成**邻居**了;
+        · 实测证据(2026-09-13 那局日志):第 6/7 回合都写着
+          `deploying Fw 190 A 百舌鸟 (fighter, cost 6) 手牌x=455`,
+          而**费用读数只掉了 3**(`费用读数 3 与账本 0 不符` / `4 与账本 1 不符`)
+          —— 拖出去的其实是一张 **3 费牌**(用户看到的是"旁边的 38t")。
+      ⇒ 判据:**读身份用哪个状态,按下就用哪个状态**。`drag_deploy` 会把
+        `settle` 设成扫描器的 `HOLD`;`move_drag` 本身不动默认值 ——
+        攻击那一路拖的是**盘面上的卡**,没有扇形展开问题,保持 0.15 快一点。
+
+    `on_pressed()`:按下之后立刻回调一次(用来**当场存一帧** —— 拖起来的那张牌
+    会画在光标上,是"到底抓了哪张牌"唯一的**地面真值**)。
+
+    ★★ 2026-09-11 下午按实机观察重标的三件事(每一件都对应一个实测现象):
+      ① **按下后多等一会儿再动**(`PRESS_DELAY` 0.12 -> 0.25s):
+         太短可能连"拖拽态"都没进,游戏把这一下当成"点了一下卡"。
+      ② **到达目标后精确落位再停**:`move_stepped` 每一步都带 ±3px 抖动
+         (末步也一样),所以"停在哪"是随机的 —— 必须再 `set_cursor` 一次
+         把它钉在 (ex, ey) 上,停顿才有意义。
+      ③ **停住 1 秒(jiggle 几次)再松手**:用户实测"快松 vs 停一秒"结果不同。
+         停顿期间做几次 1-2px 的小幅移动,是为了让游戏**持续收到鼠标移动事件**
+         —— 光标一动不动有可能被当成"没在拖"。
+    """
+    if press_delay is None:
+        press_delay = PRESS_DELAY
+    if dwell is None:
+        dwell = DWELL
+    if jiggle is None:
+        jiggle = DWELL_JIGGLE
+
+    set_cursor(sx, sy)
+    time.sleep(settle)
+    win32api.mouse_event(win32con.MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0)
+    time.sleep(press_delay)
+    if on_pressed is not None:
+        # 诊断回调:现在光标上就挂着"被拖起来的那张牌"。
+        # ★ 绝不许它把拖拽弄崩(§7 第 57 条:诊断代码只许丢一行日志)。
+        try:
+            on_pressed()
+        except Exception:
+            pass
+    cur = win32api.GetCursorPos()
+    move_stepped(cur[0], cur[1], ex, ey)
+
+    # ② 精确落位:分步移动的末步带抖动,不钉一下的话落点是随机的
+    set_cursor(ex, ey)
+    # ③ 在目标上停住:小幅抖动几下 + 保持 dwell 秒,再松手
+    #   ★★ 2026-09-13:"抖动"的时间**算在 dwell 里面**,不再额外加 ——
+    #      用户的判据是"**在目标上停留总共 400ms 就够**",所以整段停留必须 ≈ dwell,
+    #      而不是 dwell + 抖动(旧写法实际停 1.36s,后来会变成 0.7s,和用户说的不符)。
+    _per = min(0.12, max(0.04, dwell / (jiggle + 1))) if jiggle else 0.0
+    for i in range(max(0, jiggle)):
+        off = DWELL_JIGGLE_PX if i % 2 == 0 else -DWELL_JIGGLE_PX
+        set_cursor(ex + off, ey + off)
+        time.sleep(_per)
+    set_cursor(ex, ey)
+    time.sleep(max(0.0, dwell - _per * max(0, jiggle)))
+    win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
+    time.sleep(RELEASE_SETTLE)
+    return True

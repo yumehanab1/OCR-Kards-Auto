@@ -1,0 +1,11 @@
+{
+  "states": {
+    "main_menu":  { "any_of": ["play_btn"] },
+    "deck_select": { "any_of": ["casual_mode_btn", "deck_ok_btn"] },
+    "queueing":   { "any_of": ["queue_cancel"] },
+    "mulligan":   { "any_of": ["mulligan_ok_btn"] },
+    "in_game":    { "any_of": ["end_turn_btn"] },
+    "victory":    { "any_of": ["victory_btn"] },
+    "defeat":     { "any_of": ["defeat_btn"] }
+  }
+}

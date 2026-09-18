@@ -1,0 +1,161 @@
+{
+  "image_size": {
+    "w": 1280,
+    "h": 720
+  },
+  "templates": {
+    "play_btn": {
+      "path": "ui_templates/play_btn.png",
+      "region": {
+        "x": 2,
+        "y": 95,
+        "w": 115,
+        "h": 105
+      }
+    },
+    "queue_cancel": {
+      "path": "ui_templates/queue_cancel.png",
+      "region": {
+        "x": 541,
+        "y": 580,
+        "w": 228,
+        "h": 51
+      }
+    },
+    "end_turn_btn": {
+      "path": "ui_templates/end_turn_btn.png",
+      "region": {
+        "x": 1120,
+        "y": 453,
+        "w": 130,
+        "h": 36
+      }
+    },
+    "defeat_btn": {
+      "path": "ui_templates/defeat_btn.png",
+      "region": {
+        "x": 565,
+        "y": 419,
+        "w": 163,
+        "h": 85
+      }
+    },
+    "victory_btn": {
+      "path": "ui_templates/victory_btn.png",
+      "region": {
+        "x": 563,
+        "y": 425,
+        "w": 158,
+        "h": 69
+      }
+    },
+    "casual_mode_btn": {
+      "path": "ui_templates/casual_mode_btn.png",
+      "region": {
+        "x": 1165,
+        "y": 547,
+        "w": 105,
+        "h": 33
+      }
+    },
+    "deck_ok_btn": {
+      "path": "ui_templates/deck_ok_btn.png",
+      "region": {
+        "x": 1056,
+        "y": 605,
+        "w": 216,
+        "h": 51
+      }
+    },
+    "mulligan_ok_btn": {
+      "path": "ui_templates/mulligan_ok_btn.png",
+      "region": {
+        "x": 522,
+        "y": 642,
+        "w": 232,
+        "h": 51
+      }
+    },
+    "hand_zone": {
+      "path": "ui_templates/hand_zone.png",
+      "region": {
+        "x": 356,
+        "y": 635,
+        "w": 591,
+        "h": 73
+      }
+    },
+    "order_icon": {
+      "path": "ui_templates/order_icon.png",
+      "region": {
+        "x": 812,
+        "y": 541,
+        "w": 24,
+        "h": 22
+      }
+    },
+    "infantry_icon": {
+      "path": "ui_templates/infantry_icon.png",
+      "region": {
+        "x": 745,
+        "y": 538,
+        "w": 33,
+        "h": 33
+      }
+    },
+    "tank_icon": {
+      "path": "ui_templates/tank_icon.png",
+      "region": {
+        "x": 686,
+        "y": 518,
+        "w": 34,
+        "h": 31
+      }
+    },
+    "fighter_icon": {
+      "path": "ui_templates/fighter_icon.png",
+      "region": {
+        "x": 589,
+        "y": 529,
+        "w": 31,
+        "h": 32
+      }
+    },
+    "bomber_icon": {
+      "path": "ui_templates/bomber_icon.png",
+      "region": {
+        "x": 526,
+        "y": 540,
+        "w": 30,
+        "h": 29
+      }
+    },
+    "counter_icon": {
+      "path": "ui_templates/counter_icon.png",
+      "region": {
+        "x": 729,
+        "y": 524,
+        "w": 22,
+        "h": 22
+      }
+    },
+    "artillery_icon": {
+      "path": "ui_templates/artillery_icon.png",
+      "region": {
+        "x": 515,
+        "y": 409,
+        "w": 28,
+        "h": 29
+      }
+    },
+    "cost_num": {
+      "path": "ui_templates/cost_num.png",
+      "region": {
+        "x": 304,
+        "y": 457,
+        "w": 19,
+        "h": 18
+      }
+    }
+  }
+}

@@ -1,0 +1,1054 @@
+{
+ "entries": [
+  {
+   "hash": "7fc6ffd57fd5ffd4fff6fff79f94956615a40530c5349654865495481fdc3dd7",
+   "name": "布良斯克游击队",
+   "type": "infantry"
+  },
+  {
+   "hash": "fefabbf48bf0cdf08df88178834ac15dc9558976c1aac384c5b84ed2bee26e72",
+   "name": "步兵第 456 团",
+   "type": "infantry"
+  },
+  {
+   "hash": "f7eda5f49d14cf8ecdec01a4814483c6a1a4c92a8dac8184c1b88118ef6c672a",
+   "name": "步兵第 97 团",
+   "type": "infantry"
+  },
+  {
+   "hash": "7872f852fb4afa60fc60bc4267d24de241b24130618c632af3c8bd8859ea397a",
+   "name": "T-70",
+   "type": "tank"
+  },
+  {
+   "hash": "78e0f2a0f284fa80fcc1bc842bf003f2a6ca8091a085b085a2dab0c0509032d1",
+   "name": "步兵第 51 旅",
+   "type": "infantry"
+  },
+  {
+   "hash": "f1c0f5c0f588f580fd82fd8215e041e6c9e6c0d2d0cacccac9d6c8c4c8e874a4",
+   "name": "近卫步兵第 204 团",
+   "type": "infantry"
+  },
+  {
+   "hash": "5ff4a5f49db4cfacc99e059e09a98339c155c92a8de881cc81edc8eb82b70ad7",
+   "name": "近卫步兵第 178 团",
+   "type": "infantry"
+  },
+  {
+   "hash": "f782df10b3329ed01e41e2e5ea91ba09a230a33293a283a29ba0e26493768e62",
+   "name": "轻步兵",
+   "type": "infantry"
+  },
+  {
+   "hash": "59945f50dab2f891ff90b7b2edc887c28db083f28178c1bad9aa69e0bd36fee3",
+   "name": "步兵第 89 团",
+   "type": "infantry"
+  },
+  {
+   "hash": "e5607d00ef906680fe809e89ab24a554a5f48d9e831a8738c92a83c88198f39c",
+   "name": "近卫步兵第 178 团",
+   "type": "infantry"
+  },
+  {
+   "hash": "bc007c4079003c40fd277c032e032a200a049e40340334833d029e421e221923",
+   "name": "近卫步兵第 178 团",
+   "type": "infantry"
+  },
+  {
+   "hash": "5f066e02fd02fd13fcb1fd01fe813800b80038003807bc60be043c03bc027822",
+   "name": "步兵第 89 团",
+   "type": "infantry"
+  },
+  {
+   "hash": "965693d0ffcaff69ff29ed6cff36a7e88fe89b38837482b2c3548390834af72b",
+   "name": "近卫步兵第 178 团",
+   "type": "infantry"
+  },
+  {
+   "hash": "5ca44fc0ff96ae92fe92a698fdecc7a28d14cbb081988ba8d9aae9b0fc90fcd6",
+   "name": "轻步兵",
+   "type": "infantry"
+  },
+  {
+   "hash": "b3a28faa8d1e03140330cfb0a99883ac47aa5e2acea0c7903f90e4c4e6d1f295",
+   "name": "轻步兵",
+   "type": "infantry"
+  },
+  {
+   "hash": "9580f420f2c0da41da415b808c90ebe2ddce4db0f118d586d98cc9c8c8c849d4",
+   "name": "轻步兵",
+   "type": "infantry"
+  },
+  {
+   "hash": "7f57ff56ffd8bf54ff908fb4b7140f260fb7c7d586956d366607660e26549f55",
+   "name": "步兵第 89 团",
+   "type": "infantry"
+  },
+  {
+   "hash": "d3c1d30d98129640d564a5628fe28d920b3183658185c92a83a8c380c370d2d2",
+   "name": "步兵第 51 旅",
+   "type": "infantry"
+  },
+  {
+   "hash": "fd80ff80f98affc4fd807e005e449e442d230b229ce68cf38f828e88be4c7b6b",
+   "name": "步兵第 51 旅",
+   "type": "infantry"
+  },
+  {
+   "hash": "fee05ea03e849ec4ed921a721a7618f288b38bb39db28f088d188e503ed43ed6",
+   "name": "步兵第 51 旅",
+   "type": "infantry"
+  },
+  {
+   "hash": "3f6019f091f0d3d893f850d850ae58ac50ac41a858d698c438c0ea80eab86ab8",
+   "name": "步兵第 456 团",
+   "type": "infantry"
+  },
+  {
+   "hash": "cb60fd00e430a538a624a628464883448df08b70875ecb5cc32ac384f2a44a2c",
+   "name": "步兵第 456 团",
+   "type": "infantry"
+  },
+  {
+   "hash": "deb0dea0fea8f6b0fdc2d7c09fc05ec186e085bad576c6aec730cf90ff94f591",
+   "name": "步兵第 456 团",
+   "type": "infantry"
+  },
+  {
+   "hash": "95a0f400f980e920e9206980dc286f54a54ccd4e03668316812ac388c39055a4",
+   "name": "近卫步兵第 204 团",
+   "type": "infantry"
+  },
+  {
+   "hash": "bdb0fd20fdb0f530ff30cfb0a58c8f8c9b4c836c87348b548318c388f718f7ac",
+   "name": "近卫步兵第 204 团",
+   "type": "infantry"
+  },
+  {
+   "hash": "c7d02b521f32df3bdf9a069a865a865aae7ad6aa8733c72287a0e6d4ee56e6c9",
+   "name": "近卫步兵第 204 团",
+   "type": "infantry"
+  },
+  {
+   "hash": "fa009220d240d20078204e00b5e4a5148fc40ba48344c3248b2a8384c3985704",
+   "name": "步兵第 97 团",
+   "type": "infantry"
+  },
+  {
+   "hash": "e3a8a5e89b4dcf5ddbd9030d83c9834de329cb548b988308cb688328d62bd62b",
+   "name": "步兵第 97 团",
+   "type": "infantry"
+  },
+  {
+   "hash": "fff4ff34ff76fb74fff7f9f5a5b48f8e89ac8bc681a7c9aa858c81a48134f375",
+   "name": "步兵第 97 团",
+   "type": "infantry"
+  },
+  {
+   "hash": "f7cbcb638db189f103f3834b9579c1dac3b8d52af5e89de0cdc954c93eb37ae2",
+   "name": "步兵第 89 团",
+   "type": "infantry"
+  },
+  {
+   "hash": "d280aa80bac0bac07a20a500cfe08f810b148392c3d68f478f8ae160a1680342",
+   "name": "希尔克内斯第 61 团",
+   "type": "infantry"
+  },
+  {
+   "hash": "0fac1f849f849714161416b084b0c6f086d49d3495b496a0d7c1c35593e60aaa",
+   "name": "希尔克内斯第 61 团",
+   "type": "infantry"
+  },
+  {
+   "hash": "a5d8a5e88fc18d818d13819683dec55ac9678d628dc48d80c1a9934989c39bd7",
+   "name": "希尔克内斯第 61 团",
+   "type": "infantry"
+  },
+  {
+   "hash": "e5e0a9f887c883d89ad4829280b5a18390959ad092d880f8b0f098ccdacccacc",
+   "name": "诺夫哥罗德第 312 团",
+   "type": "infantry"
+  },
+  {
+   "hash": "3a017e80fe01fe80fe81ff0039803000730432a5b6a13280be809801988318e1",
+   "name": "希尔克内斯第 61 团",
+   "type": "infantry"
+  },
+  {
+   "hash": "b001e401f401d401f601f8023c015c20bb08388919819ca09d809f01de02a383",
+   "name": "诺夫哥罗德第 312 团",
+   "type": "infantry"
+  },
+  {
+   "hash": "fb30fb50fb60df04f7d02bc00b42de6a169886a8ae8cd6acc641c6a0ee64f664",
+   "name": "诺夫哥罗德第 312 团",
+   "type": "infantry"
+  },
+  {
+   "hash": "de02fc03f801dc01f401f801f4005e003a4039081dc91cc09ac09f019a02d703",
+   "name": "诺夫哥罗德第 312 团",
+   "type": "infantry"
+  },
+  {
+   "hash": "b402f902f001a801e801f001e8026a00bc800e080a918980eb80ed01dc02a222",
+   "name": "T-70",
+   "type": "tank"
+  },
+  {
+   "hash": "cb407a10f920e940e980e980b460a7308fc603f28734c15cc92acd88e54058b4",
+   "name": "T-70",
+   "type": "tank"
+  },
+  {
+   "hash": "7fb2cff299f291f203f28333d575e18cc3dc95aad5e88ff8cde84ced3ceb3ee7",
+   "name": "T-70",
+   "type": "tank"
+  },
+  {
+   "hash": "ff0057413e009e40bc402c600ce00ce09c60ae601ea00c808ca086a88e2a7e6a",
+   "name": "T-34-85 1944",
+   "type": "tank"
+  },
+  {
+   "hash": "f80038047804b000720072033203360032003a003e0034019d02988238c2f2c2",
+   "name": "T-34-85 1944",
+   "type": "tank"
+  },
+  {
+   "hash": "fa003c0c3804300072007303330333003300bb003d003c019d0299063882fa42",
+   "name": "T-34-85 1944",
+   "type": "tank"
+  },
+  {
+   "hash": "f8003c0838043a00d200338233033300938059001900308398029806b906f8a2",
+   "name": "T-34-85 1944",
+   "type": "tank"
+  },
+  {
+   "hash": "dce4dec654e563e9056c0d76411641a461e7455b41e961c9c188ed35dcaccba5",
+   "name": "布良斯克游击队",
+   "type": "infantry"
+  },
+  {
+   "hash": "6f9d9f119d49bd491fa18d29af39cf399ab91c198e89ad890e907d50fd48fb28",
+   "name": "布良斯克游击队",
+   "type": "infantry"
+  },
+  {
+   "hash": "accce4aee4eceecce6ecbf0e9d4c3fa80dac8f2c8eac1dbc8f080e10fd54f936",
+   "name": "布良斯克游击队",
+   "type": "infantry"
+  },
+  {
+   "hash": "47ac4f641e629e64d7200e331e53164bd7570f63f681f6417b207e08ef46eb28",
+   "name": "步兵第 414 团",
+   "type": "infantry"
+  },
+  {
+   "hash": "ddec8fe4d9f28dfa01c283d295588957815bc1aac3c85da269ec2f64ef72fef2",
+   "name": "Sd Kfz 10 PaK 38",
+   "type": "tank"
+  },
+  {
+   "hash": "7b64cf608dda038a038c8f8495688b8047145e2ace88c7a07fd0eea8eec8da40",
+   "name": "步兵第 554 团",
+   "type": "infantry"
+  },
+  {
+   "hash": "ddec8fe4d9f28dfa29c283d295588957815bc1aac3c85da261ec2f64ef72fef2",
+   "name": "Sd Kfz 10 PaK 38",
+   "type": "tank"
+  },
+  {
+   "hash": "fd40ff203f01bb00bc10bd101708ff90ff98ff04bb20bf20be00ab807e007e40",
+   "name": "复仇",
+   "type": "countermeasure"
+  },
+  {
+   "hash": "e5dccffcb9aec1bc4796cd9ae59eb19ea98edbccf9d0e9c8afb4fdd4fbdadf58",
+   "name": "强袭",
+   "type": "order"
+  },
+  {
+   "hash": "7ddccfccb5f4ad3089668132d57d9d6efd7e9dccd5a88dbecdc8cdce3cbc3eb8",
+   "name": "复仇",
+   "type": "countermeasure"
+  },
+  {
+   "hash": "fc02b40238023840b8003f07fd03fe20fe20f484bc023483b4029c067a827a42",
+   "name": "复仇",
+   "type": "countermeasure"
+  },
+  {
+   "hash": "f762dfe0b6b286f0d65176707670ce706634f7247f447f2063807f30ff67fd45",
+   "name": "强袭",
+   "type": "order"
+  },
+  {
+   "hash": "b8023802d80218001800384798039840f000f200fa04fc033806f806e906e882",
+   "name": "步兵第 554 团",
+   "type": "infantry"
+  },
+  {
+   "hash": "4e48ebe8ffe9fb68ffe8fce97f36dfb08ad08ad09efbf5fb7f333f5133b67f55",
+   "name": "复仇",
+   "type": "countermeasure"
+  },
+  {
+   "hash": "de02be02560216009600f607f203e200f200da04f804f803ba02f006f106f802",
+   "name": "强袭",
+   "type": "order"
+  },
+  {
+   "hash": "d218700cf802d020f060b800da02bc0239025c00d883d100d904d803e206f006",
+   "name": "海军步兵第 6 旅",
+   "type": "infantry"
+  },
+  {
+   "hash": "be02be02560216003200b307f303f20032805a0098049a033e06fa06fa06fa02",
+   "name": "强袭",
+   "type": "order"
+  },
+  {
+   "hash": "d9f08ff099e083730b96cb71c3c78d0d0c1929aaaee0cdc05fc8dca0fe90fe50",
+   "name": "Sd Kfz 250/9",
+   "type": "tank"
+  },
+  {
+   "hash": "eba0cfe09be083f20724cb728387d6af843b9575d5e1e5c0afc8fbecfc4bd6a8",
+   "name": "Sd Kfz 250/9",
+   "type": "tank"
+  },
+  {
+   "hash": "f1fc8fee9db28916039e8fb9852b896bd16bffabfdaafdec7df431ee3adaf8da",
+   "name": "骑兵第十五联队",
+   "type": "infantry"
+  },
+  {
+   "hash": "ffc5ffa5ffb4ffe2ff78efd2cfe0a700e7d096789770c654e6d0ffa09f56ddc6",
+   "name": "Ju 87 B 斯图卡",
+   "type": "bomber"
+  },
+  {
+   "hash": "e3d48fc0859a83d8719cf4b2f733f7127b72bdaaabb0e9b0cfa4fdc8fe1eca1e",
+   "name": "外籍第 1 步兵团",
+   "type": "infantry"
+  },
+  {
+   "hash": "f292f6d2f6c0f6c0fd845be08fc099e28b768366e1699b2aa38ac390b9606874",
+   "name": "三号突击炮 F 型",
+   "type": "tank"
+  },
+  {
+   "hash": "df20bf003a801b901ba03be01fc0c5c49ec1fdc0f984ff04ff204dd06f18cf18",
+   "name": "骑兵第十五联队",
+   "type": "infantry"
+  },
+  {
+   "hash": "7fd7ffd77fd5ffd6ffbdfff5dfd1dec0e7a4b5e7a4e59ca58da5ffa027e8e69d",
+   "name": "Ju 87 B 斯图卡",
+   "type": "bomber"
+  },
+  {
+   "hash": "ffafff2fff2bf7aefef1fbb9cfa09bb0df28fc27feafff55fbe1fbd87fb43a39",
+   "name": "德州第 1 步兵团",
+   "type": "infantry"
+  },
+  {
+   "hash": "ee1efe94fe96de98ebd2ebf487c699e28b76857cb16d99aaa38ec3a4fd60e877",
+   "name": "三号突击炮 F 型",
+   "type": "tank"
+  },
+  {
+   "hash": "9fb95f685fc5ffd77fd5ffd6ffbcefc6dfc4a7a4b5e7bee58ca5cda466eae696",
+   "name": "Ju 87 B 斯图卡",
+   "type": "bomber"
+  },
+  {
+   "hash": "3fe37ff7bfd17ff2fff8fff8e3d0e5c0e1a4e5f7e19d7f8d7ff97f9097caf38e",
+   "name": "38(t) 坦克",
+   "type": "tank"
+  },
+  {
+   "hash": "f9fce7f881c8d5e1c5bed16ed90f8f460ddec3aac3aa51fa3dfc99ca9cdf7cc4",
+   "name": "Ju 87 B 斯图卡",
+   "type": "bomber"
+  },
+  {
+   "hash": "6ffaafe23fe33fe13ff1fff2ffe6f1f1f2f0fff1ffad7fad3fe57ff897edf3ae",
+   "name": "姬路联队",
+   "type": "infantry"
+  },
+  {
+   "hash": "ffecd7ece2c9d2c9f4ccfedafe93fe9b3e9b3eb77eda3efcbefc98ed5de87c48",
+   "name": "德州第 1 步兵团",
+   "type": "infantry"
+  },
+  {
+   "hash": "fffcfdfaf96ef067e1edfc69fe69ff4d7f1b3f753e7c7e7c3ff291fd9bcc7acf",
+   "name": "九三式装甲车",
+   "type": "tank"
+  },
+  {
+   "hash": "fec0fec0de40df40db00cb00ee60eca0eba077c07f407e207e0155815aa1cb61",
+   "name": "九三式装甲车",
+   "type": "tank"
+  },
+  {
+   "hash": "fec0fec0ef40ce00e600ee00c728e6a8e4b86e986694668866817a0136c1c681",
+   "name": "虎式坦克 H 型",
+   "type": "tank"
+  },
+  {
+   "hash": "cd60dfa096d0065206709ed5af95b7b5b9919e9337213681df84ff40f46074d1",
+   "name": "骑兵第十五联队",
+   "type": "infantry"
+  },
+  {
+   "hash": "dff5fff9f2faf2f0f9f8f964f16cf866f8437b6b397579663874b8349c7b78f3",
+   "name": "虎式坦克 H 型",
+   "type": "tank"
+  },
+  {
+   "hash": "6ffcafe23fe33fe13ff1fff2fff2f4fcf0e6f4edf52b7fb93e6c7ffa97f4f3e5",
+   "name": "骑兵第十五联队",
+   "type": "infantry"
+  },
+  {
+   "hash": "fffbfffbfaf8f8f0fce0fd64f06cf866f8e37deb3ce478e6787abd309c75716d",
+   "name": "虎式坦克 H 型",
+   "type": "tank"
+  },
+  {
+   "hash": "ff68fe10fe9cfc96fe98ff90f718afe0b994d98cfce0ed2aa9aafd90ffc459cb",
+   "name": "Bf 109 E-7 热带型",
+   "type": "fighter"
+  },
+  {
+   "hash": "7b4da5e08dd08f82d99887b8838c83068d9689aa8d8c8388c1e4d1e4c34afbcb",
+   "name": "虎式坦克 H 型",
+   "type": "tank"
+  },
+  {
+   "hash": "fc74fd67fd45fd46ffd1ffd98fc1d6625660c575c54dc7551741c782c324be2e",
+   "name": "88 毫米高射炮",
+   "type": "artillery"
+  },
+  {
+   "hash": "3fe23ff63fd2fff4ff36fdf3f1e9f2f9f5d9fcdbff2d3eb57ff13fe8977ef376",
+   "name": "第 59 装甲掷弹兵团",
+   "type": "infantry"
+  },
+  {
+   "hash": "3fd63fd43fd4fee4ff64f5f6fbf2d1f0f9b0f9dafe2e7d987ef07ed096fcf3ee",
+   "name": "第 59 装甲掷弹兵团",
+   "type": "infantry"
+  },
+  {
+   "hash": "e5cadfea9dee076017e0ce62c774f5bef492f690ffc0ffe0fba85bf8bddebfdc",
+   "name": "第 59 装甲掷弹兵团",
+   "type": "infantry"
+  },
+  {
+   "hash": "ff8eff4cff48ff4cf5c8edcadfee4fe2cf60c774f0baf692ffc0fba13bf8bfdc",
+   "name": "第 59 装甲掷弹兵团",
+   "type": "infantry"
+  },
+  {
+   "hash": "3fe77ff2bfd27ff7ff36ffb6f4f6f526fbacfe26ff267eb67eb47ffa97f6f3f6",
+   "name": "扩张",
+   "type": "order"
+  },
+  {
+   "hash": "f322f3269ec2b46194e0f4e2f5c2e452e4caf662cf42f6c2f744ffc07ad06edc",
+   "name": "扩张",
+   "type": "order"
+  },
+  {
+   "hash": "fed2fed3fc78fc72fcfafc7efd3afcb6fd3d7cb97cbe7d367f302f70a7e8e7ac",
+   "name": "三号突击炮 F 型",
+   "type": "tank"
+  },
+  {
+   "hash": "f766f7669f66a7758674f4c69d4c116c9044d764d7659e44fba4fe61fef0fee8",
+   "name": "扩张",
+   "type": "order"
+  },
+  {
+   "hash": "fc40fd60fd60fd60e644a7c49c678564f5c5944999e5e6459e41ff48fee0fee0",
+   "name": "扩张",
+   "type": "order"
+  },
+  {
+   "hash": "5aa4deccdfca8f820fc24fc273a162b962b952a95aa97341f642fa82fdf2fdc0",
+   "name": "姬路联队",
+   "type": "infantry"
+  },
+  {
+   "hash": "5ff4cff499c69df209ee8b7795cec17da96d99aa81aae3bee3ecc8ecccf0ceeb",
+   "name": "三号突击炮 F 型",
+   "type": "tank"
+  },
+  {
+   "hash": "effcfcf8fdf27a6efd66b762fff8fefa7e69376d37f873fc3e3a93f093f47be4",
+   "name": "Bf 109 E-7 热带型",
+   "type": "fighter"
+  },
+  {
+   "hash": "8bf0eff089c0a5a4915c618dfde2cde4fd2acd2ae5aae5f8e5f865e965c1f6d0",
+   "name": "Bf 109 E-7 热带型",
+   "type": "fighter"
+  },
+  {
+   "hash": "7fe8e7e089c4a994d1dcc584f5b09de4ddaa9dabddb0cff8cdcd8ceaccc3ced9",
+   "name": "Bf 109 E-7 热带型",
+   "type": "fighter"
+  },
+  {
+   "hash": "794a5fc0dad2f891ff90b7b2edeccfd499824df8ce7eb626df8c6f88bec6fa23",
+   "name": "恩尼格玛",
+   "type": "order"
+  },
+  {
+   "hash": "7bf0cff0992883780b1acb12a3305d1075047b2afbb0f5847fb0f658e31cd918",
+   "name": "九五式轻战车",
+   "type": "tank"
+  },
+  {
+   "hash": "3fe83faabfaa7feef7edef72fce4fd70f67cf7defedb3fe637e43af693f273d2",
+   "name": "恩尼格玛",
+   "type": "order"
+  },
+  {
+   "hash": "3fd17fd2bf527f93ff9ade78e66cf4aeee76f63dfde23fe877f677fa97c7f3a0",
+   "name": "九五式轻战车",
+   "type": "tank"
+  },
+  {
+   "hash": "3fd93f91bf957fddffdbdf72fee4f430f67cf72effa93f367634376a97d3f3c8",
+   "name": "恩尼格玛",
+   "type": "order"
+  },
+  {
+   "hash": "4bb48ae03fb27faa3f2a7fb2ffb5fe78fa78ecb4f66eff692e74767025c6f7a0",
+   "name": "第 432 步兵团",
+   "type": "infantry"
+  },
+  {
+   "hash": "bc96f496f496bc86ececc5c4cf1891a01df83c7e3c27398c3998efa0f6c0f338",
+   "name": "恩尼格玛",
+   "type": "order"
+  },
+  {
+   "hash": "ff41ff61fe66fd90ffd89e80ad082c040f132ad31b510e518d936f0035603c30",
+   "name": "35(t) 坦克",
+   "type": "tank"
+  },
+  {
+   "hash": "dbe28fe29da28fde099e835a956e8b2c0f2a832ac9a883885f70de70fb3cf93c",
+   "name": "秋田联队",
+   "type": "infantry"
+  },
+  {
+   "hash": "df78fe78feba74b6f4b6e436f6aefd2a7c2e3c2d3632743674ea87d8b7edf3a3",
+   "name": "秋田联队",
+   "type": "infantry"
+  },
+  {
+   "hash": "7898d3cadbc8cfd0a5928318b9b6793371337937732a61a0d3807d40fa08f918",
+   "name": "德州第 1 步兵团",
+   "type": "infantry"
+  },
+  {
+   "hash": "fa12fb10fa20ed00be00b8043a003a0096e392c1d344da42de01bd01f203f381",
+   "name": "德州第 1 步兵团",
+   "type": "infantry"
+  },
+  {
+   "hash": "45e9273c8fe63fd4bfc67fe6ffa6fdfcf9e4f160f97679c938e57a74933c7bf3",
+   "name": "35(t) 坦克",
+   "type": "tank"
+  },
+  {
+   "hash": "fdd4cfcc85928dd86b9c79b23433fc137c76fdaa73b07db06bac2f526e5a3e18",
+   "name": "第 1 步兵团",
+   "type": "infantry"
+  },
+  {
+   "hash": "7d883f987e99ffe0dfe0fef0eee4ed6cf86cf8f0f87439747b307ff0a7d4e7ac",
+   "name": "105 毫米轻型榴弹炮",
+   "type": "artillery"
+  },
+  {
+   "hash": "feb8feb8eab1fec0fec09f849cc63c820c08bc6a1d2e0daaa6cc678036e83e89",
+   "name": "35(t) 坦克",
+   "type": "tank"
+  },
+  {
+   "hash": "dda0f9c0fbb0eeb0e9a0f0b3f1dbf0caf0d37a827ac27ac36b800fc02fa0e6a8",
+   "name": "105 毫米轻型榴弹炮",
+   "type": "artillery"
+  },
+  {
+   "hash": "272475167646fd80dd806f104b9023a07727257576d767a567433b80f610e8b0",
+   "name": "第 980 国民掷弹兵团",
+   "type": "infantry"
+  },
+  {
+   "hash": "dbe2dfa21764d6640652165396ab970a86a2f692e742f743eea0fd0cfd647467",
+   "name": "105 毫米轻型榴弹炮",
+   "type": "artillery"
+  },
+  {
+   "hash": "dc98fa78f8b27822fa74fdf6fd96f8ca7cfa3ce93df879b874fa87fab7edf3a1",
+   "name": "第 980 国民掷弹兵团",
+   "type": "infantry"
+  },
+  {
+   "hash": "fef5f3f5f795e7b5e580e1d1f3d5e56d63b9219973d971b137f196cb92a473d0",
+   "name": "35(t) 坦克",
+   "type": "tank"
+  },
+  {
+   "hash": "ffe4cff499c29db609e6838395a3899c0daaa3aae3aac1b4fde4dceecececccc",
+   "name": "三号坦克 L 型",
+   "type": "tank"
+  },
+  {
+   "hash": "ffe0fbe0f2c8f3e8e188f18ef3aaf59a719239ba7dd27bb03ed486ccb7cbf3c3",
+   "name": "三号坦克 L 型",
+   "type": "tank"
+  },
+  {
+   "hash": "fff08ff499e29db609e2838395a3899e0daaa1abe3ecc394fdf4dceacec6cce6",
+   "name": "三号坦克 L 型",
+   "type": "tank"
+  },
+  {
+   "hash": "ffd1dfd09b891b580299868c8a4ca2760aa0e6a8c7a84759fbe49bb3db93c996",
+   "name": "三号坦克 L 型",
+   "type": "tank"
+  },
+  {
+   "hash": "fbdc8fe4ad5287504f887924715d5871585171aa6da06990ffa0ff3cfb147b10",
+   "name": "第 432 步兵团",
+   "type": "infantry"
+  },
+  {
+   "hash": "4fae8ee0afe47fd4bfd4ffd4ffe4fa7cf8bcfaf0ffccffd93ff87ff817ecf7a6",
+   "name": "第 432 步兵团",
+   "type": "infantry"
+  },
+  {
+   "hash": "5da48fe0bf927f32bf5eff32ffecfa78f8f0f834fef4fd733f747ef037f8f7a4",
+   "name": "38(t) 坦克",
+   "type": "tank"
+  },
+  {
+   "hash": "5f6c8dc0bfb47fb4feb4ffb4ffc8fd78fd72fcb6fc72fc787c7a7ef02fc8f746",
+   "name": "105 毫米轻型榴弹炮",
+   "type": "artillery"
+  },
+  {
+   "hash": "7522bd00f2b1d3b1d9b1d330fec0cfa0930006609aa5560d62697301fe82f660",
+   "name": "38(t) 坦克",
+   "type": "tank"
+  },
+  {
+   "hash": "edf2cfe095a209de059e83da956eab2c8d2a83aac9a88388ffa4fd66fa4792b3",
+   "name": "秋田联队",
+   "type": "infantry"
+  },
+  {
+   "hash": "fff0ff32ffb6ff74fb78fbdc8ff099d28392957ec99effaafba8fbe43fe23fd2",
+   "name": "三号坦克 J 型 晚期型",
+   "type": "tank"
+  },
+  {
+   "hash": "edf48ff4999a8bd203938f1e95fb893b7daaf9aaf9e8fdf8fde4aeea9fc397d2",
+   "name": "三号坦克 J 型 晚期型",
+   "type": "tank"
+  },
+  {
+   "hash": "2be2cfe085808bd053e07e687c6eec6ebc64d92aadaadda0fd80ba606338c274",
+   "name": "姬路联队",
+   "type": "infantry"
+  },
+  {
+   "hash": "fff4cff499b48b9403568b5c95f683b6ef1ef9767dc8fdf0fde83fccbec69594",
+   "name": "三号坦克 J 型 晚期型",
+   "type": "tank"
+  },
+  {
+   "hash": "27fd57f797ee3ffc9ffc5ffeffebfdeec7fdf2bafe9d7eb93eb53efc9cee5c78",
+   "name": "第 432 步兵团",
+   "type": "infantry"
+  },
+  {
+   "hash": "9fd83f907f94bfd0ffd0ffe0fff8fc38fc7efc36fc327c327d327c302fcce656",
+   "name": "秋田联队",
+   "type": "infantry"
+  },
+  {
+   "hash": "fe2bfea6feabfea3ffe0fea09fa097c006b00df386f1fc71f743ff809b70db24",
+   "name": "三号坦克 J 型 晚期型",
+   "type": "tank"
+  },
+  {
+   "hash": "56e0cfe09b7883780b9acb36b3b11b299d0d1f22dba01f8879a0f718eb18cd1d",
+   "name": "九五式轻战车",
+   "type": "tank"
+  },
+  {
+   "hash": "fbb5f6f0f425f0e4f36efe8bfc89fc8bf8cb3aac7df87eb83ffa93f497c573ed",
+   "name": "第 1 步兵团",
+   "type": "infantry"
+  },
+  {
+   "hash": "f5d0f540f540f580f660e7509f00d66014604567d545c5551645c700c708f248",
+   "name": "88 毫米高射炮",
+   "type": "artillery"
+  },
+  {
+   "hash": "7f69cff189c0ad8e0d0e094ec36dc169d16ab1aa89a881d0a3e4c362d3d2bb33",
+   "name": "88 毫米高射炮",
+   "type": "artillery"
+  },
+  {
+   "hash": "ff96ffb6ffb6fce7f8f68bfc89cca98e894e8969c16a91aa81b0a3e4c3c23f96",
+   "name": "88 毫米高射炮",
+   "type": "artillery"
+  },
+  {
+   "hash": "fcbafa7efab6d837f835fb3cf931f9257d8b7d5d7d787db07ffca7e6b7a6f7c6",
+   "name": "九三式装甲车",
+   "type": "tank"
+  },
+  {
+   "hash": "47498ff49934930e0b3aa7b1c391091bca4769aa29ea4df0f7e47f18fe1cbb16",
+   "name": "九三式装甲车",
+   "type": "tank"
+  },
+  {
+   "hash": "de01bc40560016001600b7809d009500f701f100f600fe405c801b805d18de08",
+   "name": "九五式轻战车",
+   "type": "tank"
+  },
+  {
+   "hash": "f77cfcf0fce4e064fceeff8bff89fdcb7ffb3fed3ff87f7c3f3697f693f57be4",
+   "name": "第 1 步兵团",
+   "type": "infantry"
+  },
+  {
+   "hash": "7f047f027f027f00fe01ff81eb81e180e380fcc3fec07b007f817f825f82cec3",
+   "name": "姬路联队",
+   "type": "infantry"
+  },
+  {
+   "hash": "fe80e688f688ee80fe045bc88fe099a083388d3883c2f12ae5b47d90fd40b990",
+   "name": "38(t) 坦克",
+   "type": "tank"
+  },
+  {
+   "hash": "5bd4cfc48dd68b4c4bcaf89cb69cfa24fe646f2a7ba077a07990f668fae4dc48",
+   "name": "第 980 国民掷弹兵团",
+   "type": "infantry"
+  },
+  {
+   "hash": "2f606b6962cc4e50fd20fc608fd4a74673ca799cf13cf96d79aafd80ec64d92c",
+   "name": "第 980 国民掷弹兵团",
+   "type": "infantry"
+  },
+  {
+   "hash": "5bb1df90cb200e20c370e449844fa66f844bc64ad741c741f900ee92d62ad632",
+   "name": "外籍第 1 步兵团",
+   "type": "infantry"
+  },
+  {
+   "hash": "e564e544dd54e464ff01dfc19e809680dce099b9b9b9bd25b781f740f6a0f8b0",
+   "name": "外籍第 1 步兵团",
+   "type": "infantry"
+  },
+  {
+   "hash": "f3d8cfc8b192839a77b8fcb6fc23f936eda7fb6aebe0fdf8fdc87fdd79163a36",
+   "name": "第 1 步兵团",
+   "type": "infantry"
+  },
+  {
+   "hash": "77d48fc4899881d8ef9ce7b2fd13fd12bd72fdaaf9b0fdf0f7acfdc8e7136711",
+   "name": "外籍第 1 步兵团",
+   "type": "infantry"
+  },
+  {
+   "hash": "33c0cfc0958aab8e032ccb2ea33aa73aa58a5516d52a5988b588ac40a5406a54",
+   "name": "搜索第三十三联队",
+   "type": "infantry"
+  },
+  {
+   "hash": "ff7afcf2f8eaf06af066fceffe6df5e57fe33fec3ff47f7c3f3a97f093f17be3",
+   "name": "搜索第三十三联队",
+   "type": "infantry"
+  },
+  {
+   "hash": "fdfaef78fd72fc32fc72fd76fdb7fd777ff33fe57ff27ff07ffcaff8b7daf556",
+   "name": "搜索第三十三联队",
+   "type": "infantry"
+  },
+  {
+   "hash": "fefafc38fc72fc32ec32f936f0b7f83773b37bb77b707f307fd0af98a748e756",
+   "name": "搜索第三十三联队",
+   "type": "infantry"
+  },
+  {
+   "hash": "cf909f90bfc03cc03d908df28d48c6a08de8cd682ec00f008f908ef0a646e565",
+   "name": "步兵第 42 团",
+   "type": "infantry"
+  },
+  {
+   "hash": "fba8efe9d775cf1d8bb9a33da36de0d7e9ad70ad8b5503d8e3d163dbe1cd7dae",
+   "name": "步兵第 42 团",
+   "type": "infantry"
+  },
+  {
+   "hash": "f7a2cfa296d19e309e7186f186fdc32df39df3519e910750c765437ec3b67b96",
+   "name": "步兵第 42 团",
+   "type": "infantry"
+  },
+  {
+   "hash": "efa0ffe8ffc0fc7afc36fd58fc98fc92fc96fcda7c927c927fd81f682f88e76e",
+   "name": "非洲军团",
+   "type": "order"
+  },
+  {
+   "hash": "fffce7f4c7a6dea4d9aac98bc5abcf97c1b341a56faa3fd69ffc8cee4ced7cf9",
+   "name": "Fw 190 A 百舌鸟",
+   "type": "fighter"
+  },
+  {
+   "hash": "bca97fb4fbf9fff9ffe9f3ecf6d8f1f2fff9dff17ff63fe47eec8fe599ed79d2",
+   "name": "鹰爪",
+   "type": "order"
+  },
+  {
+   "hash": "ff68cf74911e9987c362feb0fe3afe68fb2cffccef9cefccfdec3f29bd579eb7",
+   "name": "U-375",
+   "type": "order"
+  },
+  {
+   "hash": "ffd9f6f8f5acf46afa66ffb6ff95ffacffbe3fa23fb87db63fea97aa9794731c",
+   "name": "俯冲轰炸",
+   "type": "order"
+  },
+  {
+   "hash": "55a5594df9ccf98dcff39543a9a689c675cdf9986d8cf18cf988fdace5e6d2e6",
+   "name": "无心漫谈",
+   "type": "countermeasure"
+  },
+  {
+   "hash": "feaefd38fc7afdfafd34fc31fc73fd76fc387f737f767f347ff0afa0a674e676",
+   "name": "Fw 190 A 百舌鸟",
+   "type": "fighter"
+  },
+  {
+   "hash": "ffcccfd895b8d1747dd5fff3fe757e35fe6cffcc7fdc7dccfdc96cc96792e7ac",
+   "name": "鹰爪",
+   "type": "order"
+  },
+  {
+   "hash": "ffecffa4dfd1b279929af3c9f842f0e4f4f3fbb2fbb0fb30fbb07ea5bf5dbc5d",
+   "name": "U-375",
+   "type": "order"
+  },
+  {
+   "hash": "fff9f6f8fdacf46afbe6ffb6fe35ff2cfe363f223e387f363fea97aa9796731c",
+   "name": "俯冲轰炸",
+   "type": "order"
+  },
+  {
+   "hash": "6526598579ccfd31fd60cf52a5c289c68fc5099829acad8ced88fdb4e5a6d2e7",
+   "name": "无心漫谈",
+   "type": "countermeasure"
+  },
+  {
+   "hash": "65e8ef688d48a558d3140b128b1699248365312aa1a43190f5a0b4b48bb85b9e",
+   "name": "Fw 190 A 百舌鸟",
+   "type": "fighter"
+  },
+  {
+   "hash": "ffcdcfd9b9b8997459f4ffd2ff657f35ff65bfccbfccbdccfdf864da7785f3ad",
+   "name": "鹰爪",
+   "type": "order"
+  },
+  {
+   "hash": "5f928f783fd17fd57f55ffd5ffb8ffd88e88acc88d7496760dd56cc436d896c5",
+   "name": "如虎添翼",
+   "type": "order"
+  },
+  {
+   "hash": "5fc64f831f21bfa1bf80ff81ff817f806e80fd808d01cdc07e002c012d835c21",
+   "name": "喷烟者 42 型",
+   "type": "artillery"
+  },
+  {
+   "hash": "57ca27bc4fe95feddfadbfddfffc7df87de8fbe8ccecec6e4e4d58c84ee42fe9",
+   "name": "45 毫米反坦克炮",
+   "type": "artillery"
+  },
+  {
+   "hash": "aff23ffa7ffa3fdafff2ffefffebdff0bb3982288b1e8af6b33a33709bbacfa9",
+   "name": "如虎添翼",
+   "type": "order"
+  },
+  {
+   "hash": "4fc1bf213ea1bf80ff81ff817f806e80fd808d00cd00cdc03e002c01ad835c21",
+   "name": "喷烟者 42 型",
+   "type": "artillery"
+  },
+  {
+   "hash": "2bf54ff4dff4efd5bff6fffe3efc34f6f4fcce76ec636e372ce64e7c4e7237f1",
+   "name": "45 毫米反坦克炮",
+   "type": "artillery"
+  },
+  {
+   "hash": "3ff5bff5bfe5ffdcffd8fcf0f874ff68fb4cf96478d039583968387c9ce2f3e6",
+   "name": "伊尔-2M",
+   "type": "bomber"
+  },
+  {
+   "hash": "f7a2e76a8780d1c8c59ad52e99968384832a8f2aa98889d08390c344c3e259c4",
+   "name": "伊尔-2M",
+   "type": "bomber"
+  },
+  {
+   "hash": "bf40fe647e70ff50fe50ffc0fd80f6b0f471f4b3fd72ffc4fd62e7f47fe43a60",
+   "name": "无心漫谈",
+   "type": "countermeasure"
+  },
+  {
+   "hash": "fff5efe5ffe6fed8ffd4cf9ca7a0e740b674963486949ed497748764c770c730",
+   "name": "伊尔-2M",
+   "type": "bomber"
+  },
+  {
+   "hash": "79eae7aa91f6d5eacddad9ae999681b083aa8daabdca89dc81ecc3edc3cd9dcd",
+   "name": "伊尔-2M",
+   "type": "bomber"
+  },
+  {
+   "hash": "4391ab78bde67bf5bff57fe47fd8fcf8fcf3fd72fff37fed3fe67f7417eef7c3",
+   "name": "无心漫谈",
+   "type": "countermeasure"
+  },
+  {
+   "hash": "0d818b013ec17e407f807ec0ff80f980fd80f960fb68f9207f207b881ec3de61",
+   "name": "Fw 190 A 百舌鸟",
+   "type": "fighter"
+  },
+  {
+   "hash": "e7cccf5cb3249344c744e69c9515a714a596c58ec584af94f5909c08db245e34",
+   "name": "非洲军团",
+   "type": "order"
+  },
+  {
+   "hash": "fdd8fd3efe70ff7afd78ff32ff24fb327fb37fb23f327f323df4afc2a764e566",
+   "name": "非洲军团",
+   "type": "order"
+  },
+  {
+   "hash": "ff80f780ef00e740f740fe88fe88fec0fe40fec07e80fe8077001f025c92dc48",
+   "name": "非洲军团",
+   "type": "order"
+  },
+  {
+   "hash": "476897e03f647f669fe29f60ff60fd78fd72fc76ff367fb87e723f302f32e721",
+   "name": "步兵第 42 团",
+   "type": "infantry"
+  },
+  {
+   "hash": "f6c0f5c0f9a0fd90fdc0fd41fd61fd607d607ba17dc07da177c11f215e11da51",
+   "name": "U-375",
+   "type": "order"
+  },
+  {
+   "hash": "a390c7e48f6cd95e836e03568f5e99aa8362b90c312ab9e0f588e8b06a1c49ac",
+   "name": "三号坦克 H 型",
+   "type": "tank"
+  },
+  {
+   "hash": "fa64cf749d7e996e03d68f4e9db88363d929f12af1e8e9a8c3acfd34f6767cb4",
+   "name": "三号坦克 H 型",
+   "type": "tank"
+  },
+  {
+   "hash": "f9f8cff4913e9987c166fdb0fd2af969bb2cf5ccbdbcfdccdde09feedd94cf35",
+   "name": "U-375",
+   "type": "order"
+  },
+  {
+   "hash": "6d20f600f6003c00be201e00bb00fb21f205e204fb00fc023a01f40bf24ab463",
+   "name": "俯冲轰炸",
+   "type": "order"
+  },
+  {
+   "hash": "736c3b49b351fb61ffd0fddafd3cfd70fd38ff32ff347f307f323f54af3aeeb1",
+   "name": "KV-1 1939",
+   "type": "tank"
+  },
+  {
+   "hash": "fdf8fe7cfebcfe3afef2fff2ffd5fdc47fce2fd23ffc3d763ef887acb766f74a",
+   "name": "俯冲轰炸",
+   "type": "order"
+  },
+  {
+   "hash": "57e09eda7cda3ed97edaffd0ffd8fd36fd76feccfecd7eca7c927cd82f82ec84",
+   "name": "铁锤",
+   "type": "order"
+  },
+  {
+   "hash": "c400b020a400a400a180e600c4a483648f5e834e8d1e832ab92831c0a9302b0c",
+   "name": "三号坦克 H 型",
+   "type": "tank"
+  },
+  {
+   "hash": "ff74fcf4f96cfc78ff7afff9fef97fea77f63ff63ff67ef41e7297f493ac7bb2",
+   "name": "鹰爪",
+   "type": "order"
+  },
+  {
+   "hash": "e5e4cf34933491b4877cc67a8672a466c674c76cc78a6b82d39098c85c945cb4",
+   "name": "铁锤",
+   "type": "order"
+  },
+  {
+   "hash": "8b43cf34913493b49b7cf27aea76f266ca66cbcceb8ae390bf94de904cb82c32",
+   "name": "铁锤",
+   "type": "order"
+  },
+  {
+   "hash": "4bccaeb03f9b3fdbbfdaffd9df99feeef4aaf4fcf75a7eca36f277fc17d4f68c",
+   "name": "铁锤",
+   "type": "order"
+  },
+  {
+   "hash": "fcf8fd38fd70fc74fc70fe38fd34fd367d307c707f327f307f54af3aa4ebe6d9",
+   "name": "KV-1 1939",
+   "type": "tank"
+  },
+  {
+   "hash": "758c65887704ffc0fd80ff60fc70f8e0fce0fe70fd687e607b687fe00c60f870",
+   "name": "KV-1 1939",
+   "type": "tank"
+  },
+  {
+   "hash": "ffd7ffd4ffd67faafffefbfcf2ece3e8f0f2f8dcf2e0f9d6b1ecf2449df1db35",
+   "name": "KV-1 1939",
+   "type": "tank"
+  },
+  {
+   "hash": "695ae9596941e981ff00ff00fae0fcf0f0d0f8d1f8c0fa907f6177c15d93df91",
+   "name": "三号坦克 H 型",
+   "type": "tank"
+  }
+ ]
+}
