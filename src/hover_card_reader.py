@@ -1,5 +1,11 @@
-"""
+r"""
 hover_card_reader.py - offline hover-card recognition (M3).
+
+★ 这个 docstring 必须是 raw string(开头那个 r 前缀不能去掉):下面写着正则
+  `^N\s*K$`,而 `\s` 在普通字符串里是**无效转义序列** —— Python 会为此发
+  SyntaxWarning,并且明说以后会失效。警告本身无害,但它是**每次从压缩包解压后
+  第一次运行时**都会冒出来的(解压出来的副本没有 __pycache__),使用者看到
+  "Warning" 会以为自己装坏了。2026-09-18 从打好的 zip 里验出来的。
 
 Strategy (no fixed crop, works wherever the hover panel appears):
   The hovered card's cost badge looks like "<N>K" (or "<N> Kredits") and is

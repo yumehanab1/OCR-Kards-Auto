@@ -24,9 +24,10 @@
 ★ 它**不碰游戏、不碰鼠标**:只读日志 + 起/停子进程。跑起来的时候别用面板盖住 KARDS
   (盖住了引擎会 fail-closed 不动作,这是它本来就有的规矩)。
 
-用法:
-    .venv\\Scripts\\python.exe src\\gui.py
-    .venv\\Scripts\\python.exe src\\gui.py --debug      # 打开 WebView 的开发者工具
+用法(两种形态都行,发布包里用的是便携 Python):
+    python\\python.exe src\\gui.py                  # 发布包自带的便携 Python
+    .venv\\Scripts\\python.exe src\\gui.py          # 自己改代码时的 venv
+    python\\python.exe src\\gui.py --debug          # 打开 WebView 的开发者工具
 """
 
 from __future__ import annotations
@@ -42,6 +43,10 @@ import time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+# ★ stderr 也要:它在 Windows 上默认跟控制台代码页走,引擎的报错里有中文路径时
+#   会变成一串 \ufffd —— 那正好是最需要看清的部分。
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
 from watch_log import KEY_WORDS  # noqa: E402  (关键行只有一份,别抄第二遍)
 
@@ -74,25 +79,127 @@ def project_root() -> str:
     return cands[0]
 
 
-def engine_python() -> str:
+#: 随发布包发出去的**便携 Python** 在哪(相对项目根)。
+#  ★ 为什么必须带一个:Python 的 venv **不支持换机器** —— `pyvenv.cfg` 里写死的
+#    是建它那台机器的绝对路径(`home = C:\Python314`)。v0.1.0 的发布包把 .venv
+#    一起打了进去,于是**每个下载的人**点「开始」都立刻以 103 退出,见
+#    `explain_exit_code`。便携 Python 不是 venv:它的 `sys.prefix` 是从 exe
+#    自己的位置推出来的,解压到哪、路径带不带中文,都能跑。
+PORTABLE_PYTHON = os.path.join("python", "python.exe")
+
+#: 开发时自己建的虚拟环境,排在便携 Python 后面 —— 正式发布包里没有它。
+VENV_PYTHONS = (
+    os.path.join(".venv", "Scripts", "python.exe"),
+    os.path.join(".venv", "Scripts", "pythonw.exe"),
+    os.path.join("venv", "Scripts", "python.exe"),
+)
+
+#: `engine_python()` 上一轮为什么挑不出解释器 —— 每个元素是 (路径, 原因)。
+#  面板报错时会把这张表念给使用者听,而不是只丢一个"找不到解释器"。
+_PYTHON_DIAG: list[tuple[str, str]] = []
+
+
+def explain_exit_code(code: int | None, output: str = "") -> str:
     """
-    起引擎(`main_loop.py`)该用哪个解释器。
+    把裸的退出码翻译成"使用者看得懂、而且知道下一步做什么"的一句话。
+
+    ★ 103 单列出来,因为它是 v0.1.0 那次事故的全部内容:Windows 上 venv 里的
+      `python.exe` 只是个**重定向器**,它去执行 `pyvenv.cfg` 里 `home =` 记的那个
+      解释器;那条路径在别人机器上不存在时,它**在 import 任何东西之前**就退 103,
+      stdout/stderr 里连一行 Python 输出都没有。当时面板只显示
+      「已停止(退出码 103)」,下载的人完全无从下手 —— 现在这句话会直接显示出来。
+    """
+    blob = output or ""
+    if code == 103 or "did not find executable" in blob:
+        return ("Python 环境坏了。这份 .venv 是在别的电脑上建的,它按记下来的"
+                "绝对路径去找解释器,在你机器上找不到(退出码 103)。"
+                "把项目里的 .venv 文件夹整个删掉,再双击 install.cmd 重建一次就好。")
+    if code == 2:
+        return ("引擎拒绝了启动(退出码 2),最常见的原因是**已经有一个实例在跑**。"
+                "先确认没有残留的 python 进程,或者等它自己结束再点开始。")
+    if "ModuleNotFoundError" in blob or "ImportError" in blob:
+        m = re.search(r"No module named '([^']+)'", blob)
+        name = m.group(1) if m else "某个依赖"
+        return (f"这个 Python 里没装引擎要用的依赖({name})。"
+                "发布包自带的 python\\ 文件夹是装好的;如果你在用自己装的那个 Python,"
+                "先双击 install.cmd 把依赖装一遍。")
+    if code is None or code == 0:
+        return "引擎正常退出。"
+    return f"引擎以退出码 {code} 结束,具体原因看面板下面的日志。"
+
+
+#: 探针要 import 的东西 —— 就是引擎**真的必需**的那几个。
+#  ★ 为什么不是只跑个 `print(1)`:一个 import 不了 cv2 的 Python 对引擎毫无用处。
+#    "解释器能跑"和"它能干活"是两回事,而使用者要的是后者。少了这一层,PATH 里
+#    随便一个裸 Python 都会被当成"找到了",然后在 import 阶段炸掉 —— 那又是一次
+#    "报个看不懂的错"。所以宁可在这里判死,让他去装依赖。
+PROBE_IMPORTS = "sys,cv2,numpy,mss,win32api"
+
+#: 探针跑的那段代码。★ `print` 包在 try 里:候选里有 `pythonw.exe`,而它在没有
+#  控制台时 `sys.stdout` 可能是 `None`,直接 print 会抛异常,把"能跑的解释器"
+#  误判成坏的。版本号只是附带信息,拿不到也不该影响结论。
+_PROBE_CODE = (
+    "import sys\n"
+    f"import {PROBE_IMPORTS}\n"
+    "try:\n"
+    "    print(sys.version.split()[0])\n"
+    "except Exception:\n"
+    "    pass\n"
+)
+
+
+def python_probe(py: str, timeout: float = 30.0) -> tuple[bool, str]:
+    """
+    这个解释器**真的能用**吗?返回 (能不能用, 一句话说明)。
+
+    ★ 两道关,少一道都会被坑:
+      1. 文件在 ≠ 能跑 —— venv 的 `python.exe` 只是个重定向器,它指向的基础
+         解释器一没,文件还在、一跑就退 103(v0.1.0 的事故);
+      2. 能跑 ≠ 能干活 —— 一个没装 cv2 的裸 Python 跑 `print(1)` 完全没问题,
+         但它跑不了引擎(见 `PROBE_IMPORTS`)。
+    """
+    flags = getattr(subprocess, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0
+    try:
+        r = subprocess.run([py, "-c", _PROBE_CODE],
+                           capture_output=True, text=True, timeout=timeout,
+                           creationflags=flags)
+    except Exception as e:
+        return False, f"{type(e).__name__}: {e}"
+    if r.returncode == 0:
+        return True, (r.stdout or "").strip() or "可以运行"
+    return False, explain_exit_code(r.returncode, (r.stderr or "") + (r.stdout or ""))
+
+
+def engine_python() -> str | None:
+    """
+    起引擎(`main_loop.py`)该用哪个解释器。一个能用的都没有时返回 `None`,
+    原因记在 `_PYTHON_DIAG` 里。
 
     ★ 冻结成 exe 之后 `sys.executable` 是**那个 exe 自己**,不是 python ——
       直接拿它去跑 main_loop 会变成"用面板 exe 去执行一个 .py",必然失败。
-      所以冻结形态下要找**项目自带的解释器**(`.venv\\Scripts\\python.exe`);
       开发形态下就是当前解释器(原行为不变)。
+
+    ★ 每一档都**真跑一次探针**,不是看文件在不在。坏的那档跳过、继续往下找 ——
+      这样"某个 .venv 是从别的机器拷来的"不至于让面板整个用不了,
+      而且使用者能拿到一条明确的出路(装过 Python 的话就走 PATH 里那个)。
     """
     if not getattr(sys, "frozen", False):
         return sys.executable
-    for rel in (os.path.join(".venv", "Scripts", "python.exe"),
-                os.path.join(".venv", "Scripts", "pythonw.exe"),
-                os.path.join("venv", "Scripts", "python.exe")):
-        p = os.path.join(PROJECT_ROOT, rel)
-        if os.path.exists(p):
-            return p
+
+    cands = [os.path.join(PROJECT_ROOT, PORTABLE_PYTHON)]
+    cands += [os.path.join(PROJECT_ROOT, r) for r in VENV_PYTHONS]
     from shutil import which
-    return which("python") or which("pythonw") or sys.executable
+    cands += [w for w in (which("python"), which("pythonw")) if w]
+
+    _PYTHON_DIAG.clear()
+    for c in cands:
+        if not os.path.exists(c):
+            continue
+        ok, why = python_probe(c)
+        if ok:
+            return c
+        _PYTHON_DIAG.append((c, why))
+    return None
 
 
 PROJECT_ROOT = project_root()
@@ -342,6 +449,9 @@ class Api:
             "error": self.error,
             "exit_code": (None if running or self.proc is None
                           else self.proc.returncode),
+            # 鼠标停在小圆点上时把退出码翻译成人话(v0.1.0 只显示一个裸数字)
+            "exit_hint": ("" if running or self.proc is None
+                          else explain_exit_code(self.proc.returncode)),
         }
 
     # ---- 开关控制 ----
@@ -352,12 +462,16 @@ class Api:
         if not argv:
             return {"ok": False, "msg": "一个功能都没勾 —— 至少勾一个再开始"}
         os.makedirs(LOG_DIR, exist_ok=True)
-        py = engine_python()
         if not os.path.exists(MAIN_LOOP):
             return {"ok": False, "msg": f"找不到引擎脚本:{MAIN_LOOP}"}
-        if not os.path.exists(py):
-            return {"ok": False, "msg": f"找不到解释器:{py}"
-                                        f"(面板 exe 需要项目里的 .venv)"}
+        py = engine_python()
+        if py is None:
+            detail = "\n".join(f"  · {p}\n      {why}" for p, why in _PYTHON_DIAG) \
+                     or "  · 一个 Python 都没找到"
+            self.error = ("找不到能用的 Python 解释器。试过这些:\n" + detail +
+                          "\n\n发布包里本该自带一个 python\\ 文件夹(便携 Python);"
+                          "如果项目里有 .venv,把它整个删掉再跑一次 install.cmd。")
+            return {"ok": False, "msg": self.error}
         cmd = [py, "-u", MAIN_LOOP] + argv
         flags = 0
         if os.name == "nt":
@@ -372,6 +486,22 @@ class Api:
             self.started_at = time.time()
             self.error = None
             self.last_opts = {"argv": argv, **{k: bool(v) for k, v in (opts or {}).items()}}
+
+            # ★ 起来之后**等一下再看它死没死**。
+            #   引擎正常跑起来要好几秒才写第一行日志,而解释器坏掉、或者脚本在
+            #   import 阶段就炸,都是**毫秒级**退出。v0.1.0 没有这一步,使用者看到
+            #   的是"点开始后立刻停止(退出码 103)",一个字的上下文都没有 ——
+            #   明明 gui_run.log 里就躺着 `did not find executable at '...'`。
+            #   ★ 1.2 秒足够区分这两种情况:能跑的解释器在这段时间里绝不会退出。
+            time.sleep(1.2)
+            rc = self.proc.poll()
+            if rc is not None:
+                tail = tail_lines(GUI_RUN_LOG, 40)
+                self.error = (f"启动失败(退出码 {rc})。"
+                              + explain_exit_code(rc, "\n".join(tail)))
+                return {"ok": False, "msg": self.error, "exit_code": rc,
+                        "argv": argv, "log_tail": tail[-12:]}
+
             return {"ok": True, "msg": f"已启动 pid={self.proc.pid}",
                     "argv": argv}
         except Exception as e:
@@ -571,6 +701,8 @@ function render(s){
   const run = s.running;
   $('#pill').className = 'pill ' + (run?'run':'idle');
   $('#pilltxt').textContent = run ? `运行中 pid=${s.pid}` : (s.exit_code===null?'空闲':`已停止(退出码 ${s.exit_code})`);
+  // 退出码本身说明不了什么(103 尤其),把翻译好的那句话挂成悬停提示
+  $('#pill').title = (!run && s.exit_hint) ? s.exit_hint : '';
   $('#btnStart').disabled = run; $('#btnStop').disabled = !run;
   $('#ver').textContent = 'v' + s.version;
   $('#elapsed').textContent = run && s.elapsed!=null ? (s.elapsed+'s') : '—';
@@ -611,7 +743,8 @@ window.addEventListener('pywebviewready', async ()=>{
     for(const sw of document.querySelectorAll('#switches input'))
       opts[sw.id.slice(3)] = sw.checked;
     const r = await window.pywebview.api.start(opts);
-    toast(r.ok ? ('已启动:'+r.argv.join(' ')) : r.msg); poll();
+    // 启动失败时那条消息是要人读的(可能两三行、还带操作步骤),3.2 秒根本看不完
+    toast(r.ok ? ('已启动:'+r.argv.join(' ')) : r.msg, r.ok ? 3200 : 12000); poll();
   };
   $('#btnStop').onclick = async ()=>{ const r = await window.pywebview.api.stop(); toast(r.msg); poll(); };
   $('#btnUpdate').onclick = async ()=>{ const r = await window.pywebview.api.check_update();
@@ -652,14 +785,22 @@ def main() -> int:
         # ★ 打包成 exe 之后没有控制台,`print` 看不见 —— 所以把结论**写文件**,
         #   外面读 `logs/gui_selftest.txt` 就能验"exe 内部找的路径对不对"。
         os.makedirs(LOG_DIR, exist_ok=True)
+        eng = engine_python()        # 只挑一次 —— 每次挑都要真跑探针,不便宜
         info = {
             "frozen": bool(getattr(sys, "frozen", False)),
             "exe": os.path.abspath(sys.executable),
             "project_root": PROJECT_ROOT,
             "main_loop": MAIN_LOOP,
             "main_loop_exists": os.path.exists(MAIN_LOOP),
-            "engine_python": engine_python(),
-            "engine_python_exists": os.path.exists(engine_python()),
+            # ★ 这里以前是 `engine_python_exists: os.path.exists(...)`,而它正是
+            #   v0.1.0 漏掉 103 的原因:文件在 ≠ 它能跑。probe 才是真结论。
+            "engine_python": eng,
+            "engine_python_probe": (python_probe(eng) if eng
+                                    else (False, "一个能用的都没有")),
+            "engine_python_diag": [list(d) for d in _PYTHON_DIAG],
+            "portable_python": os.path.join(PROJECT_ROOT, PORTABLE_PYTHON),
+            "portable_python_exists": os.path.exists(
+                os.path.join(PROJECT_ROOT, PORTABLE_PYTHON)),
             "log": LOG,
             "log_exists": os.path.exists(LOG),
             "version": read_version(),

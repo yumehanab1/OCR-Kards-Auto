@@ -65,6 +65,14 @@ if "%USEMIRROR%"=="1"  echo     下载源: 清华镜像
 if "%USEMIRROR%"=="0"  echo     下载源: PyPI 官方
 echo.
 
+rem 发布包里自带一份便携 Python,它要是有用就什么都不用装。
+rem 先试一下再决定 —— 别假设"文件在"就等于"能用"。
+if exist "python\python.exe" (
+    "python\python.exe" -c "import cv2,numpy,mss,win32api" >nul 2>nul
+    if not errorlevel 1 goto :portableok
+    echo     自带的便携 Python 跑不起来,继续走下面的安装流程
+)
+
 rem ---------------------------------------------------------------------------
 rem  1) 找 Python
 rem ---------------------------------------------------------------------------
@@ -99,7 +107,16 @@ rem ---------------------------------------------------------------------------
 echo.
 echo   [2/4] 准备 .venv ...
 
-if exist ".venv\Scripts\python.exe" goto :venvok
+rem ★ 判据不能只看文件在不在。venv 从别的机器拷过来的时候,`python.exe` 这个
+rem   文件还在,但它按 pyvenv.cfg 里记的**绝对路径**去找基础解释器,找不到就
+rem   一跑退 103 —— v0.1.0 的发布包就是这么坑人的。所以这里真跑一次,
+rem   跑不动就删掉重建。
+if exist ".venv\Scripts\python.exe" (
+    ".venv\Scripts\python.exe" -c "import sys" >nul 2>nul
+    if not errorlevel 1 goto :venvok
+    echo         已有的 .venv 跑不起来,多半是从别的电脑拷过来的,重建
+    rmdir /s /q .venv
+)
 
 echo         正在创建,这一步大概十几秒 ...
 %PYEXE% -m venv .venv
@@ -193,8 +210,22 @@ exit /b 0
 
 
 rem ===========================================================================
-rem  出错分支
+rem  结束 / 出错分支
 rem ===========================================================================
+
+:portableok
+echo.
+echo   ==========================================================
+echo     项目里自带的便携 Python 就是好的,什么都不用装
+echo   ==========================================================
+echo.
+echo     下一步:
+echo       - 打开 KARDS,停在主界面
+echo       - 双击 KARDS AUTO.exe,点面板上的开始
+echo.
+pause
+exit /b 0
+
 
 :nopython
 echo.

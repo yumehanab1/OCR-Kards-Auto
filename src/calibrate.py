@@ -28,6 +28,7 @@ import os
 import sys
 
 import cv2
+import cv_io  # noqa: F401  (开关:让 cv2 认中文路径,见 cv_io.py)
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from win import set_dpi_aware  # noqa: E402

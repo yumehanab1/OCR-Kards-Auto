@@ -1,12 +1,21 @@
-# 不提交 Python 运行环境。
+# 不提交 Python 运行环境。两份都不进 git：
 #
-# 这个目录 264 MB、8665 个文件，而且全是二进制。放进 git 之后，每次改代码都会
-# 产生巨大的 diff，别人 clone 也要等好几分钟。
+#   .venv\   开发时自己用的虚拟环境。它依赖建它时的绝对路径（pyvenv.cfg 里
+#            写着 home = C:\Python314），换台机器就废 —— 所以它从来不该被打进
+#            发布包，见下面 python\ 那条。
 #
-# 完整能跑的那一份（含 .venv 和 exe）是打包成 zip 放在 GitHub Releases 里的，
-# 想直接用的去那里下载；想自己搭环境的看 requirements.txt。
+#   python\  随发布包发出去的便携 Python，约 300 MB、9000 个文件，全是二进制。
+#            它是面板 exe 和引擎真正用的解释器，路径全相对、解压即用。
+#
+# 两者都是几百 MB 的二进制，进了 git 之后每次改代码都会产生巨大的 diff，
+# 别人 clone 也要等好几分钟。完整能跑的那一份（含 python\ 和 exe）打包成 zip
+# 放在 GitHub Releases 里，想直接用的去那里下载；想自己搭环境看 requirements.txt。
+#
+# ★ 用 /python/ 而不是 python/：只挡仓库根目录下这一个，别误伤 src\ 里
+#   万一以后出现的同名目录。
 .venv/
 venv/
+/python/
 
 # 运行日志。每跑一次就变，内容也没什么共享价值。
 # 保留目录本身（git 不追踪空目录，所以放了个 .gitkeep 占位）。

@@ -65,6 +65,7 @@ import sys
 import time
 
 import cv2
+import cv_io  # noqa: F401  (开关:让 cv2 认中文路径,见 cv_io.py)
 import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))

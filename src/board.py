@@ -30,6 +30,7 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 import cv2
+import cv_io  # noqa: F401  (开关:让 cv2 认中文路径,见 cv_io.py)
 import numpy as np
 
 import hq_hp          # ★ 总部血量盾牌读取(纯图像处理,见 hq_hp.py 文件头)

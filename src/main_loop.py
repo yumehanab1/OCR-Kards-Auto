@@ -35,7 +35,12 @@ import win32gui
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+# ★ 别漏了 stderr:Windows 上它默认跟着控制台代码页(936)。中文路径一旦进了
+#   traceback,写出来就是一串 \ufffd,使用者拿到的报错等于没有信息。
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
+import cv_io  # noqa: E402,F401  (开关:让 cv2 认中文路径,见 cv_io.py)
 from actions import click  # noqa: E402
 from turn_engine import END_TURN_MIN_SCORE, TurnEngine  # noqa: E402
 from ui_state import classify, load_meta, load_states, load_templates, match_one  # noqa: E402
