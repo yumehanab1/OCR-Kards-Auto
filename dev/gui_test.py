@@ -12,6 +12,7 @@
 
 from __future__ import annotations
 
+import inspect
 import os
 import sys
 import tempfile
@@ -135,12 +136,40 @@ def main() -> int:
     check(not (getattr(sys, "frozen", False) and py == sys.executable),
           "冻结时不许拿面板 exe 去执行 main_loop.py(那是必崩的写法)")
 
-    print("\n⑤ 版本文件与更新入口(不假装能更新)")
+    print("\n⑤ 版本文件与更新入口(★ 不许假装能更新)")
     v = gui.read_version()
     check(isinstance(v.get("version"), str) and v["version"],
           f"读得到本地版本:实得 {v}")
     check(v.get("update_url") == "",
-          "更新源现在是空的 —— 面板必须**如实**说『还没配』,不许假装能更新")
+          "update_url 留空 = 用默认的 GitHub 更新源(2026-09-19 起;"
+          "以前留空代表『没机制』,那句『更新源还没配置』已经删掉了)")
+    # ★★★ 2026-09-19:面板必须**真的**走 update_check,而且"查不到"与"已是最新"
+    #   必须是两件事 —— 把查不到说成已是最新就是骗人(update_check_test 里有全套分支)。
+    _src = inspect.getsource(gui.Api.check_update)
+    check("还没配置" not in _src and "update_check.check" in _src,
+          "面板真的去查了(那句『更新源还没配置』必须消失)")
+    # ★★★ 2026-09-19(v0.1.3):**带 BOM 的配置文件也必须读得出来**。
+    #   实测踩到:PowerShell 的 `Set-Content -Encoding UTF8` 会写 BOM,
+    #   而 `encoding="utf-8"` 读它会抛异常 -> 被 except 吞掉 -> 版本静默变 0.0.0。
+    #   以前只是显示难看,现在版本号要拿去比大小了,静默变 0.0.0 = "永远提示有新版本"。
+    with tempfile.TemporaryDirectory() as d:
+        keep = gui.VERSION_FILE
+        p = os.path.join(d, "app_version.json")
+        with open(p, "wb") as f:                      # 手写 BOM,复现真实场景
+            f.write("\ufeff".encode("utf-8")
+                    + b'{"version": "0.9.9", "update_url": ""}')
+        gui.VERSION_FILE = p
+        try:
+            v2 = gui.read_version()
+            check(v2.get("version") == "0.9.9",
+                  f"★ 带 BOM 的版本文件也读得出(不许静默变 0.0.0):实得 {v2}")
+        finally:
+            gui.VERSION_FILE = keep
+    _r = gui.update_check.check("9.9.9", _fetch=lambda u, t: (0, b""))
+    check(_r["ok"] is False and "已是最新" not in _r["msg"],
+          f"★ 查不到时不许说『已是最新』:实得 {_r['msg'][:40]}")
+    check(hasattr(gui.Api, "open_release"),
+          "有『打开发布页』这个入口(查到新版后按钮第二次点用它)")
 
     print("\n⑥ 窗口几何记忆(用户手动拖过窗口,不要每次重拖)")
     with tempfile.TemporaryDirectory() as d:

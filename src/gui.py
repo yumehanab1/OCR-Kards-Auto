@@ -49,6 +49,7 @@ if hasattr(sys.stderr, "reconfigure"):
     sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
 from watch_log import KEY_WORDS  # noqa: E402  (关键行只有一份,别抄第二遍)
+import update_check  # noqa: E402  (只依赖标准库,用例 import 本模块时不需要联网)
 
 
 def project_root() -> str:
@@ -352,8 +353,21 @@ def build_argv(opts: dict) -> list[str]:
 
 
 def read_version() -> dict:
+    """
+    读 `config/app_version.json`。
+
+    ★★★ 2026-09-19(v0.1.3):必须用 **utf-8-sig** 读。
+      这个文件是**给人改的**,而 Windows 上的记事本 / PowerShell 的
+      `Set-Content -Encoding UTF8` 都会在开头写一个 **BOM**(EF BB BF)。
+      用 `encoding="utf-8"` 读的话,`json.load` 会抛异常 -> 被下面那个
+      `except` 吞掉 -> 版本号静默变成 **"0.0.0"**。
+      以前这只是"面板上显示个 0.0.0",无所谓;现在版本号是**功能**了
+      (检测更新拿它比大小),再静默变 0.0.0 就会变成"永远提示有新版本"。
+      实测就踩到了:自检文件里写着 `版本: 0.0.0`,而文件里明明是 0.1.3。
+      `utf-8-sig` 有 BOM 就吃掉、没有也照读,两种都安全。
+    """
     try:
-        with open(VERSION_FILE, "r", encoding="utf-8") as f:
+        with open(VERSION_FILE, "r", encoding="utf-8-sig") as f:
             return json.load(f)
     except Exception:
         return {"version": "0.0.0", "update_url": ""}
@@ -526,17 +540,37 @@ class Api:
     # ---- 检测更新 ----
     def check_update(self) -> dict:
         """
-        ★ 现在**只报本地版本**:本项目还不是 git 仓库,"更新源"没定
-          (2026-09-15 记进 PROJECT_STATE 的那个待定问题),所以这里**不假装**能更新。
+        ★★ 2026-09-19(v0.1.2):**真去查了**。
+
+        v0.1.0~v0.1.1 这里写的是"项目不是 git 仓库,更新源没定,所以不假装能更新" ——
+        那是诚实,但等于没这功能。现在项目在 GitHub 上有 Release 了,机制定了:
+        查 `releases/latest`,和 `config/app_version.json` 里的版本号比。
+
+        ★ 三条纪律照抄 `update_check` 里的:查不到就说查不到(不许说成"已是最新")、
+        **不自动装**(130 MB 的便携目录,替换正在运行的自己会换个坏包出来)、
+        纯逻辑离线可测。
+        ★ `update_url` 仍然有用:填了就用填的那个地址(别的地方发的包也能查)。
         """
         ver = read_version()
-        url = (ver.get("update_url") or "").strip()
-        if not url:
-            return {"ok": False, "version": ver.get("version", "?"),
-                    "msg": "本地版本 " + str(ver.get("version", "?"))
-                           + " —— 更新源还没配置(项目不是 git 仓库,机制待定)"}
-        return {"ok": False, "version": ver.get("version", "?"),
-                "msg": f"更新源已配 {url},但检查逻辑还没实现(下一步)"}
+        local = str(ver.get("version") or "0.0.0")
+        r = update_check.check(local, ver.get("update_url"))
+        # 记住发布页地址:第二次点按钮就是"打开发布页"(用系统默认浏览器)
+        self._release_url = r.get("url") or update_check.RELEASES_PAGE
+        self._has_update = bool(r.get("has_update"))
+        return dict(r, version=local)
+
+    def open_release(self) -> dict:
+        """用系统默认浏览器打开发布页(面板自己不去下载、更不去替换自己)。"""
+        url = getattr(self, "_release_url", "") or update_check.RELEASES_PAGE
+        try:
+            import webbrowser
+            ok = webbrowser.open(url)
+        except Exception as e:                      # 打不开也要把地址给出来
+            return {"ok": False, "msg": f"打不开浏览器({type(e).__name__}: {e})。"
+                                        f"地址:{url}"}
+        if not ok:
+            return {"ok": False, "msg": f"系统没接住这个链接。地址:{url}"}
+        return {"ok": True, "msg": f"已用浏览器打开:{url}"}
 
 
 HTML = r"""<!doctype html>
@@ -683,6 +717,7 @@ HTML = r"""<!doctype html>
 <div class="toast" id="toast"></div>
 <script>
 let onlyKey = false, autoscroll = true, lastLen = -1;
+let updUrl = '';   // 查到新版本后存发布页地址,按钮第二次点就是打开它
 const $ = s => document.querySelector(s);
 function toast(msg, ms=3200){ const t=$('#toast'); t.textContent=msg; t.classList.add('show');
   clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('show'), ms); }
@@ -747,8 +782,13 @@ window.addEventListener('pywebviewready', async ()=>{
     toast(r.ok ? ('已启动:'+r.argv.join(' ')) : r.msg, r.ok ? 3200 : 12000); poll();
   };
   $('#btnStop').onclick = async ()=>{ const r = await window.pywebview.api.stop(); toast(r.msg); poll(); };
-  $('#btnUpdate').onclick = async ()=>{ const r = await window.pywebview.api.check_update();
-    toast(`v${r.version} · ${r.msg}`, 5200); };
+  $('#btnUpdate').onclick = async ()=>{
+    // 第二次点 = 打开发布页(第一次查完之后 JS 把按钮文字改掉了)
+    if (updUrl) { const r = await window.pywebview.api.open_release(); toast(r.msg, 7000); return; }
+    const r = await window.pywebview.api.check_update();
+    toast(r.msg, r.ok ? 7000 : 11000);       // 查不到/要人照做的消息留久一点
+    if (r.has_update && r.url) { updUrl = r.url; $('#btnUpdate').textContent = '打开发布页'; }
+  };
   $('#btnKey').onclick = ()=>{ onlyKey=!onlyKey; lastLen=-1;
     $('#btnKey').textContent = onlyKey?'看全部':'只看关键行'; poll(); };
   $('#btnBottom').onclick = ()=>{ autoscroll=true; $('#log').scrollTop=$('#log').scrollHeight; };
@@ -804,6 +844,14 @@ def main() -> int:
             "log": LOG,
             "log_exists": os.path.exists(LOG),
             "version": read_version(),
+            # ★★ 2026-09-19(v0.1.3):把"更新检测这次真的打进 exe 了"写进自检里。
+            #   为什么非要这一条:面板是 **onefile exe**,`gui.py` 是**编进去**的 ——
+            #   改了 gui.py 不重打包,用户那边看到的还是旧面板(新功能等于没发)。
+            #   而"没生效"和"生效了但网络不通"在界面上长得一样。
+            #   ⇒ 自检里写死一个只有新代码才有的字段,`--selftest` 一跑就知道。
+            "update_check": {"api": update_check.DEFAULT_API,
+                             "feed": update_check.DEFAULT_FEED,
+                             "timeout": update_check.TIMEOUT},
             "argv": build_argv({"play": True, "attack": True, "max_rounds": "3"}),
         }
         with open(os.path.join(LOG_DIR, "gui_selftest.txt"), "w",
