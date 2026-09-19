@@ -81,7 +81,7 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--q", required=True, help="search query (name)")
     ap.add_argument("--lang", default="zh")
-    ap.add_argument("--out", default="card_db_test")
+    ap.add_argument("--out", default="card_db")
     ap.add_argument("--download", action="store_true", help="also download images")
     args = ap.parse_args()
     os.makedirs(args.out, exist_ok=True)

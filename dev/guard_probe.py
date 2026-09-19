@@ -8,7 +8,7 @@ guard_probe.py - 只读预检:把战场帧上**每一张卡**裁出来放大存�
     **必须先把那个单位打掉**才能打总部 —— 而现在的 `_pick_target` 不看这条,
     于是每个单位每回合白拖一次(第 7 局:fighter×4 + infantry×2 全部"没打中",
     只有 artillery×3 打得进去)。
-  · 卡库里**有**这个特性:`card_db_test/kards_data.json` 的 `attributes`
+  · 卡库里**有**这个特性:`card_db/kards_data.json` 的 `attributes`
     里就是 `["ambush","guard",...]`(实测 122 张卡带 guard)。
     但那是"**认得出卡名**"才用得上 —— 盘面上的敌方卡我们**不读名字**。
   · §7 第 67 条记过一条线索:**卡面上那个盾牌图标 = 守护**(我当时把它当成了费用徽章)。

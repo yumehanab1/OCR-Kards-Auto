@@ -21,9 +21,9 @@ import cv2
 import numpy as np
 
 from actions import cursor_moved_from, set_cursor, set_cursor_checked
-from card_match import (CardHashDB, card_by_name, crop_card_name_band, dhash,
-                        hash_to_hex, load_db as load_card_db, match_name,
-                        read_cost_badge)
+from card_match import (DATA_JSON, CardHashDB, card_by_name,
+                        crop_card_name_band, dhash, hash_to_hex,
+                        load_db as load_card_db, match_name, read_cost_badge)
 from hover_card_reader import _ocr
 from ui_state import match_one
 from win import capture_client_bgr, client_to_screen
@@ -185,8 +185,8 @@ NAME_OCR_WINDOW = True
 # 放在这里是为了让 `_probe_layout_until` 能独立判断"这张能不能出"。
 DEPLOYABLE_TYPES = {"infantry", "tank", "fighter", "bomber", "artillery"}
 
-DATA_JSON = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                         "card_db_test", "kards_data.json")
+# 卡库路径统一由 card_match 解析(2026-09-19 起目录名是 card_db\,旧名字兜底)——
+# 这里不再自己拼一份:两处各写一个路径,改目录名时必漏一处。
 # 放大卡指纹库:卡名 OCR 读不出时用它认卡(见 card_match.CardHashDB)。
 # 扫描时顺手学习"卡名读出来了"的那些指纹,越跑越准。
 HASH_DB_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),

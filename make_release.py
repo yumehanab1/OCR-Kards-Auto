@@ -113,7 +113,7 @@ def main() -> int:
                 #   -> 一局里好几个回合**一张牌没出**(实机 0919 那一局
                 #      第 1/2/4/6 回合都是 0 次尝试)。
                 #   所以把它加进"缺了就报"的清单。
-                f"{BASE}/card_db_test/kards_data.json",
+                f"{BASE}/card_db/kards_data.json",
                 # ★★★ 2026-09-19(v0.1.5):**同一类坑的第二次。**
                 #   费用数字模板原来在 `shots/kredits/samples_r1/` 下,而 `shots`
                 #   在 SKIP_DIRS 里 -> 每个发布包都载入 0 个模板 -> 费用永远读不出
@@ -128,8 +128,21 @@ def main() -> int:
         if not problems:
             print(f"    [OK] {len(names)} 个条目,结构、关键文件、该排掉的都排掉了")
 
+    if problems:
+        # ★ 自检没过就把产出**改名**,让它不可能被顺手传上 Release。
+        #   历史上有两次事故都是"发布包少文件、引擎静默变笨"(v0.1.2 漏卡库、
+        #   v0.1.5 漏费用数字模板),而当时的自检只是打印一行 [!!] 就继续往下走了。
+        bad = out[:-4] + "_SELFTEST_FAILED.zip" if out.endswith(".zip") else out + ".FAILED"
+        if os.path.exists(bad):
+            os.remove(bad)
+        os.replace(out, bad)
+        print(f"\n  ⚠️ 自检没过({len(problems)} 项)—— 产出已改名,**别发这个包**:")
+        print(f"     {bad}")
+        return 1
+
     print("\n  下一步:到 GitHub 上新建 Release,把上面那个 zip 传成附件。")
-    return 1 if problems else 0
+    print("  ★ 传之前把包解压到一个空目录再验一次:版本号 / 卡库张数 / 费用数字模板 10/10。")
+    return 0
 
 
 if __name__ == "__main__":

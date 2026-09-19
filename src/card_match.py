@@ -47,7 +47,30 @@ import cv2
 import numpy as np
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DATA_JSON = os.path.join(PROJECT_ROOT, "card_db_test", "kards_data.json")
+
+#: 卡库目录名。★★ 2026-09-19(issue #1):这个目录原来叫 `card_db_test\`,
+#:   容易让人以为是可以删的测试夹具 —— 而它装的是**运行时必需**的文件
+#:   (本模块 / hand_scanner_v2 / hover_card_reader 都读它,make_release.py 的
+#:   自检也要求它随包发)。v0.1.2 那次事故正是发布包漏了它:引擎不报错,
+#:   只是"卡名 -> 费用"整条路悄悄失效 -> 整局不出牌。
+#:   ⇒ 改名成 `card_db\`;**旧名字保留作兜底**,免得"代码更新了、目录没跟着改"
+#:   的场合直接失效(实机副本、老发布包都可能是旧的目录布局)。
+CARD_DB_DIR_NAMES = ("card_db", "card_db_test")
+
+
+def card_db_path() -> str:
+    """卡库文件的实际路径:先找新目录名,找不到再退回旧目录名。
+
+    两个都没有时返回**新名字**那个路径 —— 这样报错信息里给的是"文件应该在哪"。
+    """
+    for name in CARD_DB_DIR_NAMES:
+        p = os.path.join(PROJECT_ROOT, name, "kards_data.json")
+        if os.path.exists(p):
+            return p
+    return os.path.join(PROJECT_ROOT, CARD_DB_DIR_NAMES[0], "kards_data.json")
+
+
+DATA_JSON = card_db_path()
 HASH_DB = os.path.join(PROJECT_ROOT, "config", "card_hashes.json")
 
 # 装饰字符:OCR 会把卡面装饰、分隔符、罗马数字角标读进来。
@@ -172,7 +195,7 @@ def db_status() -> str:
 
     ★ 为什么要专门做这件事:这个故障**不报错、不崩、只是每张牌都少一条判据**。
       2026-09-19 实机那一局就是这么过去的:发布包里漏了
-      `card_db_test/kards_data.json`,于是 `match_name()` 永远返回 None,
+      `card_db/kards_data.json`,于是 `match_name()` 永远返回 None,
       费用只剩"徽章 OCR"这一条**本来就不稳**的兜底路 -> 大部分牌 cost=None
       -> 惰性扫描认为"一张都出不起" -> 第 1/2/4/6 回合一张牌没出。
       日志里只有一行 `识别依据[... **卡名没读出**]`,看不出是"卡库没载入"。

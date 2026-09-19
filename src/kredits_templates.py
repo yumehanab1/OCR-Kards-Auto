@@ -150,7 +150,7 @@ def status() -> str:
     ★ 为什么要专门做这件事:`shots/` **不进发布包**,而这套模板原来就放在
       `shots/kredits/samples_r1/` 下 —— 于是**每一个发布包**都载入 0 个模板,
       费用永远读不出,而日志里只有"有字拒识"这四个字,指不到"模板没随包发"。
-      这和卡库那次(card_db_test 缺失)是同一类:**引擎不报错,只是悄悄变笨。**
+      这和卡库那次(card_db 缺失)是同一类:**引擎不报错,只是悄悄变笨。**
     """
     bank = build_templates()
     n = sum(len(v) for v in bank.values())

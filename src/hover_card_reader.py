@@ -29,8 +29,10 @@ import re
 
 import cv2
 
+from card_match import DATA_JSON      # 卡库路径统一在 card_match 里解析
+                                      # (2026-09-19 起目录名是 card_db\,旧名字兜底)
+
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DATA_JSON = os.path.join(PROJECT_ROOT, "card_db_test", "kards_data.json")
 
 _NAME_SET = None
 _NAME_LIST = None

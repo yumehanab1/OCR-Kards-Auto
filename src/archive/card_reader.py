@@ -23,7 +23,7 @@ import cv2
 
 DATA_JSON = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-    "card_db_test", "kards_data.json",
+    "card_db", "kards_data.json",
 )
 
 # name candidates built lazily from data.json (zh-Hans titles)
