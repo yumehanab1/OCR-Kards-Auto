@@ -594,15 +594,19 @@ def main() -> int:
     if not args.allow_multi_instance:
         locked, why = acquire_single_instance_lock()
         if not locked:
-            if why == "held-by-other":
-                log("❌ 已经有一个 main_loop 在跑了 —— 拒绝启动第二个实例。")
+            # ★ 2026-09-19(v0.1.6):`why` 现在可能带着"占用者是谁"的说明
+            #   (`held-by-other|占用者 PID=1234(还在跑)…`),所以**不能再用等号判**。
+            if why.startswith("held-by-other"):
+                _note = why.split("|", 1)[1] if "|" in why else ""
+                log("❌ 已经有一个 main_loop 在跑了 —— 拒绝启动第二个实例。"
+                    + (f"\n   {_note}" if _note else ""))
             else:
                 log(f"❌ 单实例锁不可用({why})—— 为了不出现两个实例抢鼠标,"
                     f"同样拒绝启动。")
             log("   两个实例会抢同一个鼠标:一方把光标放到手牌上,另一方又把它"
                 "移走,于是双方的让行判据都为真,扫描在第一个探针就中止"
                 "(日志表现:`hand scan: 0 cards in 0.8s`)。")
-            log("   要么等它结束(或在那个窗口按 Ctrl+C),要么先确认没有残留进程:")
+            log("   先确认没有残留进程(引擎是独立进程,关面板不一定带走它):")
             log("     Get-CimInstance Win32_Process -Filter \"Name like '%python%'\" | "
                 "Select ProcessId,CommandLine")
             log("   确认机器上确实没有别的实例、且锁机制坏掉时,才用 "

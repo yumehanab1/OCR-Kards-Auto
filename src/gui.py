@@ -947,10 +947,33 @@ def main() -> int:
         except Exception:
             pass
 
+    def _shutdown(*_a, **_k):
+        """
+        关面板 = **把引擎一起带走**。
+
+        ★★★ 2026-09-19(v0.1.6):**这一步以前没有,于是留下孤儿进程占着单实例锁。**
+          实机证据(用户的日志,`拒绝启动第二个实例` 出现 **48 次**):
+            关掉面板 -> 引擎那个 python 进程**还活着**(它只是个 subprocess,
+            面板退了它不会自己退)-> 它持有 `kards_auto_main_loop` 那把锁 ->
+            下次点「开始」直接被拒:`❌ 已经有一个 main_loop 在跑了`。
+          用户的原话就是:**"异常退出后,要去任务管理器把 Python 进程先关了,
+          不然会判定有两个实例报错"** —— 手动去任务管理器,本来该由这里做掉。
+          ★ 只有"面板自己起的那个子进程"会被停掉(`api.proc`),
+            不会去动用户自己开的别的东西。
+          ★ 失败也不许挡住关窗口(`try/except` + 超时),大不了回到老行为。
+        """
+        try:
+            r = api.stop()
+            if r.get("ok"):
+                log_update(f"[面板] 关窗口时把引擎一起停了:{r.get('msg')}")
+        except Exception:
+            pass
+
     try:
         window.events.closing += _remember
+        window.events.closing += _shutdown
     except Exception:
-        pass          # 记不住尺寸不该挡住"能开面板"这件事
+        pass          # 记不住尺寸/停不掉引擎,都不该挡住"能开面板"这件事
 
     print(f"{APP_NAME} 面板已启动(窗口标题 {APP_NAME!r});关闭窗口即退出。")
     # ★★ 2026-09-19(v0.1.3):开面板之后**后台静默查一次**更新。
@@ -967,6 +990,7 @@ def main() -> int:
         log_update("[自动] 这个 pywebview 不支持 start(func),已退回不自动查")
         webview.start(debug=args.debug, gui="edgechromium")
     _remember()       # 有的后端 closing 事件不触发,退出前再记一次
+    _shutdown()       # ★ 同上:关面板必须把引擎一起带走(v0.1.6),别留孤儿占着锁
     return 0
 
 

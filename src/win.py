@@ -305,8 +305,19 @@ def acquire_single_instance_lock(name: str = "kards_auto_main_loop"):
         WAIT_ABANDONED -> 前一个进程崩了/被 kill,系统把锁留给我们 -> 拿到
         WAIT_TIMEOUT   -> 别人正持有 -> 拒绝启动
       进程一死(正常退出、崩溃、被 kill)系统都自动释放,不会有残留锁。
+
+    ★★ 2026-09-19(v0.1.6):**把"谁拿着锁"记在一个小文件里,拒绝启动时告诉用户。**
+      实机证据:用户的日志里 `拒绝启动第二个实例` 出现 **48 次** —— 因为上一次的
+      引擎进程还活着(关面板不会把它带走,见 `gui._shutdown` 的注释),而日志只给了
+      一条通用的排查命令,用户只能自己去任务管理器翻。
+      现在:拿到锁就把自己的 pid 写进 `logs/main_loop.pid`,拒绝时读出来写成
+      "占用者 PID=1234(还在跑的话:任务管理器结束它,或 `taskkill /PID 1234 /F`)",
+      并且**顺便判一下那个 pid 还在不在** —— 从而区分"确实有实例在跑"和
+      "锁被一个已经死掉的进程占着"(后者说明锁机制要查)。
     """
     try:
+        import os as _os
+
         import win32api
         import win32event
 
@@ -314,12 +325,53 @@ def acquire_single_instance_lock(name: str = "kards_auto_main_loop"):
         rc = win32event.WaitForSingleObject(handle, 0)
         if rc in (win32event.WAIT_OBJECT_0, win32event.WAIT_ABANDONED):
             _INSTANCE_LOCK[name] = handle                   # 保住句柄,别被 GC 掉
+            try:
+                root = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
+                d = _os.path.join(root, "logs")
+                _os.makedirs(d, exist_ok=True)
+                with open(_os.path.join(d, "main_loop.pid"), "w",
+                          encoding="utf-8") as f:
+                    f.write(str(_os.getpid()))
+            except Exception:
+                pass                                        # 记不下来不影响拿锁
             return True, "acquired"
         # 别人持有 -> 关掉我们这次打开的句柄,别在系统里多留一份引用
         win32api.CloseHandle(handle)
-        return False, "held-by-other"
+        return False, "held-by-other" + _holder_note()
     except Exception as e:
         return False, f"error: {type(e).__name__}: {e}"
+
+
+def _holder_note() -> str:
+    """
+    "谁拿着锁" —— 读 `logs/main_loop.pid`,拼成一句能直接照做的话(读不到就空串)。
+
+    ★ 还要说清"那个进程还在不在":不在的话,说明锁确实被一个死进程占着
+      (正常不会发生),这句话能把"再等等"和"得查锁"两种情况分开。
+    """
+    import os as _os
+    try:
+        root = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
+        p = _os.path.join(root, "logs", "main_loop.pid")
+        with open(p, "r", encoding="utf-8") as f:
+            pid = int(f.read().strip())
+    except Exception:
+        return ""
+    alive = True
+    try:
+        import win32api
+        import win32con
+        h = win32api.OpenProcess(win32con.PROCESS_QUERY_INFORMATION, False, pid)
+        win32api.CloseHandle(h)
+    except Exception:
+        alive = False
+    if alive:
+        return (f"|占用者 PID={pid}(**还在跑**)。要么等它跑完,要么让面板点「停止」;"
+                f"真要手动结束:任务管理器里结束那个 python,或命令行 "
+                f"`taskkill /PID {pid} /F`")
+    return (f"|记录的占用者 PID={pid} **已经不在进程列表里了** —— "
+            f"说明锁被一个死掉的进程占着(不正常)。先按上面的命令确认没有残留,"
+            f"再用 --allow-multi-instance 启动")
 
 
 def set_window_client_size(
