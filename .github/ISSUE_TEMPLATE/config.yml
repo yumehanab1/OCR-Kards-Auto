@@ -1,0 +1,11 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 使用问题 / 排障
+    url: https://github.com/yumehanab1/OCR-Kards-Auto/blob/main/README.md#排障
+    about: 一半的问题在这张表里有答案（state -> None、blank frame、被遮挡、鼠标没反应……）
+  - name: 想改代码 / 提 PR
+    url: https://github.com/yumehanab1/OCR-Kards-Auto/blob/main/CONTRIBUTING.md
+    about: 怎么搭环境、跑哪些测试、提交惯例、卡库怎么更新
+  - name: 授权与免责
+    url: https://github.com/yumehanab1/OCR-Kards-Auto/blob/main/NOTICE.md
+    about: ui_templates 里的游戏素材不在 GPL-3.0 范围内，以及使用风险

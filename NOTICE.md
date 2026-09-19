@@ -17,7 +17,7 @@ GPL 把它们再授权给任何人。
 再分发游戏素材本身。
 
 所以如果你要二次分发这个项目,这一点请自行判断在你的法域下是否可接受。另一种做法
-是让使用者自己用 `src\template_capture.py` 从自己的游戏里录一遍模板 —— 这个脚本
+是让使用者自己用 `dev\template_capture.py` 从自己的游戏里录一遍模板 —— 这个脚本
 就是干这个的,录出来的东西存在本机,不用进仓库。
 
 `config\` 下面那些 JSON(states、templates、card_hashes 之类)装的是尺寸、坐标、
@@ -82,5 +82,10 @@ GPL 把它们再授权给任何人。
 ## 本项目自己写的部分
 
 `src\`、`dev\`、`docs\`、`build_gui.bat`、`calibrate.cmd`、`snap-kards.cmd`、
-README.md、LICENSE、NOTICE.md、.gitignore、requirements.txt,以及 `assets` 里的
-两个图标文件,都是原创的,适用 GPL-3.0。
+`make_release.py`、`.github\`、README.md、CHANGELOG.md、CONTRIBUTING.md、
+LICENSE、NOTICE.md、.gitignore、requirements.txt,以及 `assets` 里的两个图标
+文件,都是原创的,适用 GPL-3.0。
+
+`card_db\kards_data.json` 是从官网接口抓下来的卡牌数据(来源与更新方式见
+CONTRIBUTING.md「卡库」那一节),著作权属于 1939 Games —— 放进来是因为程序跑
+起来必须读它,理由和 `ui_templates\` 那一节相同。

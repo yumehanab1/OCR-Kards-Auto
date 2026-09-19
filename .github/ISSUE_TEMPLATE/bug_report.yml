@@ -1,0 +1,79 @@
+name: Bug 报告
+description: 程序跑起来和预期不一样（不出牌、点不动、报错、崩溃、卡住……）
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        提之前先翻一眼 README 的[排障](https://github.com/yumehanab1/OCR-Kards-Auto/blob/main/README.md#排障)
+        那一节 —— `state -> None`、`blank frame`、被遮挡、鼠标没反应这几种那里都有答案。
+
+  - type: input
+    id: version
+    attributes:
+      label: 版本号
+      description: 面板标题栏或 `config\app_version.json` 里的版本
+      placeholder: "0.1.6"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install
+    attributes:
+      label: 你是怎么拿到程序的
+      options:
+        - 从 Releases 下载的 zip
+        - 自己 clone 源码跑的
+        - 记不清了
+    validations:
+      required: true
+
+  - type: textarea
+    id: what
+    attributes:
+      label: 发生了什么
+      description: |
+        你看到的现象，以及你预期它应该怎么做。
+        「哪一局、第几回合、哪个界面」这类信息很有用。有截图更好（别裁掉日志）。
+    validations:
+      required: true
+
+  - type: textarea
+    id: log
+    attributes:
+      label: 日志
+      description: |
+        把 `logs\main_loop.log` 里**出问题那一段**贴进来（整份也行，别只贴一行）。
+        ⚠️ 贴之前删掉不想公开的内容：本机路径、账号昵称、对手信息。
+      render: text
+    validations:
+      required: true
+
+  - type: dropdown
+    id: admin
+    attributes:
+      label: 游戏或 Steam 是不是用管理员身份运行的？
+      description: 两边权限不一致时，Windows 会拦住对游戏窗口的点击与尺寸调整。
+      options:
+        - 不是
+        - 是
+        - 不确定
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: 先确认这几条
+      options:
+        - label: 游戏窗口在最前，没被别的窗口（面板、浏览器、资源管理器、模拟器）盖住
+        - label: 同时只开了一个面板 / 一个引擎
+        - label: 游戏内分辨率是 1280x720，UI 缩放是默认值
+        - label: 日志里没有 `blank frame` 或「KARDS 窗口不可见/被遮挡」这两行
+
+  - type: markdown
+    attributes:
+      value: |
+        ⚠️ **不要贴** `config\panel_token.txt` 的内容（它相当于面板的访问口令）。
+        发现的是面板本身的漏洞的话，见 [SECURITY.md](https://github.com/yumehanab1/OCR-Kards-Auto/blob/main/.github/SECURITY.md)。

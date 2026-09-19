@@ -17,6 +17,22 @@
 venv/
 /python/
 
+# 面板 exe。2026-09-19 起不再跟踪（此前它在仓库里留了 5 个副本，占全历史 blob 的 92.7%）。
+#
+#   它是个构建产物：build_gui.bat 用 PyInstaller 打到 dist\（dist/ 本来就忽略），
+#   以前是把 dist\ 里的那份拷到根目录再提交。而这一份**单独跑不起来** ——
+#   README 写得清楚，exe 只是个面板，真正干活的是它去调 python\ 里的解释器跑
+#   src\main_loop.py，而 python\ 有 300 MB，从来不在仓库里。
+#
+#   ⇒ 需要 exe 的两个地方都从本机构建取：发布包由 make_release.py 从根目录取
+#     （所以本地开发时照旧把 dist\KARDS AUTO.exe 拷到根目录，只是别提交），
+#     想双击就用的用户去 Releases 下载完整包。
+#
+#   ★ 还有个更实际的理由：仓库里那份 exe「对不对得上源码」全靠人记着
+#     （改了 src\gui.py 就得重打）。它不进版本控制之后，这个约定由
+#     build_gui.bat 和发布流程来保证，不会悄悄过期。
+KARDS AUTO.exe
+
 # 运行日志。每跑一次就变，内容也没什么共享价值。
 # 保留目录本身（git 不追踪空目录，所以放了个 .gitkeep 占位）。
 logs/*
