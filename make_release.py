@@ -113,7 +113,13 @@ def main() -> int:
                 #   -> 一局里好几个回合**一张牌没出**(实机 0919 那一局
                 #      第 1/2/4/6 回合都是 0 次尝试)。
                 #   所以把它加进"缺了就报"的清单。
-                f"{BASE}/card_db_test/kards_data.json"]
+                f"{BASE}/card_db_test/kards_data.json",
+                # ★★★ 2026-09-19(v0.1.5):**同一类坑的第二次。**
+                #   费用数字模板原来在 `shots/kredits/samples_r1/` 下,而 `shots`
+                #   在 SKIP_DIRS 里 -> 每个发布包都载入 0 个模板 -> 费用永远读不出
+                #   -> 每回合按"上一回合+1"推算 -> **没费用还去拖牌被拒绝**。
+                #   现在已经搬到 `config/kredits_digits/`,这里加一条"缺了就报"。
+                f"{BASE}/config/kredits_digits/n_00_mask.png"]
         for w in need:
             if w not in names:
                 problems.append(f"缺少 {w}")

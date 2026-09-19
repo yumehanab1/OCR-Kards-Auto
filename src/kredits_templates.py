@@ -40,10 +40,30 @@ import cv_io  # noqa: F401  (开关:让 cv2 认中文路径,见 cv_io.py)
 import numpy as np
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-# 锚定样例:逐个看图核对过映射的那一批,固定不动,是模板库的唯一真源。
-# (kredits_record.py 录的新样例放在 shots/kredits/samples/,不会再覆盖这里)
-ANCHOR_SAMPLES = os.path.join(ROOT, "shots", "kredits", "samples_r1")
-# 导出的归一化模板,仅供人工查看
+
+# ★★★ 2026-09-19(v0.1.5 修):**数字模板不能再放在 `shots/` 里。**
+#
+# 病因(实机 + 离线都量到了):锚定样例原来在 `shots/kredits/samples_r1/`,
+# 而 `make_release.py` 的 SKIP_DIRS 里**有 `shots`** —— 于是**每一个发布包**
+# 都不带这 10 个数字模板。后果是一条完整的连锁:
+#     `kredits_templates: 载入 0 个数字模板 []`
+#   -> `read_kredits()` 永远 None("有字拒识")
+#   -> 每回合的费用**从来没真读到过**(日志里全是 `[prev+1]` 推算)
+#   -> 行动之后那次对账(它本来就靠读数)变成空操作
+#   -> 账本比真实 Kredits 高"行动费"那么多
+#   -> **明明没费用还去拖一张出不起的牌,被游戏拒绝**(用户报的就是这个)
+# 实测:`shots/scan_frames` 60 张存帧喂 `read_kredits`,**0/60 读出来**,
+# 原因清一色"有字拒识(模板分低于阈值)"。
+#
+# 修法:搬到 **`config/kredits_digits/`** —— `config/` 是随包发的,
+# 而且项目里 **`config/hq_hp_digits/` 早就是这个约定**(总部血量数字模板),
+# 只有费用这一套被落在了 `shots/`。
+# ★ 保留旧路径做兜底:开发树(C)里的旧目录还在,老脚本也还指着它。
+ANCHOR_SAMPLES = os.path.join(ROOT, "config", "kredits_digits")
+_ANCHOR_SAMPLES_LEGACY = os.path.join(ROOT, "shots", "kredits", "samples_r1")
+if not os.path.isdir(ANCHOR_SAMPLES) and os.path.isdir(_ANCHOR_SAMPLES_LEGACY):
+    ANCHOR_SAMPLES = _ANCHOR_SAMPLES_LEGACY
+# 导出的归一化模板,仅供人工查看(运行时生成,`shots/` 不存在会自己建)
 TEMPLATES_DIR = os.path.join(ROOT, "shots", "kredits", "templates")
 
 # 样例 -> 数字值。
@@ -113,12 +133,32 @@ def build_templates(force: bool = False) -> dict:
                     norm.astype(np.uint8))
 
     if missing:
-        print(f"kredits_templates: 缺锚定样例 {', '.join(missing)} "
-              f"(目录 {ANCHOR_SAMPLES})")
+        print(f"kredits_templates: ⚠️⚠️ 缺锚定样例 {', '.join(missing)} "
+              f"(目录 {ANCHOR_SAMPLES}) —— 费用数字**一个都读不出来**,"
+              f"引擎会退化成'每回合按上一回合+1 推算',"
+              f"然后出现'没费用还在下单位'")
     _TEMPLATES = bank
     print(f"kredits_templates: 载入 {len(bank)} 个数字模板 "
           f"{sorted(bank)}")
     return bank
+
+
+def status() -> str:
+    """
+    一行说清"费用数字模板到底载进来了没有" —— 给引擎启动时打进日志用。
+
+    ★ 为什么要专门做这件事:`shots/` **不进发布包**,而这套模板原来就放在
+      `shots/kredits/samples_r1/` 下 —— 于是**每一个发布包**都载入 0 个模板,
+      费用永远读不出,而日志里只有"有字拒识"这四个字,指不到"模板没随包发"。
+      这和卡库那次(card_db_test 缺失)是同一类:**引擎不报错,只是悄悄变笨。**
+    """
+    bank = build_templates()
+    n = sum(len(v) for v in bank.values())
+    if n:
+        return f"费用数字模板:{len(bank)}/10 个数字({n} 个模板,来自 {ANCHOR_SAMPLES})"
+    return ("⚠️⚠️ 费用数字模板**一个都没载入**(缺 "
+            f"{ANCHOR_SAMPLES}/n_XX_mask.png)-> 每回合的费用只能靠"
+            "'上一回合+1'推算,行动花掉的钱没人记 -> 会出现'没费用还在下单位'")
 
 
 def score_against(glyph: np.ndarray, template: np.ndarray) -> float:

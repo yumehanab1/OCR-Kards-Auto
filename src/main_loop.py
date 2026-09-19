@@ -597,6 +597,17 @@ def main() -> int:
     except Exception as _e:                      # 报不出来也不许挡住启动
         _db = f"⚠️ 卡库状态读不出来({type(_e).__name__}: {_e})"
     log(_db)
+    # ★★★ 2026-09-19(v0.1.5):**同一类坑的第二次,所以这次一起报。**
+    #   费用数字模板原来放在 `shots/kredits/samples_r1/`,而 `shots/` **不进发布包**
+    #   -> 每个发布包都载入 0 个模板 -> 费用永远读不出 -> 每回合按"上一回合+1"推算
+    #   -> 行动花掉的钱没人记 -> **没费用还去拖牌被游戏拒绝**。
+    #   离线判据:60 张存帧喂 `read_kredits`,修之前 **0/60**,修之后 **48/60**
+    #   (剩下 12 张根本不是对局画面,没有数字可读)。
+    try:
+        import kredits_templates as _kt
+        log(_kt.status())
+    except Exception as _e:
+        log(f"⚠️ 费用数字模板状态读不出来({type(_e).__name__}: {_e})")
 
     if args.full_frame_state:
         import ui_state as _ui
