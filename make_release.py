@@ -27,8 +27,17 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 BASE = os.path.basename(ROOT) or "kards-auto"
 
 #: 这些目录名出现在**任何层级**都要跳过。
+#: ★★★ 2026-09-19(v0.1.2):**"logs" 必须在这里**。
+#:   它以前不在,于是打包时把 `logs\main_loop.log`(那几局的完整对局记录,里面有
+#:   对手昵称)、`logs\gui_run.log`(里面有**本机的绝对路径**,实测是
+#:   `C:\Users\<用户名>\Desktop\...`)和 `gui_selftest.txt` 一起**发到公开包里**。
+#:   别人的日志 + 自己的目录结构都不该进发布包;仓库那边本来就靠 .gitignore
+#:   排掉了(`logs/*` 只留 `.gitkeep`),只有打包脚本漏了这一条。
+#:   ★ 排掉不会让新装的人出问题:`main_loop.py` 和 `gui.py` 都自己
+#:     `os.makedirs(..., exist_ok=True)` 建 logs 目录(实测 main_loop.py:85 /
+#:     gui.py:464,787),空目录本来也不进 zip。
 SKIP_DIRS = {".venv", "venv", "build", "dist", ".git", "shots",
-             "shots_hp_bogus", "hp_bogus", "__pycache__"}
+             "shots_hp_bogus", "hp_bogus", "__pycache__", "logs"}
 
 #: 这些文件名是"这台机器专属"的,别人拿了没用,而且 panel_token 是口令。
 SKIP_FILES = {"gui_window.json", "panel_token.txt"}
