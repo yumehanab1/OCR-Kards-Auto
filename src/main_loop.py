@@ -353,20 +353,39 @@ class Controller:
     #: 结算之后那些"任意点击跳过"的尾巴页 —— **点哪儿有效是实测出来的**。
     #  ★★ 用户 2026-09-13 深夜实测:**正中心点了不触发跳过**,要往旁边挪 ~50px
     #     (用户原话:"在中心位置点并不会触发跳过,要再往旁边挪 50 像素左右,左中下随意")。
-    #  ⇒ 不再只点中心,而是**轮着点这几个位置**(每个间隔 1.8 秒):
-    #     先点"中心偏左 120px",不行再点"中下",再"中心偏右",最后才回中心。
-    #     这样即使某个位置在某些界面上无效,后面几次也会撞上有效的那一个 ——
-    #     而以前**每次都点同一个点**,无效就一直无效(`dismiss_tries` 到 12 次就放弃)。
-    DISMISS_POINTS = ((520, 360), (640, 470), (760, 360), (640, 360))
+    #  ★★★ 2026-09-19(v0.1.6)用户又提了一次,而且给了明确位置:
+    #     *"卡结算页面的问题很普遍,能不能把结算页面的点击位置挪一下,
+    #       挪到左到右四分之三屏幕的这中位置,不要居中"*
+    #     ⇒ **首选点改成"左起 3/4、竖直居中"**(1280x720 基准下就是 **960, 360**),
+    #       并且**不再把屏幕正中当候选**(原来是 (640,360))。
+    #     ★ 为什么还留几个候选而不是只点一个点:同一天的实测结论是
+    #       "某个位置在某些界面上无效" —— 只点一个点、无效就一直无效
+    #       (`dismiss_tries` 到 12 次就放弃)。所以围着这个新位置留几个**同样不居中**
+    #       的备选(上下 ±50、再往左 60),轮着点。
+    DISMISS_X_RATIO = 0.75      # 左 -> 右 的 3/4 处(1280 -> 960)
+    DISMISS_Y_RATIO = 0.50      # 竖直居中(720 -> 360)
+
+    @classmethod
+    def dismiss_points(cls, frame_w: int = 1280, frame_h: int = 720):
+        """结算页/尾巴页的候选点击点(客户区坐标;**首选 = 左起 3/4 + 竖直居中**)。"""
+        x = int(frame_w * cls.DISMISS_X_RATIO)
+        y = int(frame_h * cls.DISMISS_Y_RATIO)
+        return ((x, y), (x, y + 50), (x, y - 50), (x - 60, y))
 
     def click_center(self):
-        """点一下尾巴页把它跳过(位置轮换,见 DISMISS_POINTS 的实测说明)。"""
+        """
+        点一下尾巴页把它跳过(位置轮换,见 `dismiss_points` 的实测说明)。
+
+        ★ 名字保留(调用点太多),但**它现在点的不是中心** ——
+          用户两次实测都说"点中心不生效",v0.1.6 起首选是 **左起 3/4、竖直居中**。
+        """
         frame_w, frame_h = 1280, 720
-        px, py = self.DISMISS_POINTS[self.dismiss_tries % len(self.DISMISS_POINTS)]
+        pts = self.dismiss_points(frame_w, frame_h)
+        px, py = pts[self.dismiss_tries % len(pts)]
         cx_client = px + random.randint(-25, 25)
-        cy_client = min(frame_h - 20, py + random.randint(-15, 15))
+        cy_client = min(frame_h - 20, max(20, py + random.randint(-15, 15)))
         log(f"[dismiss] -> 跳过点击 #{self.dismiss_tries + 1} "
-            f"client({cx_client},{cy_client})(★中心点不生效,轮换位置)")
+            f"client({cx_client},{cy_client})(★点中心不生效,首选左起 3/4、竖直居中)")
         if not self.dry:
             try:
                 cx, cy = self.client_to_screen(cx_client, cy_client)
