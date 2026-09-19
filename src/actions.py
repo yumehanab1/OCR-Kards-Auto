@@ -61,8 +61,70 @@ DWELL_JIGGLE = 3
 DWELL_JIGGLE_PX = 2
 
 
-def set_cursor(x: int, y: int) -> None:
-    win32api.SetCursorPos((int(x), int(y)))
+#: ★★★ 2026-09-19(v0.1.6):**输入失败必须"软着陆",不许把引擎带走。**
+#
+# 实机证据(用户 `E:\kards-auto` 那份日志,2026-09-19 13:47:12):
+#   引擎走到卡组页面 -> 点「开始」-> `win32api.SetCursorPos` 抛异常:
+#       pywintypes.error: (0, 'SetCursorPos', 'No error message is available')
+#   -> 异常一路冒到 `main()`,被顶层处理器记下 traceback 然后**整个引擎退出**。
+#   用户看到的现象是"**运行到卡组页面不会点确定**" —— 其实是点了就崩、原地不动。
+#   同一份日志里还有 `SetWindowPos ... 拒绝访问`(想强制窗口 1280x720 时),
+#   两个症状指向同一件事:**Windows 不让这个进程驱动游戏窗口**(典型原因是
+#   游戏/Steam 以管理员身份运行,而本面板不是;也可能是不在同一个输入桌面)。
+#
+# 所以:鼠标操作**返回 bool**,失败时
+#   ① 绝不继续按下/松开(那会点到别的地方,可能误关别的窗口 —— 比不点更糟);
+#   ② 把"为什么"写成一句人话,由引擎打进 `logs/main_loop.log`(和 `kredits.LAST_REJECT`
+#      同一个套路:模块记账,调用方负责说出去);
+#   ③ 连着失败几次就补一句**该怎么办**的提示,而不是每 tick 刷屏。
+LAST_INPUT_ERROR = None
+#: 连续失败到几次时,补一条"怎么办"的提示(第一条和这一条会写日志,中间不刷屏)
+INPUT_FAIL_HINT_AT = 3
+_input_fails = 0
+
+_INPUT_HINT = (
+    "系统不让本程序移动鼠标(SetCursorPos 失败)。常见原因:**游戏/Steam 是以"
+    "管理员身份运行的,而本面板不是** —— 那样 Windows 会挡住我们对游戏的"
+    "移动/点击(同一次运行里往往还会看到 `SetWindowPos ... 拒绝访问`)。"
+    "试试也**用管理员身份运行 KARDS AUTO.exe**(右键 -> 以管理员身份运行),"
+    "或者让 Steam 和游戏都用普通权限启动。"
+)
+
+
+def _input_failed(what: str, err) -> None:
+    """记一次"输入被系统挡住"。返回人话说明(由调用方决定打不打印)。"""
+    global LAST_INPUT_ERROR, _input_fails
+    _input_fails += 1
+    LAST_INPUT_ERROR = f"{what} 失败({type(err).__name__}: {err})"
+    if _input_fails >= INPUT_FAIL_HINT_AT:
+        LAST_INPUT_ERROR += " —— " + _INPUT_HINT
+    return LAST_INPUT_ERROR
+
+
+def set_cursor(x: int, y: int) -> bool:
+    """
+    把光标放到 (x, y)(**屏幕坐标**)。成功 True,失败 False(**不抛异常**)。
+
+    ★ 2026-09-19:以前这里是一句裸的 `win32api.SetCursorPos`,它一抛异常,
+      整轮就结束了(见文件头那段实机证据)。现在失败只记账,由调用方决定怎么办。
+    """
+    global _input_fails
+    try:
+        win32api.SetCursorPos((int(x), int(y)))
+        if _input_fails:            # 恢复了 -> 清零(下次失败会重新提示)
+            _input_fails = 0
+        return True
+    except Exception as e:
+        _input_failed(f"把光标移到 ({int(x)},{int(y)})", e)
+        return False
+
+
+def take_input_error() -> str:
+    """取走"上一次输入失败"的说明(取走即清,避免同一条反复打)。"""
+    global LAST_INPUT_ERROR
+    msg, LAST_INPUT_ERROR = LAST_INPUT_ERROR, None
+    return msg
+
 
 
 def cursor_position() -> tuple:
@@ -72,7 +134,7 @@ def cursor_position() -> tuple:
 
 def set_cursor_checked(x: int, y: int):
     """
-    把光标放到 (x,y),返回**实际**落点(读不到返回 None)。
+    把光标放到 (x,y),返回**实际**落点(读不到/放不下返回 None)。
 
     为什么不能想当然地认为"请求点 = 落点":Windows 会把光标裁剪在屏幕
     (或多显示器组成的桌面)范围内,窗口位置/DPI 一旦让目标点落到屏幕外,
@@ -81,8 +143,12 @@ def set_cursor_checked(x: int, y: int):
     这在自动化里是要命的:如果按【请求点】记账,下一次 `cursor_moved_from()`
     就会把这点误差当成"用户正在操作鼠标",于是扫描在第一个探针就中止 ——
     实测表现就是 `hand scan #N: 0 cards in 0.8s`(根本没扫,但日志看不出原因)。
+
+    ★ 2026-09-19:**放不下就不要读落点** —— 否则会把"上一次的旧位置"当成落点
+      报回去,调用方会以为光标已经到了(比返回 None 更坏)。
     """
-    set_cursor(x, y)
+    if not set_cursor(x, y):
+        return None
     try:
         return win32api.GetCursorPos()
     except Exception:
@@ -127,8 +193,14 @@ def cursor_is_moving(samples: int = 4, interval: float = 0.07,
     return False
 
 
-def move_stepped(x0: int, y0: int, x1: int, y1: int, steps: Optional[int] = None) -> None:
-    """Move the cursor in a few steps with jitter (looks less robotic)."""
+def move_stepped(x0: int, y0: int, x1: int, y1: int,
+                 steps: Optional[int] = None) -> bool:
+    """
+    分几步把光标挪过去(带抖动,少一点机器味)。**全部成功才返回 True**。
+
+    ★ 2026-09-19:第一步就失败的话**立刻停手** —— 后面的步子只会重复失败,
+      而调用方(click/move_drag)要靠这个返回值决定"要不要按下去"。
+    """
     dx = x1 - x0
     dy = y1 - y0
     dist = max(abs(dx), abs(dy))
@@ -140,26 +212,45 @@ def move_stepped(x0: int, y0: int, x1: int, y1: int, steps: Optional[int] = None
         jy = random.randint(-3, 3)
         cx = int(x0 + dx * t + jx)
         cy = int(y0 + dy * t + jy)
-        set_cursor(cx, cy)
+        if not set_cursor(cx, cy):
+            return False
         time.sleep(random.uniform(0.006, 0.022))
+    return True
 
 
-def click(x: int, y: int, jitter: int = 5) -> None:
-    """Stepped move + click at (x,y) with small random offset."""
+def click(x: int, y: int, jitter: int = 5) -> bool:
+    """
+    分步挪过去再点一下 (x,y)。成功 True,失败 False(**绝不抛异常**)。
+
+    ★★ 2026-09-19 的硬规矩:**挪不过去就绝不按下去。**
+      光标没到位时按下/松开,点的是**光标当时所在的地方** —— 那是屏幕上别的
+      位置,可能正好是别的窗口的按钮(实测那类"手一抖点关了什么东西"就是这么来的)。
+      宁可这一下不点,也不能乱点。
+    """
     jx = x + random.randint(-jitter, jitter)
     jy = y + random.randint(-jitter, jitter)
-    cur = win32api.GetCursorPos()
-    move_stepped(cur[0], cur[1], jx, jy)
-    win32api.mouse_event(win32con.MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0)
-    time.sleep(random.uniform(*CLICK_DOWN_MS) / 1000.0)
-    win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
+    try:
+        cur = win32api.GetCursorPos()
+    except Exception:
+        cur = (jx, jy)                 # 读不到当前位置就直接过去(不再是"从(0,0)划过去")
+    if not move_stepped(cur[0], cur[1], jx, jy):
+        _input_failed(f"点到 ({jx},{jy})", "光标没挪到位")
+        return False
+    try:
+        win32api.mouse_event(win32con.MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0)
+        time.sleep(random.uniform(*CLICK_DOWN_MS) / 1000.0)
+        win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
+    except Exception as e:
+        _input_failed(f"在 ({jx},{jy}) 按下鼠标", e)
+        return False
+    return True
 
 
-def click_center_of(region: dict, jitter: int = 5) -> None:
+def click_center_of(region: dict, jitter: int = 5) -> bool:
     """region: {x,y,w,h} -> click its center (screen coords expected)."""
     cx = region["x"] + region["w"] // 2
     cy = region["y"] + region["h"] // 2
-    click(cx, cy, jitter)
+    return click(cx, cy, jitter)
 
 
 def move_drag(sx: int, sy: int, ex: int, ey: int,
@@ -208,7 +299,11 @@ def move_drag(sx: int, sy: int, ex: int, ey: int,
     if jiggle is None:
         jiggle = DWELL_JIGGLE
 
-    set_cursor(sx, sy)
+    # ★ 2026-09-19:按下之前先确认"光标真能挪到起点" —— 挪不过去就**不要按**,
+    #   否则按下/松开落在光标当时所在的地方(屏幕上别的位置),那比不拖更糟。
+    if not set_cursor(sx, sy):
+        _input_failed(f"拖拽起点 ({sx},{sy})", "光标没挪到位")
+        return False
     time.sleep(settle)
     win32api.mouse_event(win32con.MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0)
     time.sleep(press_delay)
@@ -219,8 +314,20 @@ def move_drag(sx: int, sy: int, ex: int, ey: int,
             on_pressed()
         except Exception:
             pass
-    cur = win32api.GetCursorPos()
-    move_stepped(cur[0], cur[1], ex, ey)
+    try:
+        cur = win32api.GetCursorPos()
+    except Exception:
+        cur = (ex, ey)
+    if not move_stepped(cur[0], cur[1], ex, ey):
+        # 已经按下去了,但挪不到目标 —— **松手回原位**(放回手牌)比乱放好。
+        # 中途松手会落在光标当前所在的格子上;这里选择直接松开并如实报失败,
+        # 交给上层按"这一发没发出去"记账(和 `attack._attack` 的 fail-soft 一致)。
+        try:
+            win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
+        except Exception:
+            pass
+        _input_failed(f"拖到 ({ex},{ey})", "中途挪不动")
+        return False
 
     # ② 精确落位:分步移动的末步带抖动,不钉一下的话落点是随机的
     set_cursor(ex, ey)

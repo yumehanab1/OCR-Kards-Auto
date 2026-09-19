@@ -28,6 +28,9 @@ import os
 import random
 import sys
 import time
+# ★ 2026-09-19:"turn engine error" 要打 traceback(见那处的长注释)。
+#   原来只在 `main()` 顶层 import 一次,别处拿不到。
+import traceback
 
 import cv2
 import win32gui
@@ -155,7 +158,14 @@ class Controller:
         log(f"[{self.current_state}] -> click {name} at screen({cx},{cy}) "
             f"match={score:.3f}")
         if not self.dry:
-            click(cx, cy)
+            # ★★ 2026-09-19(v0.1.6):鼠标操作现在会**失败**(系统可能不让动光标)。
+            #   失败时说清楚"点了但没动成",而不是记成"点过了" ——
+            #   实机教训:以前 SetCursorPos 一抛异常整轮就结束,用户看到的是
+            #   "运行到卡组页面不会点确定"(其实是点了就崩、原地不动)。
+            if not click(cx, cy):
+                _why = actions_mod.take_input_error() or "原因读不出"
+                log(f"⚠️ [{self.current_state}] {name} 这一下**没点成**:{_why}")
+                return False
         self.last_click = time.time()
         return True
 
@@ -287,7 +297,23 @@ class Controller:
             try:
                 st = self.turn_engine.think()
             except Exception as e:
-                log(f"[in_game] turn engine error: {type(e).__name__}: {e}")
+                # ★★★ 2026-09-19(v0.1.6):**这里必须打 traceback。**
+                #   实机证据(用户 E:\kards-auto 那份日志):这里有**几十行**
+                #     `[in_game] turn engine error: IndexError: list index out of range`
+                #   每 1.5 秒一条、连着刷了一个多小时,而**只打了异常类型和消息** ——
+                #   完全看不出崩在哪个函数、哪一行,只能靠猜。
+                #   以后第一条带完整 traceback,后面同样的错只报次数(不刷屏)。
+                _sig = f"{type(e).__name__}: {e}"
+                if _sig != getattr(self, "_te_err_sig", None):
+                    self._te_err_sig = _sig
+                    self._te_err_n = 0
+                    log(f"[in_game] turn engine error: {_sig}\n"
+                        + "".join(traceback.format_exc()))
+                else:
+                    self._te_err_n = getattr(self, "_te_err_n", 0) + 1
+                    if self._te_err_n == 1 or self._te_err_n % 20 == 0:
+                        log(f"[in_game] turn engine error 同一处又犯了 "
+                            f"{self._te_err_n} 次({_sig})—— traceback 见上面第一条")
                 return
             if st != self.last_turn_status:
                 log(f"[in_game] turn engine: {st} "
