@@ -67,6 +67,52 @@ BG_SAMPLE = (150, 250)        # 桌面色参考区域(x 范围)
 #    所以加一条:run 宽度不够就不认,继续往后找。
 MIN_FAN_RUN_W = 40
 
+# ★★★ 2026-09-19(实机):**最外那张牌可能只露出一条窄缝**。
+#
+# 现象(实机日志 `0919 14:26:22`,存帧 `shots/scan_frames/0919_142622_scan.png`):
+#   手牌**7 张**,而引擎量到 L389/R811 -> 按右边缘匹配到布局表里的「4 张」条目
+#   -> 4 个探针全落在错的位置 -> 那一回合一张牌没出。
+#
+# 机理:`detect_right_edge` 要求区段宽度 ≥ MIN_FAN_RUN_W(40) 才算"真卡面",
+#   否则当成桌面装饰跳过。而那一帧**最右那张是低对比的蓝卡**(压在绿桌面上,
+#   diff 只有 37~47):整张牌**只剩 x909..916 这 8 个像素**过 45 的阈值
+#   -> 被当装饰跳过 -> 右边缘退回内层区段 753+59-1 = **811**(真值 916),
+#      一短就是 105px。左边缘同样量短(389,真值 367)。
+#
+# 修法(**迟滞 / hysteresis**):
+#   ① **先按老规矩选出锚点区段**(扫描方向上第一个宽度 ≥ MIN_FAN_RUN_W 的强区段)
+#      —— 这一步一个字节都没改,所以"装饰骗到边缘"那个老坑不会被重新打开;
+#   ② 再把这个区段**向外**沿着"弱阈值也亮"(EDGE_THRESH_WEAK)的**连续**像素延伸。
+#
+# 为什么这样能修、又不会变差(都在真帧上量过):
+#   · 能修:低对比那张牌 diff ≈ 37~47,**仍然高于 25**,和锚点是连续的,延伸得过去
+#     -> 右边缘 811 -> 916(布局表 7 张那条是 915,残差 1);
+#   · 不会变差:左下角那个"手枪装饰 + 玩家名"和扇形之间隔着**真背景**
+#     (diff 实测 11~16 < 25),延伸**过不去**;
+#   · **不做跳跃合并**:第一版写成"把弱阈值区段全行合并",结果在那 60 张老帧里
+#     把 12 帧的左边缘拉到了 271(正是那个装饰)。所以只在连续条件下延伸。
+#   · A/B(锚点+延伸版,68 帧):D 树 8 帧残差全部变小(最大一帧 76->4),
+#     C 树 60 帧里 12 帧有变化、其中 9 帧残差变小,没有一帧的**右边缘**变差。
+#   · `EDGE_HYSTERESIS = False` 一键退回老行为(用于 A/B 与排查)。
+EDGE_HYSTERESIS = True
+#: 弱阈值:低于它就算"真背景",延伸到此为止。实测:卡面低对比处 37~47、
+#: 桌面装饰与扇形之间的背景 11~16 —— 25 正好落在这两个数中间。
+EDGE_THRESH_WEAK = 25
+
+
+def _extend_edge(diff, x, step):
+    """
+    从一个已经过强阈值的边缘点**向外**走,只要还亮着(> EDGE_THRESH_WEAK)就继续。
+
+    step = -1 往左(左边缘)、+1 往右(右边缘)。只看**连续**像素,不跳空隙 ——
+    跳空隙等于把"隔着背景的装饰"也连进来(踩过,见 EDGE_HYSTERESIS 的说明)。
+    """
+    if x is None or not EDGE_HYSTERESIS:
+        return x
+    while EDGE_X_MIN <= x + step < EDGE_X_MAX and diff[x + step] > EDGE_THRESH_WEAK:
+        x += step
+    return x
+
 
 def _edge_runs(diff, reverse=False):
     """把"连续 ≥6 列超阈值"的区段都找出来,返回 [(起点, 宽度)],按扫描方向排。"""
@@ -117,8 +163,9 @@ def detect_left_edge(frame):
     detect_left_edge.skipped = [r for r in runs if r[1] < MIN_FAN_RUN_W]
     for start, w in runs:
         if w >= MIN_FAN_RUN_W:
-            return start
-    return runs[0][0] if runs else None
+            # ★ 2026-09-19:锚点选出来之后再沿弱阈值**向外**延伸(见 EDGE_HYSTERESIS)
+            return _extend_edge(diff, start, -1)
+    return _extend_edge(diff, runs[0][0], -1) if runs else None
 
 
 def detect_right_edge(frame):
@@ -139,8 +186,11 @@ def detect_right_edge(frame):
     detect_right_edge.skipped = [r for r in runs if r[1] < MIN_FAN_RUN_W]
     for start, w in runs:
         if w >= MIN_FAN_RUN_W:
-            return start + w - 1
-    return (runs[0][0] + runs[0][1] - 1) if runs else None
+            # ★ 2026-09-19:锚点选出来之后再沿弱阈值**向外**延伸(见 EDGE_HYSTERESIS)。
+            #   实机那一帧最右那张蓝卡只剩 8px 过阈值,靠这一步才回到 916。
+            return _extend_edge(diff, start + w - 1, +1)
+    return (_extend_edge(diff, runs[0][0] + runs[0][1] - 1, +1)
+            if runs else None)
 
 
 def detect_edges(frame):

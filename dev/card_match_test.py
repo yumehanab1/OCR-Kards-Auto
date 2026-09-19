@@ -60,6 +60,35 @@ NAME_CASES = [
     # ---- 短 token 不许乱匹配 ----
     ("18", None, "HUD 回合数字"),
     ("3K", None, "费用徽章不是卡名"),
+    # ★★★ 2026-09-19(实机第二局)**带空格的名字必须精确命中自己**。
+    #   判据:库里有 **659/1558** 张卡名带空格(KARDS 在数字/拉丁字母两边插空格),
+    #   而规则 ① 原来拿"去掉空格的 OCR 文本"去比"库里的原样名字" —— 永远不相等,
+    #   于是这些卡掉进模糊规则,被"更长的、恰好包含它的"卡名抢走:
+    #     实机:手牌那张 `第 5 步兵旅`(**2 费**)被认成 `维尔纽斯第 5 步兵旅`(**6 费**)
+    #           -> 预算 3 的那回合判成"出不起" -> **能出的牌不出**(用户报的症状)。
+    #   下面每一条都是一次真实的误认,现在必须各自精确命中。
+    ("第 5 步兵旅", "第 5 步兵旅", "★ 不许被 维尔纽斯第 5 步兵旅(6费)抢走"),
+    ("第5步兵旅", "第 5 步兵旅", "同上,OCR 常见形状(没空格)"),
+    ("第 5 步兵团", "第 5 步兵团", "★ 不许被 俄亥俄州第 5 步兵团 抢走"),
+    ("第 1 步兵团", "第 1 步兵团", "★ 不许被 德州第 1 步兵团 抢走"),
+    ("瓦伦丁 Mk II", "瓦伦丁 Mk II", "★ 不许被 瓦伦丁 Mk III 抢走"),
+    ("喷火 Mk II", "喷火 Mk II", "★ 不许被 喷火 Mk IIa 抢走"),
+    ("喷火 Mk V", "喷火 Mk V", "★ 不许被 喷火 Mk V PL 抢走"),
+    ("Bf 109 E", "Bf 109 E", "★ 不许被 Bf 109 E-7 热带型 抢走"),
+    ("步兵第 35 团", "步兵第 35 团", "★ 不许被 山地步兵第 35 团 抢走"),
+    ("三号坦克 J 型", "三号坦克 J 型", "★ 不许被 三号坦克 J 型 晚期型 抢走"),
+    # ★★★ 2026-09-19(实机第三局)**真实 OCR 原文语料**(每一条都能在
+    #   logs/main_loop.log 的 `OCR行=[...]` 里搜到)—— 差一两个字符的近似命中。
+    #   新加的诊断把 OCR 原文打了出来,才发现"名字读出来了、只差一个字"
+    #   才是"喷火整局出不去"的真因(以前日志里只有 name=None,看不出这一点)。
+    ("喷火Mkla", "喷火 Mk Ia", "★ 实机:字母 I 被读成小写 l -> 第⑤级近似"),
+    ("兰开夏燃发枪兵团", "兰开夏燧发枪兵团", "★ 实机:燧 -> 燃"),
+    ("兰开夏发枪兵团", "兰开夏燧发枪兵团", "★ 实机:少读一个字"),
+    ("瓦伦丁MkII", "瓦伦丁 Mk II", "★ 精确命中(以前被 瓦伦丁 Mk III 用 in: 抢走)"),
+    ("战斗机", None, "★ 类型名:不许硬凑成卡名(第⑤级要求 ≥5 字)"),
+    ("战斗机可以攻击任意阵线的", None, "★ 描述句"),
+    ("步兵只能攻击相邻战线的敌", None, "★ 描述句"),
+    ("TRCK", None, "★ 总部名 OCR 残片"),
 ]
 
 # 费用徽章 OCR 行 {(text, conf): 期望值}
@@ -79,6 +108,15 @@ COST_CASES = [
     ([_line("喷烟者42型+")], None, "卡名行里没有行首 NK"),
     ([_line("105毫米轻型榴弹炮+02")], None, "行首是 105 但不是 NK"),
     ([_line("3Kredits")], 3, "带 Kredits 后缀"),
+    # ★★★ 2026-09-19(实机第二局)**"K 在前"一律不许当费用**。
+    #   徽章的真实长相(放大过的那张存帧):大数字=费用 / 小 K=Kredits 符号 /
+    #   右下角**更小的数字=这副牌还剩几张**。OCR 常把小的那个和 K 连起来读成
+    #   'K1'/'K2'/'K-3',而它**不是费用** —— 实测同一块徽章 OCR 出 'K1',
+    #   那张牌其实是 **2 费**。把它当费用 = 让引擎去拖一张出不起的牌(白拖)。
+    ([_line("K-3")], None, "★ K 在前 -> 不猜(那是'牌库剩几张',不是费用)"),
+    ([_line("K1")], None, "★ 同上(实测同一块徽章 OCR 出 'K1',真值 2 费)"),
+    ([_line("K2")], None, "★ 同上"),
+    ([_line("32")], None, "★ 光秃秃的数字也不许当费用(卡面上到处是数字)"),
 ]
 
 
@@ -223,6 +261,49 @@ def run_frame_regression() -> bool:
     return True
 
 
+def run_pool_cases() -> bool:
+    """
+    ★★★ 2026-09-19(实机第二局加):**全域自检** —— 把库里每一条中文卡名
+    原样喂给 `match_name`,它必须认出**自己**。
+
+    为什么这条用例最值钱:它不需要游戏、不需要 OCR,一次就能量出
+    "整个卡池里有多少张会认错",而且**换一套卡组也照样有效**。
+    就是它量出了那个"659/1558 带空格的名字精确命中不了"的洞
+    (21 条认错自己,其中 9 条**费用被读错** -> 引擎判"出不起" -> 能出的牌不出)。
+    """
+    print()
+    print("=" * 92)
+    print("全域自检:库里每一条卡名喂给 match_name,必须认出自己")
+    print("=" * 92)
+    try:
+        import json
+        with open(cm.DATA_JSON, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except Exception as e:
+        print(f"  FAIL 读不到卡库({cm.DATA_JSON}): {e}")
+        return False
+    names = sorted({((c.get("json") or {}).get("title") or {}).get("zh-Hans", "")
+                    for c in data.get("cards", [])} - {""})
+    cm.load_db()
+    print(f"  卡库 {len(names)} 条中文卡名(含空格的 {sum(' ' in n for n in names)} 条)")
+    bad_cost = []
+    for zh in names:
+        got = cm.match_name(zh)
+        if got != zh:
+            a = (cm.card_by_name(zh) or {}).get("kredits")
+            b = (cm.card_by_name(got) or {}).get("kredits") if got else None
+            if a != b:
+                bad_cost.append((zh, a, got, b))
+    if bad_cost:
+        print(f"  ★ 费用被读错 {len(bad_cost)} 条(这才会让引擎判'出不起'):")
+        for zh, a, got, b in bad_cost[:10]:
+            print(f"      {zh!r:<26}({a}) -> {got!r:<26}({b})")
+    else:
+        print("  费用被读错的:0 条")
+    print(f"  {'OK ' if not bad_cost else 'FAIL'} 全域精确命中(费用零误读)")
+    return not bad_cost
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--frames", action="store_true", help="只跑真实帧回归")
@@ -231,6 +312,7 @@ def main() -> int:
     if not args.frames:
         ok &= run_name_cases()
         ok &= run_cost_cases()
+        ok &= run_pool_cases()
         ok &= run_hash_cases()
     run_frame_regression()
     print()

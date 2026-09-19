@@ -59,6 +59,25 @@ NOISE_GROUP = re.compile(r"[（(\[【][^）)\]】]{0,6}[）)\]】]")
 
 # 费用徽章:"3K" / "3 K" / "3Kredits"。只在卡面上部找,且限制 0-24。
 COST_BADGE_RE = re.compile(r"^(\d{1,2})\s*K", re.I)
+# ★★★ 2026-09-19(实机第二局)**"K 在前"那条规则已经删掉,而且必须记住为什么**。
+#
+# 徽章的真实长相(存帧 `shots/deploy_drag/0919_145114_x602.png` 放大 4 倍看的,
+# 那张牌是**2 费**的 哈奇开斯 H35):
+#         ┌─────────┐
+#         │ 2   K   │   <- 大数字 = 费用(2);右上角小 K = Kredits 符号
+#         │     1   │   <- 右下角**更小**的数字 = 这副牌里还剩几张(1 张)
+#         └─────────┘
+#   ⇒ 整个徽章里有**两个数字**。OCR 常常只抓到那个**小的**(它和 K 挨着),
+#     于是读出 `'K1'` / `'K2'` / `'K-3'` 这种形状。
+#
+# 我上一轮(同一天早些时候)看到 `shots/diffdiag` 里有 `'K-3'`,就补了一条
+# "K 在前"的正则 —— **那是错的**:实测把上面那块徽章喂给 OCR 得到 `'K1'`,
+# 新正则会返回 **费用 1**,而这张牌其实是 **2 费**。
+# 也就是说它读的是"牌库剩几张",不是费用。
+# 后果比"读不出"更坏:费用读小 -> 引擎会**去拖一张其实出不起的牌**
+# (白拖一次,还占掉一个动作),而本项目一贯的取舍是"**宁可少打一次**"。
+# ⇒ 所以这条规则删掉,cost 回到 None(由名字查库那条主路负责费用)。
+COST_BADGE_K_FIRST_RE = None
 MAX_COST = 24
 
 # 前缀匹配时,OCR 文本至少要占候选卡名这么长的比例。
@@ -75,18 +94,47 @@ PREFIX_MIN_CHARS = 5
 #   —— PROJECT_STATE 第 33 条踩过这个坑。
 CONTAINS_HEAD_SLACK = 2
 
+# ---- 第 ⑤ 级(近似命中)的参数。判据与实测见 match_name 里那一段注释 ----
+#: 卡名**字面上**够长才参与近似匹配(短碎片属于"没读到",不许硬凑)
+FUZZY_MIN_LEN = 5
+#: 长度差超过这个数就不是"认错一两个字"了
+FUZZY_LEN_SLACK = 2
+#: 相似度下限(1 - 编辑距离/较长长度)
+FUZZY_MIN_RATIO = 0.75
+#: 最佳必须比次佳好这么多,否则宁可不认(歧义时认错比认不出更坏)
+FUZZY_MARGIN = 0.10
+
 _NAME_SET = None
 _NAME_LIST = None
 _CARD_BY_NAME = None
+# ★★★ 2026-09-19(实机第二局):**归一化后的卡名 -> 规范卡名**。
+#
+# 为什么非要有这张表:规则 ① 原来写的是 `if tn in _NAME_SET`,而 `tn = norm(text)`
+# 是**去掉所有空白**的,`_NAME_SET` 里装的却是**库里的原样名字** ——
+# 库里有 **659/1558** 张卡名带空格(KARDS 在数字和拉丁字母两边插空格:
+# "第 5 步兵旅" / "丘吉尔 Mk IV" / "105 毫米轻型榴弹炮")。
+# 于是这些卡**永远走不到"精确命中"那一级**,掉进模糊规则里,而模糊规则
+# 是按"卡名长的优先"遍历候选的 —— 一条更长的、恰好包含 OCR 文本的卡名会先命中。
+#
+# 实机判据(2026-09-19 第二局,`logs/main_loop.log`):
+#   手牌里那张 `第 5 步兵旅`(徽章 **2**)被认成 `维尔纽斯第 5 步兵旅`(**6**)
+#   -> 预算 3 的那一回合判成"出不起" -> **能出的牌不出**(用户报的就是这个)。
+#   全域自检:`match_name(库里每一条卡名)` 有 **21/1558** 认错自己,其中 **9 条费用被读错**。
+_NAME_NORM = None
+#: 上一次 load_db 为什么没载进来(载进来了就是空串)。**必须留痕** ——
+#: 卡库缺失不会让引擎崩,只会让它悄悄退化成"费用全靠徽章 OCR 兜底",
+#: 而那正是"整回合一张牌不出"的根(见 2026-09-19 实机)。
+_DB_ERROR = ""
 
 
 def load_db(path: str = DATA_JSON):
     """载入卡名集合、按长度降序的卡名表、卡名 -> 卡数据。"""
-    global _NAME_SET, _NAME_LIST, _CARD_BY_NAME
+    global _NAME_SET, _NAME_LIST, _CARD_BY_NAME, _DB_ERROR, _NAME_NORM
     if _NAME_SET is not None:
         return
     names = set()
     by_name = {}
+    _DB_ERROR = ""
     try:
         with open(path, "r", encoding="utf-8") as f:
             data = json.load(f)
@@ -102,10 +150,40 @@ def load_db(path: str = DATA_JSON):
                 "cardId": c.get("cardId"),
             })
     except Exception as e:                       # 数据库缺失不该让扫描崩掉
+        _DB_ERROR = f"{type(e).__name__}: {e}"
         print(f"card_match: 卡库载入失败 {e}")
+    if not names and not _DB_ERROR:
+        _DB_ERROR = "文件在,但里面一条中文卡名都没有"
     _NAME_SET = names
     _NAME_LIST = sorted(names, key=len, reverse=True)
     _CARD_BY_NAME = by_name
+    # ★ 归一化索引:OCR 那边一律是 `norm()` 过的,所以这里也必须归一化,
+    #   否则带空格的名字永远精确命中不了(见 _NAME_NORM 处的实机判据)。
+    _NAME_NORM = {}
+    for zh in _NAME_LIST:            # 长名先入,短名撞车时不覆盖(与 by_name 一致)
+        key = norm(zh)
+        if key and key not in _NAME_NORM:
+            _NAME_NORM[key] = zh
+
+
+def db_status() -> str:
+    """
+    一行说清"卡库到底载进来了没有" —— 给引擎启动时打进日志用。
+
+    ★ 为什么要专门做这件事:这个故障**不报错、不崩、只是每张牌都少一条判据**。
+      2026-09-19 实机那一局就是这么过去的:发布包里漏了
+      `card_db_test/kards_data.json`,于是 `match_name()` 永远返回 None,
+      费用只剩"徽章 OCR"这一条**本来就不稳**的兜底路 -> 大部分牌 cost=None
+      -> 惰性扫描认为"一张都出不起" -> 第 1/2/4/6 回合一张牌没出。
+      日志里只有一行 `识别依据[... **卡名没读出**]`,看不出是"卡库没载入"。
+    """
+    load_db()
+    n = len(_NAME_SET or [])
+    if n:
+        return f"卡库:{n} 张卡名(卡名 -> 费用 这条路可用)"
+    return (f"⚠️⚠️ 卡库没载入({_DB_ERROR or '未知原因'}) —— "
+            f"卡名匹配**整条失效**,费用只能靠徽章 OCR 兜底(不稳,"
+            f"会导致'有牌不出');文件应在 {DATA_JSON}")
 
 
 def card_by_name(name):
@@ -168,14 +246,16 @@ def match_name(text: str, debug: bool = False):
     if not tn:
         return (None, "empty") if debug else None
 
-    # ① 精确
-    if tn in _NAME_SET:
-        return (tn, "exact") if debug else tn
+    # ① 精确(★ 用**归一化**索引比对,不然带空格的卡名一条都命中不了,见 _NAME_NORM)
+    if tn in _NAME_NORM:
+        hit = _NAME_NORM[tn]
+        return (hit, "exact") if debug else hit
 
     # ② 去噪声后精确
     sn = strip_noise(tn)
-    if sn and sn in _NAME_SET:
-        return (sn, "exact-noise") if debug else sn
+    if sn and sn in _NAME_NORM:
+        hit = _NAME_NORM[sn]
+        return (hit, "exact-noise") if debug else hit
 
     # ③④ 候选匹配。先在"去噪声"版本上试,再退回原文。
     seen = []
@@ -213,7 +293,67 @@ def match_name(text: str, debug: bool = False):
             if (klen >= PREFIX_MIN_CHARS and c.startswith(key)
                     and klen >= clen * PREFIX_MIN_RATIO):
                 return (cand, f"prefix:{cand}") if debug else cand
+
+    # ⑤ ★★★ 2026-09-19(实机第三局)近似命中:**只修"OCR 认错一两个字"**。
+    #
+    # 为什么非要这一级(实机日志原样,判据全在这里):
+    #   15:17:51  x596=fighter(fighter/None,✗){徽章=无 OCR行=['19','喷火Mkla','战斗机','喷火'] 图标=0.949}
+    #   15:21:22  x620=infantry(infantry/None,✗){徽章=无 OCR行=['兰开夏燃发枪兵团','步兵',...]}
+    #   —— 卡名**读出来了**,只是差一个字符:
+    #        '喷火Mkla'      vs 库里 '喷火 Mk Ia'       (OCR 把罗马数字 I 读成小写 l)
+    #        '兰开夏燃发枪兵团' vs 库里 '兰开夏燧发枪兵团'   (燧 -> 燃,字形近)
+    #   上一级(③④)全是**子串/前缀**判据,差一个字符就一条都不成立 ->
+    #   名字=None -> 费用只能靠徽章(而徽章里有两个数字,见上面的实测)->
+    #   cost=None -> **这张牌一辈子出不去**(用户报的"喷火从头到尾没打出过")。
+    #
+    # 安全边界(每一条都是为了"不许乱认"):
+    #   · 只看长度差 ≤ 2 的候选(差太多不可能只是认错字);
+    #   · 相似度 = 1 - 编辑距离/较长长度,要求 ≥ FUZZY_MIN_RATIO;
+    #   · **最佳必须明显优于次佳**(FUZZY_MARGIN),否则宁可不认 ——
+    #     歧义时返回错的那张比认不出更坏(费用会跟着错);
+    #   · 太短的文本(≤ FUZZY_MIN_LEN)不参与 —— '战斗机'/'19'/'TRCK' 这种
+    #     短碎片本来就属于"没读到",不该硬凑一张牌。
+    best, best_r, second_r = None, 0.0, 0.0
+    for cand in _NAME_LIST:
+        c = norm(cand)
+        if abs(len(c) - klen) > FUZZY_LEN_SLACK or len(c) < FUZZY_MIN_LEN:
+            continue
+        r = _similar(key, c)
+        if r > best_r:
+            best, second_r, best_r = cand, best_r, r
+        elif r > second_r:
+            second_r = r
+    if best is not None and best_r >= FUZZY_MIN_RATIO \
+            and best_r - second_r >= FUZZY_MARGIN:
+        return (best, f"fuzzy:{best}({best_r:.2f})") if debug else best
     return (None, "no-hit") if debug else None
+
+
+def _levenshtein(a: str, b: str) -> int:
+    """编辑距离(纯 python,只用来比卡名,几十个字符以内)。"""
+    if a == b:
+        return 0
+    if not a:
+        return len(b)
+    if not b:
+        return len(a)
+    prev = list(range(len(b) + 1))
+    for i, ca in enumerate(a, 1):
+        cur = [i]
+        for j, cb in enumerate(b, 1):
+            cur.append(min(prev[j] + 1,          # 删
+                           cur[j - 1] + 1,       # 插
+                           prev[j - 1] + (ca != cb)))   # 换
+        prev = cur
+    return prev[-1]
+
+
+def _similar(a: str, b: str) -> float:
+    """1 - 编辑距离/较长长度(1.0 = 一模一样)。"""
+    m = max(len(a), len(b))
+    if not m:
+        return 0.0
+    return 1.0 - _levenshtein(a, b) / m
 
 
 def read_cost_badge(lines):
@@ -223,14 +363,17 @@ def read_cost_badge(lines):
     lines: [{'text','conf','x','y','w','h','cx','cy'}, ...]
     返回 (cost, evidence) 或 (None, reason)。
 
-    只认行首完整的 "数字+K",这样 "105毫米轻型榴弹炮+02" 不会被误当成费用;
+    只认"数字+K"这一种形状,**既**不认光秃秃的数字(卡面上还有攻击/防御/血量
+    一堆数字,实测画面上就有 '18'/'32'/'152'),**也**不认"K 在前"
+    (那是徽章里那个"牌库剩几张"的小数字,见 COST_BADGE_K_FIRST_RE 处的实测)。
     多个不同的值 -> 分不清就不猜(None)。
     """
     found = {}
     for ln in lines:
         if ln.get("conf", 0) < 0.5:
             continue
-        m = COST_BADGE_RE.match(norm(ln.get("text", "")))
+        text = norm(ln.get("text", ""))
+        m = COST_BADGE_RE.match(text)
         if not m:
             continue
         v = int(m.group(1))

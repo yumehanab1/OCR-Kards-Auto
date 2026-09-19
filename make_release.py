@@ -96,7 +96,15 @@ def main() -> int:
         if any("__pycache__" in x for x in names):
             problems.append("混进了 __pycache__")
         need = [f"{BASE}/python/python.exe", f"{BASE}/src/main_loop.py",
-                f"{BASE}/KARDS AUTO.exe", f"{BASE}/config/app_version.json"]
+                f"{BASE}/KARDS AUTO.exe", f"{BASE}/config/app_version.json",
+                # ★★★ 2026-09-19:v0.1.1 的包里**漏了这个文件**,而引擎硬依赖它。
+                #   后果不是崩,是**静默退化**:match_name() 永远返回 None ->
+                #   "卡名 -> 费用"整条失效 -> 费用只剩徽章 OCR 兜底(本来就不稳)
+                #   -> 大部分牌 cost=None -> 惰性扫描认为一张都出不起
+                #   -> 一局里好几个回合**一张牌没出**(实机 0919 那一局
+                #      第 1/2/4/6 回合都是 0 次尝试)。
+                #   所以把它加进"缺了就报"的清单。
+                f"{BASE}/card_db_test/kards_data.json"]
         for w in need:
             if w not in names:
                 problems.append(f"缺少 {w}")

@@ -1049,6 +1049,571 @@
    "hash": "695ae9596941e981ff00ff00fae0fcf0f0d0f8d1f8c0fa907f6177c15d93df91",
    "name": "三号坦克 H 型",
    "type": "tank"
+  },
+  {
+   "hash": "0976993edff8febbfffbfedbabf5bff887f091cce99cdd96edcee5c86fee7ec7",
+   "name": "海军支援",
+   "type": "order"
+  },
+  {
+   "hash": "4bf4ff85f7a4ffa6f5aeff32ffb0d7a09ac09ac482cc9274ca29abc1cf84fe64",
+   "name": "丘吉尔 Mk IV",
+   "type": "tank"
+  },
+  {
+   "hash": "4b747f85f7a4ffa6f5a6ff32fdf263e0a4e672e8f0e6b2dc3acabdf47ee4fe6c",
+   "name": "哈奇开斯 H35",
+   "type": "tank"
+  },
+  {
+   "hash": "fdf4fff4bd34fdfcf6a37fe0cff099ecdd8cd59eddc69dcedf98cdecece97fc7",
+   "name": "海军支援",
+   "type": "order"
+  },
+  {
+   "hash": "f2c1f6e0b6e0b4e16324b370cf6c915875063892f187738ef9d47d88edb4e60c",
+   "name": "呼叫殖民地",
+   "type": "order"
+  },
+  {
+   "hash": "fff8c7d89bc09b621be68362c766c36c8eba8b56cb988bf0a9c8c3cbf7237639",
+   "name": "丘吉尔 Mk IV",
+   "type": "tank"
+  },
+  {
+   "hash": "7dd0cfc0954e8f2e039e838ea72ae16283a29b2a9daa9da0fd80a4d820cc1cce",
+   "name": "维尔纽斯第 5 步兵旅",
+   "type": "infantry"
+  },
+  {
+   "hash": "0c4b4e494c49cc52cc90e5f2e7d44de14f1c586e395abb0c9b94fb88d2b07352",
+   "name": "地毯式轰炸",
+   "type": "order"
+  },
+  {
+   "hash": "6b00e80084b0c5b8e534c7307c20b9c08fc099608b30c12e8f1a898c89e00bb0",
+   "name": "丘吉尔 Mk IV",
+   "type": "tank"
+  },
+  {
+   "hash": "10b298a39ca698c3e60437d08f50a52e838e872ac162d72add883de4a5969ccc",
+   "name": "维尔纽斯第 5 步兵旅",
+   "type": "infantry"
+  },
+  {
+   "hash": "1d86cd9095529d98ee10be207be0d2e600c29bcaf5d85d58cd56bdc0d4701266",
+   "name": "瓦伦丁 Mk III",
+   "type": "tank"
+  },
+  {
+   "hash": "3dc0c7c099809b600b5083748112e12a8b0e0b548b2a8984a980cbc02b302330",
+   "name": "丘吉尔 Mk IV",
+   "type": "tank"
+  },
+  {
+   "hash": "2d07cd11398035a13da08fc4a596870ec58ccd044da4e52aa7a071806e802344",
+   "name": "兰开夏燧发枪兵团",
+   "type": "infantry"
+  },
+  {
+   "hash": "db8acfc89b5c0b2c071c8714ab74c3c4c355e354ebd0e3405fc8fdaaa1ba908c",
+   "name": "维尔纽斯第 5 步兵旅",
+   "type": "infantry"
+  },
+  {
+   "hash": "47b2cf16b3129b13c752ec43a443a4038c11850e85862d8871806a886f0a231a",
+   "name": "HX 175 护航队",
+   "type": "order"
+  },
+  {
+   "hash": "bd48df52a78a978816727da0b932b55270a2f233f6a0bf223ea2e6a0e56404c5",
+   "name": "地毯式轰炸",
+   "type": "order"
+  },
+  {
+   "hash": "ef0e9f0c2e0cae848d8c7d8c79aa6dea6eaaac8a6d8e7d8a6f942dae3f2e5cb6",
+   "name": "海军支援",
+   "type": "order"
+  },
+  {
+   "hash": "53f8cff091f499ecc3cc398c7d9c71967de6b9cef9d47dc859fc19c995cb2ac1",
+   "name": "海军支援",
+   "type": "order"
+  },
+  {
+   "hash": "ffdbcff899ee99d815ce1d89af93fb83bbe47f863fd4bf94b1f857a9fd377c11",
+   "name": "呼叫殖民地",
+   "type": "order"
+  },
+  {
+   "hash": "22b427a0ff8df7c9ff49dbcd7f6dcfd48d2e838e852ac1a2eb2afda8fda9e4c6",
+   "name": "维尔纽斯第 5 步兵旅",
+   "type": "infantry"
+  },
+  {
+   "hash": "cb70cfb4b1e293a14b1db96af1ca71947128fd84f9a4f1885fa8f7aca4b88230",
+   "name": "地毯式轰炸",
+   "type": "order"
+  },
+  {
+   "hash": "45b2cf16b3129313b7523843344334033113b10e358e4b88f580d688cf0a631a",
+   "name": "HX 175 护航队",
+   "type": "order"
+  },
+  {
+   "hash": "dd25d8407a60fae0b3e0acd8a288ceac8a9e88ba6886ccc49ac8f5606e282648",
+   "name": "为了国王",
+   "type": "order"
+  },
+  {
+   "hash": "ee85f950b94079f065dc5b8c7298c2d0909a90dec2cac2d270e0d8c898cc0ccc",
+   "name": "冷溪卫队",
+   "type": "infantry"
+  },
+  {
+   "hash": "24022442e486f01831c1b960efc4a9409370a31aa302652ac52a6780a6a06730",
+   "name": "地瓦丁 D.520",
+   "type": "fighter"
+  },
+  {
+   "hash": "7fa79f86a6c48f96bc40bcb8fcb0bc75fe54bcc4bf449cccf748fdd8fddcf8dd",
+   "name": "呼叫殖民地",
+   "type": "order"
+  },
+  {
+   "hash": "b981f9a0e7b4fdc0f4c7b593871381135f43ce4bb511d58ef5984f9aee9aab2d",
+   "name": "HX 175 护航队",
+   "type": "order"
+  },
+  {
+   "hash": "f644f6c08ed8d701f31cd3d4c74091187948383e9c56578cdd8cbfe8aa48acb2",
+   "name": "为了国王",
+   "type": "order"
+  },
+  {
+   "hash": "24022442e586f01831c13960efc4b9409370e31ae302652ac52ae780a6a06730",
+   "name": "地瓦丁 D.520",
+   "type": "fighter"
+  },
+  {
+   "hash": "5bf6cf68b9ce91585b8e8d8bdd937d83dde4bd8e9dd4d794d9f2abaefd3ebc06",
+   "name": "呼叫殖民地",
+   "type": "order"
+  },
+  {
+   "hash": "ffd2cff4b9e1c1a16b1c6e6e3ecaf65276ecfe967fac7fa861e8bee8f4b1f0b9",
+   "name": "地毯式轰炸",
+   "type": "order"
+  },
+  {
+   "hash": "fac0cfc099c693980386cd8495388338d735d12ad58879b0afe8f5e6d5d5c2cd",
+   "name": "瓦伦丁 Mk III",
+   "type": "tank"
+  },
+  {
+   "hash": "ac26aaecacc4ae64fb108e90aed48454dd14c813ac96de64fec0de40eed4caa7",
+   "name": "HX 175 护航队",
+   "type": "order"
+  },
+  {
+   "hash": "58ea54ce51cc14cce62897809f4096203ab0b839d8485710db20bfd0ddb41567",
+   "name": "为了国王",
+   "type": "order"
+  },
+  {
+   "hash": "65ac57384638d73098a0d4e047e84d8a619a45ca6d9a6390e2c4e384a6d0159c",
+   "name": "沙漠之鼠",
+   "type": "order"
+  },
+  {
+   "hash": "edf5cfc0b18ad19945695d2ccd3ea5529526d78cf1ccf9882fa8fa4aaa788ab3",
+   "name": "为了国王",
+   "type": "order"
+  },
+  {
+   "hash": "16f85e467fd67fd77fd6ffceffdcafc41dc49d8015b00df4b5a496c0c68987bb",
+   "name": "冷溪卫队",
+   "type": "infantry"
+  },
+  {
+   "hash": "967c5f63efeb7febffebffe7fff8f9f4f274fef4fff4fff4ffe67d647fdc6e9d",
+   "name": "一杯茶",
+   "type": "order"
+  },
+  {
+   "hash": "36d09bc0ff907fb0be98ffb0fef0ede3e972fd75ff87ff8bfee6ebe8fe8efccd",
+   "name": "防御工事",
+   "type": "order"
+  },
+  {
+   "hash": "6f307f10ff20ff70ff60fd38fd36fb36fd727d747df47ee0fdf07bf03ece7eda",
+   "name": "剑鱼 Mk I",
+   "type": "bomber"
+  },
+  {
+   "hash": "7fd67fd67fd7ffd6ffceffd4cf82cee0cec0ca94c6f5ca55ca95cb6463ccc3cc",
+   "name": "冷溪卫队",
+   "type": "infantry"
+  },
+  {
+   "hash": "5b64afc44596058ee18eeb84db04db88d3a4f3aa73aae780fe8094e09cec98cc",
+   "name": "兰开夏燧发枪兵团",
+   "type": "infantry"
+  },
+  {
+   "hash": "fe80fe80f8803c802c802c90fa913a822c827cc03ec134813c01bac39ac11aa1",
+   "name": "冷溪卫队",
+   "type": "infantry"
+  },
+  {
+   "hash": "7ffc8fe48196899e5dcefdccfd8dfda8eda2fdaaafaa7ffc77ec3cef6fcee7cd",
+   "name": "兰开夏燧发枪兵团",
+   "type": "infantry"
+  },
+  {
+   "hash": "ff01ff00ff00fd00fd80bc803a821c80fa12fa90fa80fa02fa00de00f4817581",
+   "name": "一杯茶",
+   "type": "order"
+  },
+  {
+   "hash": "efe84f68efe8ffccffccfaebf5b2f474ffd7ff87ff8affe67ef8f9e47f6cfe6d",
+   "name": "防御工事",
+   "type": "order"
+  },
+  {
+   "hash": "ffceffeeffceffb8feb8ffd99f98a790fec1ff9bff9ffe4b7ec1ffc47fb4fdb6",
+   "name": "一杯茶",
+   "type": "order"
+  },
+  {
+   "hash": "ff96ffb6ffd6fb3cfdbccf2a9964c15dfecffe0fed37fdccf7f8739aff3a7731",
+   "name": "防御工事",
+   "type": "order"
+  },
+  {
+   "hash": "d7d0cfccb596099ecd4efdc4b505bda47d21772afda0b5d087e8fcc8dcdedccd",
+   "name": "兰开夏燧发枪兵团",
+   "type": "infantry"
+  },
+  {
+   "hash": "c400c400ec00b880b800bd209e022ea00d20bda00d20d9829f00dc049244b5c4",
+   "name": "第 4 旅",
+   "type": "infantry"
+  },
+  {
+   "hash": "37013b81ff80fd80ff00fd80fd80bd8059009820f9a0fca0fa30fe207da073d0",
+   "name": "一杯茶",
+   "type": "order"
+  },
+  {
+   "hash": "3f409302fec1eec0fec0f784f6908feaadc88b228939b35af32af3a2e6c8ccb2",
+   "name": "第 4 旅",
+   "type": "infantry"
+  },
+  {
+   "hash": "f3aacf22b974955d594dfc8ffc8ff037e935e994fdeaf5b0719aff3b77357731",
+   "name": "防御工事",
+   "type": "order"
+  },
+  {
+   "hash": "6c00ac0078403d002590adc4ef40a1609b38e318e382e72a872ab39076a06330",
+   "name": "地瓦丁 D.520",
+   "type": "fighter"
+  },
+  {
+   "hash": "7e687e687f68ff60ffe0f8eafd38fff8fcb4ff367d307fd17df07bf43ed2fab0",
+   "name": "地瓦丁 D.520",
+   "type": "fighter"
+  },
+  {
+   "hash": "7ffffff97ffd7ff5bff7bdf453da8fe081e4cda1c1b17d117d2b9df825cee6f6",
+   "name": "第 7 步兵团",
+   "type": "infantry"
+  },
+  {
+   "hash": "fff8ffd9ffebffabfebeffb4cfd88b44c35c9be783b1ffd7ff557fd8bfd2bfa3",
+   "name": "A-26 入侵者",
+   "type": "bomber"
+  },
+  {
+   "hash": "fff0ff36ffb6ff76fbf0fbfa8fea8d8c898c8d8c8da285aad1ecebecffcdfed6",
+   "name": "恶汉团",
+   "type": "infantry"
+  },
+  {
+   "hash": "efd0fc91fe92fa90ebc1ebe0c7f4ad80d160f582ff23f9aaa9b0efa4ff6cfa62",
+   "name": "喷火 Mk Ia",
+   "type": "fighter"
+  },
+  {
+   "hash": "4be08fec99a48f840f90cb94971c833a0f278f2ac59ca190c1b4c3a4f94b9a92",
+   "name": "亨伯 Mk IV",
+   "type": "tank"
+  },
+  {
+   "hash": "fffcffedffedffddffdeffd7cfb1dfc903d1cbc5c365fb23ff5d3ff05d9dddc8",
+   "name": "第 7 步兵团",
+   "type": "infantry"
+  },
+  {
+   "hash": "fc20e490f590d580dc08d3c077c8458a598e3dcaf5e6e4c278aa7f80fc0ccd82",
+   "name": "F4U-1C 海盗",
+   "type": "fighter"
+  },
+  {
+   "hash": "51f4cf509fbe93660322e33ba33ad3367a5cb261da2aa3a0f580f440ec784434",
+   "name": "M5 斯图亚特",
+   "type": "tank"
+  },
+  {
+   "hash": "ff889f80ae403cc80cc00cc0aca81c201d950da19ec8ad48e7c0fe00fe8cfa1e",
+   "name": "恶汉团",
+   "type": "infantry"
+  },
+  {
+   "hash": "7feaffda7fda7ff2fffc7fb87f529f0207a2979ac69afeda7f5a3fc40f74cb24",
+   "name": "第 7 步兵团",
+   "type": "infantry"
+  },
+  {
+   "hash": "ffdeffb6ffb6fdf6fff8fff8cfe08b08eaf093ce8372faaafbe87bb0bfe4bf64",
+   "name": "A-26 入侵者",
+   "type": "bomber"
+  },
+  {
+   "hash": "ecd2fdd6fdd6ded4ebc2ebd2c7f0adc0d162f593ff63b9aaabb0efa4ff02fa63",
+   "name": "喷火 Mk Ia",
+   "type": "fighter"
+  },
+  {
+   "hash": "4f58ef488d93a58ad10ededa9e4ad6c6de867e2a76a077a07db4fd94f91a9a37",
+   "name": "F4U-1C 海盗",
+   "type": "fighter"
+  },
+  {
+   "hash": "78405ac013f48f709be60322a73be33ad3367a78b22adbaafd80b4c0ec784434",
+   "name": "M5 斯图亚特",
+   "type": "tank"
+  },
+  {
+   "hash": "feebfeebff8cffbafdea8fee898c0d8c8d8c898b8dab95aa89d4fde97fc87ed0",
+   "name": "恶汉团",
+   "type": "infantry"
+  },
+  {
+   "hash": "9656b694b6d0e614eea09bf48ffa9966a332e33a525cd52a7da87db4fc70d41c",
+   "name": "M5 斯图亚特",
+   "type": "tank"
+  },
+  {
+   "hash": "dab0d2e0d2c098a07a005f80a7e8ad6091a2a3a6c39cc32af32af580e2c042d0",
+   "name": "P-40 战鹰",
+   "type": "fighter"
+  },
+  {
+   "hash": "aa0070808580b500b400a5009580c710d166dd409b0083088d0a8bd889088324",
+   "name": "B-17 飞行堡垒",
+   "type": "bomber"
+  },
+  {
+   "hash": "e520dd90f8a0fac0f680fcc0faa0dfc09790ce90c6d0ede06e90b600fb80d8ce",
+   "name": "M5 斯图亚特",
+   "type": "tank"
+  },
+  {
+   "hash": "9fee5f317fc5ffd67fd4ffe4ffd57fd69f540f449d34cd9dfd957f841ee6df44",
+   "name": "第 7 步兵团",
+   "type": "infantry"
+  },
+  {
+   "hash": "a430f020f400f8c4efc0dfa0a500d362f508f522f46ab52af9a0958088d00ce0",
+   "name": "喷火 Mk Ia",
+   "type": "fighter"
+  },
+  {
+   "hash": "fea8eb58eb54f35cf358f7c1bfd0cfd0b380a288da0efa8ae2aaf390ff9dfd19",
+   "name": "喷火 Mk Ia",
+   "type": "fighter"
+  },
+  {
+   "hash": "8580b500b400b500b0a0bca029c0c7c0d1c0dd609b218b08892a97808ce008a0",
+   "name": "B-25 米切尔",
+   "type": "bomber"
+  },
+  {
+   "hash": "fff2fff6fff6fef4ff76f7ece7f0d5a2d5ac99d2919cfdabf5f07fec9eecbfd4",
+   "name": "A-26 入侵者",
+   "type": "bomber"
+  },
+  {
+   "hash": "ee96fe94fe98df98ee96a7dccf92b18bd3de764bfee6bfaaefb0cfa4ff1cfa19",
+   "name": "F4U-1C 海盗",
+   "type": "fighter"
+  },
+  {
+   "hash": "f2b0f2e0f6c07e80d6d097f8efc8a5f091a2a3a6d39c512a75a07dd4fcc4d4c5",
+   "name": "P-40 战鹰",
+   "type": "fighter"
+  },
+  {
+   "hash": "d280d280d300d300d2c0e3d08350d56ad9408b2183089f4c8f2a83c88938c334",
+   "name": "B-17 飞行堡垒",
+   "type": "bomber"
+  },
+  {
+   "hash": "39c2c7c295908fc00bc88bdc8394d59cb1929b94032ac38ee3908db0a8a41d62",
+   "name": "第 593 联合通信连",
+   "type": "infantry"
+  },
+  {
+   "hash": "fed0f6d0f6907ec0d2d2b3daefc8a5e093a2a3a6d39cd72ac3a07dd4fcc4d4c5",
+   "name": "P-40 战鹰",
+   "type": "fighter"
+  },
+  {
+   "hash": "8634a42c24aca6a8e620ce2c8fd685099b363d6ab03aac4af9aaf5a0f0dc92b4",
+   "name": "第 506 空降步兵团",
+   "type": "infantry"
+  },
+  {
+   "hash": "5ad05b685970dc409e501d6067a0d582d5ac89d25b98da4a9baaf580f0c053c4",
+   "name": "A-26 入侵者",
+   "type": "bomber"
+  },
+  {
+   "hash": "d2169256d794f7146392c758d1e6cd60d9118329834e8d2a8fc88bac8930c354",
+   "name": "B-17 飞行堡垒",
+   "type": "bomber"
+  },
+  {
+   "hash": "7fdce7fc899ba98fd18ec5dafd4f9de7ddc79daaddb8cff86dcc9cde9cda9ed7",
+   "name": "F4U-1C 海盗",
+   "type": "fighter"
+  },
+  {
+   "hash": "ddf8a7f0dde4a9ecd18c8fb88d308d9483aafbaa7fd47d9461e4afe06fecfe58",
+   "name": "P-51 野马",
+   "type": "fighter"
+  },
+  {
+   "hash": "e5f8a7e8cdf0a9b291e2a5a6a1b6e39cc9aadbaad9b8e990afd4fde6fb46dac4",
+   "name": "P-40 战鹰",
+   "type": "fighter"
+  },
+  {
+   "hash": "69c8e7c89180d1e2c566db149b9583198f0c8b288daa8990c390e640c7f0e2bc",
+   "name": "SBD 3 无畏",
+   "type": "bomber"
+  },
+  {
+   "hash": "69c0a5c89d088fc899cc8bd8035283489d3c8f2a8f2ac3c49584831057ace230",
+   "name": "瓦伦丁 Mk II",
+   "type": "tank"
+  },
+  {
+   "hash": "dcb1ffef7fa6a3f9cff4a9ec918c8fb88d70899095aaddd4c9cc3ceddfe59ed8",
+   "name": "P-51 野马",
+   "type": "fighter"
+  },
+  {
+   "hash": "d201d301d3c1d3049c12d660cf728bc0a9c283308304c92a832ac38099489c60",
+   "name": "T19 榴弹炮",
+   "type": "artillery"
+  },
+  {
+   "hash": "8bae9ae81fdb7f5b3f5b7f59ffe49ff69f86eec4ad99bf190c13aec90fd4e732",
+   "name": "P-51 野马",
+   "type": "fighter"
+  },
+  {
+   "hash": "a620e6297dc06da4cf7289c0a9c00bd28334c78cc92a832ac394e784dc6c1ce8",
+   "name": "T19 榴弹炮",
+   "type": "artillery"
+  },
+  {
+   "hash": "a68087c287d09dc08fc88bdc8194d58cb1929994012ac38ee39043b063247322",
+   "name": "第 593 联合通信连",
+   "type": "infantry"
+  },
+  {
+   "hash": "b3fae7f88df4bdec91cc91bc8d389d718d9481abb9aa5ddce5fc99cf99f9f2d1",
+   "name": "P-51 野马",
+   "type": "fighter"
+  },
+  {
+   "hash": "c4b864bcc4b0d634e698c6908fe8998c8f94c31897368f22a5aae180c3307384",
+   "name": "亨伯 Mk IV",
+   "type": "tank"
+  },
+  {
+   "hash": "7d00fcc0f5c0f4e0f582e631a631cfe58b8103a48308c358cb54c300eac898d6",
+   "name": "T19 榴弹炮",
+   "type": "artillery"
+  },
+  {
+   "hash": "71fca7ec8f9e8ffc8dde89da01cb83698d1e8dab8daa81e6c1a694ec80cce6ee",
+   "name": "瓦伦丁 Mk III",
+   "type": "tank"
+  },
+  {
+   "hash": "ffdccfe89de80dac01d4839695afe58bb187d92a71c8f9f07dec9de99f77bf56",
+   "name": "第 104 步兵团",
+   "type": "infantry"
+  },
+  {
+   "hash": "ffec8fd08911a9310da989a983a58dc58f558daa83d6c9f0d1e4c58cfd9df9d1",
+   "name": "3.7 英寸高射炮",
+   "type": "artillery"
+  },
+  {
+   "hash": "bffca5ec8d9e8fdc99dc91da23db83498d3e8daa8daa81d4c1a490ca82cdf6cd",
+   "name": "瓦伦丁 Mk III",
+   "type": "tank"
+  },
+  {
+   "hash": "ec60c8e0cb60c3e0c3e4c1e4c2eeea64ea6aca44c0d6d8c6e8e8e248b686b4d2",
+   "name": "第 593 联合通信连",
+   "type": "infantry"
+  },
+  {
+   "hash": "ff72dfa0b7a256a007a0c674a67de65da63db6b1ef65ffc07f60bbacbdba3d73",
+   "name": "第 104 步兵团",
+   "type": "infantry"
+  },
+  {
+   "hash": "7f91ff917f48ff10ff90ff50ff307f103e103b301ea83f283f289d000e68ca90",
+   "name": "瓦伦丁 Mk II",
+   "type": "tank"
+  },
+  {
+   "hash": "ffa7ffe7ffb5ffa6ffe4ffb29fc2d6ca46cc06ad972d1f2dc6f1d7a28f7a3ecc",
+   "name": "3.7 英寸高射炮",
+   "type": "artillery"
+  },
+  {
+   "hash": "bf71dfe29fa957a20680c7698f31aa79a218b69986b09fa0afe2b76ca3bae7b3",
+   "name": "第 104 步兵团",
+   "type": "infantry"
+  },
+  {
+   "hash": "4fd0c7f28b00a5c083c20b5283208306e1848b6a032ac306e380cb08d32022e0",
+   "name": "T19 榴弹炮",
+   "type": "artillery"
+  },
+  {
+   "hash": "bf98bf91bf659babd72806a286668e76e2d6a634b6b41e728fe187e793f3e7ad",
+   "name": "第 104 步兵团",
+   "type": "infantry"
+  },
+  {
+   "hash": "dffc8be88d13adb3adb98da981a585c5894d8d55adaa81decdfcc1dac2cefabb",
+   "name": "3.7 英寸高射炮",
+   "type": "artillery"
+  },
+  {
+   "hash": "a504b084a504e48066826788cfc091c2d566db948b198b15a92acb80c64048b0",
+   "name": "SBD 3 无畏",
+   "type": "bomber"
   }
  ]
 }

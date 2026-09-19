@@ -584,6 +584,20 @@ def main() -> int:
             return 2
         log("单实例锁已取得(main_loop 是唯一的实例)")
 
+    # ★★★ 2026-09-19(实机):**开局第一行就报"卡库在不在"。**
+    #   为什么非要这一行:卡库(`card_db_test/kards_data.json`)缺失时引擎
+    #   **不崩、不报错**,只是 `match_name()` 永远返回 None ——
+    #   于是"卡名 -> 费用"这条**最硬的路**整条失效,费用只剩徽章 OCR 兜底,
+    #   而徽章 OCR 本来就不稳 -> 大部分牌 cost=None -> 惰性扫描认为一张都出不起
+    #   -> **整回合一张牌不出**(2026-09-19 那一局第 1/2/4/6 回合)。
+    #   当天日志里唯一的线索只有 `识别依据[... **卡名没读出**]`,完全指不到病因。
+    try:
+        from card_match import db_status
+        _db = db_status()
+    except Exception as _e:                      # 报不出来也不许挡住启动
+        _db = f"⚠️ 卡库状态读不出来({type(_e).__name__}: {_e})"
+    log(_db)
+
     if args.full_frame_state:
         import ui_state as _ui
         _ui.ROI_MATCH = False

@@ -232,9 +232,24 @@ def _same_identity(mem, info):
         if mt and t and mt == t:
             return mc is None or c is None or mc == c
         return False
-    if mc is None or c is None or mt is None or t is None:
+    if mt is None or t is None:
         return False
-    return mc == c and mt == t
+    if mt != t:
+        return False
+    # ★★★ 2026-09-19(实机)**"两边费用都没读出来"不等于"它变了"**。
+    #   旧写法是 `if mc is None or c is None ...: return False`,于是
+    #   记忆里记着 tank(None)、这一帧又读到 tank(None) —— 身份明明**逐字相同**,
+    #   却判"不同" -> 记忆当场作废 -> 整手从头重扫一遍。
+    #   实机日志(`0919` 那一局)里那三行就是这么来的:
+    #     `[记忆] 失效:校验点第 1 张读到 tank(None),记忆说 tank(None)`
+    #     `[记忆] 失效:校验点第 3 张读到 infantry(None),记忆说 infantry(None)`
+    #     `[记忆] 失效:校验点第 5 张读到 order(None),记忆说 order(None)`
+    #   —— **读到什么和记忆说什么一字不差**,却报了失效,一眼就是判据错位。
+    #   这和本函数文档第 ② 条要修的是同一类错:拿"没读到"当"变了"。
+    #   放宽的边界:类型必须相同(唯一还剩的硬判据),两边**都有**费用时照样要比。
+    if mc is None or c is None:
+        return True
+    return mc == c
 
 
 def _match_name(t):
@@ -622,6 +637,13 @@ class HandScannerV2:
         if cost is not None:
             info["cost"] = cost
             info["cost_source"] = ev
+        # ★★★ 2026-09-19(实机第二局):**卡名没读出来时,把 OCR 行留下来当证据。**
+        #   起因:用户报"那个喷火从头到尾就没打出过",而日志里只有
+        #   `x466=fighter(fighter/None,✗)` —— 看得出"没读到",**看不出卡在哪一级**。
+        #   (原来只有 `debug=True` 才收 `ocr_lines`,生产路径上永远是空的。)
+        #   代价只有"失败时多存几个字符串",换来的是下次实机能当场判因。
+        if not info.get("name"):
+            info["ocr_lines"] = [ln["text"] for ln in lines][:6]
         return info
 
     def find_playable(self, budgets, edge=None, right=None, exclude=None,
@@ -863,7 +885,12 @@ class HandScannerV2:
                         "cost": cost,
                         "playable": bool(ctype in DEPLOYABLE_TYPES
                                          and cost is not None and cost <= budget),
-                        "why": why})
+                        "why": why,
+                        # ★ 2026-09-19:同上,拒绝的原因要能当场看见
+                        "cost_source": info.get("cost_source"),
+                        "ocr": info.get("ocr"),
+                        "name_tier": info.get("name_tier"),
+                        "icon_score": info.get("icon_score")})
             card = {"x": px, "i": i, "name": info.get("name"), "type": ctype,
                     "cost": cost, "info": info,
                     "panel": hover[by:by + bh, bx:bx + bw].copy()}
@@ -1084,7 +1111,13 @@ class HandScannerV2:
             playable = (ctype in DEPLOYABLE_TYPES and cost is not None
                         and cost <= budget)
             seen.append({"i": i, "x": px, "panel": True, "name": info.get("name"),
-                         "type": ctype, "cost": cost, "playable": bool(playable)})
+                         "type": ctype, "cost": cost, "playable": bool(playable),
+                         # ★ 2026-09-19:拒绝的原因要能当场看见(见 turn_engine._probes_text)
+                         "cost_source": info.get("cost_source"),
+                         "ocr": info.get("ocr"),
+                         "ocr_lines": (info.get("ocr_lines") or [])[:4],
+                         "name_tier": info.get("name_tier"),
+                         "icon_score": info.get("icon_score")})
             if debug:
                 print(f"      x={px:<5} {info} "
                       f"-> {'可用,停止扫描' if playable else '继续'}")

@@ -192,6 +192,20 @@ class HandMemory:
             ctype, cost = c.get("type"), c.get("cost")
             if ctype in deployable and cost is not None and cost <= budget:
                 targets.append((i, cost))
+            elif ctype in deployable and cost is None:
+                # ★★★ 2026-09-19(实机第三局)修:**"是单位、但费用没读出来"必须去探,
+                #   不许当"出不起"跳过。**
+                #   旧写法把这一档整个扔进 `skip`,于是只要某张牌**有一次**被读成
+                #   `infantry(None)` / `fighter(None)`(实机很常见:卡名差一个字符 ->
+                #   查不到库 -> 徽章又读不出,见 match_name ⑤),
+                #   记忆就把它记成"跳过",**以后每一回合都不再看它一眼** ——
+                #   永远没有机会再读对一次,这张牌**整局都出不去**。
+                #   实机判据(第三局第 12 回合,预算 8):
+                #     `跳过 6 个已知探针后,预算 8 内没有可部署的牌`
+                #     `记忆:记着 8 张 跳过 6 必探 1 候选 [1]`
+                #   而那手牌里明明有 4 费的 兰开夏燧发枪兵团、5 费的 喷火 Mk Ia。
+                #   代价:这些牌每回合会多花约 2 秒去探一次 —— 换的是"能出牌"。
+                probe.append(i)
             else:
                 skip.append(i)                  # 明确出不起 / 不是单位 -> 跳过悬停
         targets.sort(key=lambda t: (t[1], t[0]))

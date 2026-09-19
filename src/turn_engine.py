@@ -530,7 +530,16 @@ class TurnEngine:
 
     @staticmethod
     def _probes_text(seen):
-        """把 `last_probe_seen` 压成一行人话(太长就截断)。"""
+        """
+        把 `last_probe_seen` 压成一行人话(太长就截断)。
+
+        ★★★ 2026-09-19(实机第二局补):**费用读不出来的那些,要把"OCR 到底看到了什么"
+          一起写出来。** 起因:用户报"那个喷火从头到尾就没打出过",而日志里那几行只有
+          `x466=fighter(fighter/None,✗)` —— 看得出"没读到",**看不出卡在哪一级**
+          (名字 OCR 读成了什么?徽章兜底为什么说 no-badge?卡名压根没进中线带?)
+          于是只能靠猜。这一行以后会把 OCR 原文和费用来源一起摊开,
+          下次实机就能当场判"是名字读歪了"还是"徽章读不着"。
+        """
         parts = []
         for s in seen[:8]:
             if not s.get("panel"):
@@ -538,7 +547,26 @@ class TurnEngine:
                 continue
             nm = s.get("name") or s.get("type") or "?"
             mark = "✓" if s.get("playable") else "✗"
-            parts.append(f"x{s['x']}={nm}({s.get('type')}/{s.get('cost')},{mark})")
+            txt = f"x{s['x']}={nm}({s.get('type')}/{s.get('cost')},{mark})"
+            if s.get("cost") is None:
+                # 只在"读不出费用"时追加证据(读出来的那些没必要占地方)
+                ev = []
+                if s.get("cost_source"):
+                    ev.append(str(s["cost_source"]))
+                else:
+                    ev.append("徽章=无")
+                if s.get("ocr"):
+                    ev.append(f"OCR={s['ocr']!r}")
+                elif s.get("ocr_lines"):
+                    ev.append(f"OCR行={s['ocr_lines']}")
+                else:
+                    ev.append("OCR=空")
+                if s.get("name_tier"):
+                    ev.append(f"名字级={s['name_tier']}")
+                if s.get("icon_score") is not None:
+                    ev.append(f"图标={s['icon_score']}")
+                txt += "{" + " ".join(ev) + "}"
+            parts.append(txt)
         if len(seen) > 8:
             parts.append(f"…共 {len(seen)} 个")
         return " ".join(parts)

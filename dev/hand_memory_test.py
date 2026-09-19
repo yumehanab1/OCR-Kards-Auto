@@ -191,6 +191,18 @@ cases = [
      {"name": None, "type": "counter", "cost": 2},
      {"name": None, "type": "countermeasure", "cost": 2}, False),
     ("记忆是 None(不知道)-> 不同", None, card("鹰爪", "order", 3), False),
+    # ★★★ 2026-09-19(实机)补:**"两边费用都没读出来"不等于"它变了"**。
+    #   实机日志里那三行 `校验点第 N 张读到 tank(None),记忆说 tank(None)`
+    #   —— 读到什么和记忆说什么一字不差,却报了失效 -> 整手重扫。
+    ("都没名字、都没费用:类型相同 -> 同一个(实机那三行失效日志)",
+     {"name": None, "type": "tank", "cost": None},
+     {"name": None, "type": "tank", "cost": None}, True),
+    ("都没名字:一边没费用一边读出了 -> 同一个(类型是硬的,费用是软的)",
+     {"name": None, "type": "infantry", "cost": None},
+     {"name": None, "type": "infantry", "cost": 2}, True),
+    ("都没名字、都没费用:**类型不同 -> 还是不同**(真漂移照样抓)",
+     {"name": None, "type": "tank", "cost": None},
+     {"name": None, "type": "infantry", "cost": None}, False),
 ]
 for name, mem, info, want in cases:
     got = hsv._same_identity(mem, info)
@@ -235,6 +247,31 @@ m2 = new_mem()
 m2.note_scan({0: card("A", "infantry", 1)}, 9)   # 有效记忆 -> 张数不同
 C("有效记忆 + 张数不同 -> 照旧失效(fail-open 那条没被破坏)",
   m2.valid is False, m2.reason)
+
+print()
+print("=" * 82)
+print("★ 2026-09-19(实机第三局):**'是单位、但费用没读出来'必须去探,不许跳过**")
+print("=" * 82)
+print("    起因:只要某张牌**有一次**被读成 infantry(None)/fighter(None)(实机很常见:")
+print("    卡名差一个字符 -> 查不到库 -> 徽章又读不出),旧 `plan()` 就把它归进 skip,")
+print("    **以后每回合都不再看它一眼** -> 永远没机会再读对 -> 整局都出不去。")
+print("    实机:第 12 回合预算 8,`跳过 6 个已知探针后,预算 8 内没有可部署的牌`,")
+print("          而那手牌里有 4 费的 兰开夏燧发枪兵团、5 费的 喷火 Mk Ia。")
+m3 = HandMemory(log=lambda _m: None)
+m3.note_scan({0: {"name": None, "type": "infantry", "cost": None},    # 费用未知的单位
+              1: {"name": "喷火 Mk Ia", "type": "fighter", "cost": None},
+              2: {"name": "鹰爪", "type": "order", "cost": 3},         # 不是单位
+              3: {"name": "丘吉尔 Mk IV", "type": "tank", "cost": 5},   # 明确出不起
+              4: {"name": "冷溪卫队", "type": "infantry", "cost": 3}},  # 出得起
+             5)
+p3 = m3.plan(budget=4, deployable=DEPLOYABLE)
+print(f"    plan: 必探={p3['probe']} 跳过={p3['skip']} 候选={[i for i, _ in p3['targets']]}")
+C("费用未知的单位(0/1)进**必探**,不进跳过", set(p3["probe"]) == {0, 1}, p3["probe"])
+C("指令卡(2)照旧跳过(不是单位)", 2 in p3["skip"], p3["skip"])
+C("明确出不起的(3)照旧跳过", 3 in p3["skip"], p3["skip"])
+C("出得起的(4)进候选", [i for i, _ in p3["targets"]] == [4], p3["targets"])
+C("省下的探针数 = 跳过数(不再把未知费用算成省下的)", p3["saved"] == len(p3["skip"]),
+  p3["saved"])
 
 print()
 print("=" * 82)
