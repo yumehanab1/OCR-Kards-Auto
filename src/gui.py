@@ -210,6 +210,8 @@ LOG_DIR = os.path.join(PROJECT_ROOT, "logs")
 LOG = os.path.join(LOG_DIR, "main_loop.log")
 GUI_RUN_LOG = os.path.join(LOG_DIR, "gui_run.log")
 VERSION_FILE = os.path.join(PROJECT_ROOT, "config", "app_version.json")
+#: "检测更新"的留痕(每次查完追加一行,含开机那次静默的)—— 见 log_update()
+UPDATE_LOG = os.path.join(LOG_DIR, "update_check.log")
 
 APP_NAME = "KARDS AUTO"
 
@@ -371,6 +373,69 @@ def read_version() -> dict:
             return json.load(f)
     except Exception:
         return {"version": "0.0.0", "update_url": ""}
+
+
+def log_update(line: str) -> None:
+    """
+    把一次"检测更新"的结果追加进 `logs/update_check.log`。
+
+    ★★★ 2026-09-19(v0.1.3):**开机那次自动检查也非要留痕不可。**
+      自动那一次是**静默**的(查到才改按钮、查不到什么都不说),于是
+      "查到没有新版本"和"那个后台线程压根没跑起来"在界面上**长得一模一样** ——
+      这正是这个项目反复踩的那类坑(空壳图、`sh -c` 包多一层、假 adbd、exe 里是旧代码)。
+      留一行文件,两条路当场分得开;顺带把"走的是 API 还是备用源"也记下来。
+      ★ 写在 `logs/` 里(不是 `gui_selftest.txt`):那个文件是自检专用的,
+        而且 `logs/*` 既不进仓库也不进发布包。
+    """
+    try:
+        os.makedirs(LOG_DIR, exist_ok=True)
+        with open(UPDATE_LOG, "a", encoding="utf-8") as f:
+            f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} {line}\n")
+    except Exception:
+        pass          # 记不下来也绝不许影响面板
+
+
+def auto_update_once(window=None) -> dict:
+    """
+    开机后台查一次(**静默**)。查到新版本就把按钮改成「有新版本 vX」;
+    查不到 / 出错都**一句话都不说** —— 只有手动点按钮那条路才"必须如实回答"。
+
+    返回查到的结果(测试和日志用)。`window=None` 时只查 + 记日志、不碰界面
+    —— 这样这条逻辑能离线测(见 `dev/gui_test.py` ⑦)。
+
+    ★ 为什么自动那次可以静默:手动那条路会**逐条说清**为什么查不到,
+      所以"没提示"只意味着"没有新版本",不意味着"我们不知道"。
+      但**必须留痕**(见 `log_update`),否则静默就等于"什么都可能发生"。
+    """
+    local = str(read_version().get("version") or "0.0.0")
+    try:
+        r = update_check.check(local)
+    except Exception as e:                     # 自动这条路绝不许影响面板
+        log_update(f"[自动] 出错({type(e).__name__}: {e})")
+        return {}
+    log_update(f"[自动] 本地 v{local} ok={r.get('ok')} "
+               f"has_update={r.get('has_update')} remote={r.get('remote')} "
+               f"via={r.get('via')} | {r.get('msg')}")
+    if window is not None and r.get("has_update"):
+        try:
+            url = r.get("url") or update_check.RELEASES_PAGE
+            label = f"有新版本 {r.get('remote') or ''}".strip()
+            # updUrl 是页面脚本里的顶层 let,赋值会落到那个绑定上(不必挂到 window)
+            window.evaluate_js(f"updUrl = {json.dumps(url)};"
+                               f"document.getElementById('btnUpdate')"
+                               f".textContent = {json.dumps(label)};")
+        except Exception as e:                 # 改不动按钮只记一笔,别弹错
+            log_update(f"[自动] 界面没改成({type(e).__name__}: {e})")
+    return r
+
+
+def _auto_update_thread(window, delay: float = 3.0) -> None:
+    """给 `webview.start()` 用的那个后台线程入口:先让窗口画出来,再查。"""
+    try:
+        time.sleep(delay)          # 别跟"把窗口画出来"抢时间
+        auto_update_once(window)
+    except Exception:
+        pass
 
 
 # ---------------------------------------------------------------------------
@@ -557,6 +622,9 @@ class Api:
         # 记住发布页地址:第二次点按钮就是"打开发布页"(用系统默认浏览器)
         self._release_url = r.get("url") or update_check.RELEASES_PAGE
         self._has_update = bool(r.get("has_update"))
+        log_update(f"[手动] 本地 v{local} ok={r.get('ok')} "
+                   f"has_update={r.get('has_update')} remote={r.get('remote')} "
+                   f"via={r.get('via')} | {r.get('msg')}")
         return dict(r, version=local)
 
     def open_release(self) -> dict:
@@ -885,7 +953,19 @@ def main() -> int:
         pass          # 记不住尺寸不该挡住"能开面板"这件事
 
     print(f"{APP_NAME} 面板已启动(窗口标题 {APP_NAME!r});关闭窗口即退出。")
-    webview.start(debug=args.debug, gui="edgechromium")
+    # ★★ 2026-09-19(v0.1.3):开面板之后**后台静默查一次**更新。
+    #   静默的含义:查到新版本才把按钮改成「有新版本 vX」,其余情况一句话不说 ——
+    #   手动点按钮那条路才是"必须如实回答"的那条(它会逐条说清为什么查不到)。
+    #   ★ 两条防身:① 起不来就退回"不自动查"(手动照旧能用);
+    #     ② 那次查询自己**一定留痕**(logs/update_check.log),否则"没有新版本"
+    #        和"线程根本没跑"分不出来。
+    try:
+        webview.start(_auto_update_thread, (window,), debug=args.debug,
+                      gui="edgechromium")
+    except TypeError:
+        # 老版本 pywebview 的 start() 不收位置参数 -> 别为了"自动查"把面板搞开不了
+        log_update("[自动] 这个 pywebview 不支持 start(func),已退回不自动查")
+        webview.start(debug=args.debug, gui="edgechromium")
     _remember()       # 有的后端 closing 事件不触发,退出前再记一次
     return 0
 

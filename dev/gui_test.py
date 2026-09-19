@@ -196,6 +196,38 @@ def main() -> int:
     x2, y2 = gui.clamp_to_screen(100, 80, 1240, 780)
     check((x2, y2) == (100, 80), f"正常位置不许动:实得 {(x2, y2)}")
 
+    print("\n⑦ 开机自动查一次(静默,但**必须留痕**)")
+    with tempfile.TemporaryDirectory() as d:
+        keep_dir, keep_log = gui.LOG_DIR, gui.UPDATE_LOG
+        keep_check = gui.update_check.check
+        gui.LOG_DIR = d
+        gui.UPDATE_LOG = os.path.join(d, "update_check.log")
+        try:
+            gui.update_check.check = lambda *a, **k: {
+                "ok": True, "has_update": True, "remote": "9.9.9", "via": "api",
+                "url": "https://example.com/r", "msg": "发现新版本 v9.9.9"}
+            r = gui.auto_update_once(None)          # window=None -> 不碰界面
+            check(r.get("has_update") is True, "自动查到新版本(返回值带着)")
+            txt = open(gui.UPDATE_LOG, encoding="utf-8").read()
+            check("[自动]" in txt and "9.9.9" in txt,
+                  "★ 自动那次留了痕(不然『没新版本』和『线程没跑』分不出来)")
+            gui.update_check.check = lambda *a, **k: {
+                "ok": False, "has_update": False, "remote": None, "via": "api",
+                "msg": "查不到:连不上 GitHub"}
+            check(gui.auto_update_once(None).get("has_update") is False,
+                  "查不到时静默(不弹错、也不假装查到)")
+
+            def _boom(*a, **k):
+                raise RuntimeError("炸")
+            gui.update_check.check = _boom
+            check(gui.auto_update_once(None) == {},
+                  "★ 查询本身炸了也不抛异常(自动这条路不许影响面板)")
+            check("出错" in open(gui.UPDATE_LOG, encoding="utf-8").read(),
+                  "崩了也要留痕")
+        finally:
+            gui.update_check.check = keep_check
+            gui.LOG_DIR, gui.UPDATE_LOG = keep_dir, keep_log
+
     print("=" * 74)
     if FAILS:
         print(f"{len(FAILS)} 条不通过")
