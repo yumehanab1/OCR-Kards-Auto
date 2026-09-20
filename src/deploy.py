@@ -141,6 +141,17 @@ def deploy_candidates(field, debug=False):
     return slot_candidates(occupied, y, debug=debug)
 
 
+def fallback_drop():
+    """
+    算不出空槽位时的兜底落点(我方支援线上一个固定点)。
+
+    ★ 2026-09-20(指令卡):**指令不占槽位** —— 支援线满 4 个单位时
+      `deploy_candidates()` 会把所有候选都过滤掉、返回空列表,但指令照样能打,
+      这时用它。单位**不要**用这个点(那里多半已经有卡,丢上去就是回手)。
+    """
+    return DEFAULT_SLOT_XS[0], FALLBACK_DROP_Y
+
+
 def drag_deploy(hwnd: int, card_x: int, card_y: int = 700,
                 drop=None, jitter: int = 6, hover_wait: float = None,
                 on_pressed=None) -> bool:

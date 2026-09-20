@@ -718,13 +718,64 @@ assert state["min_drop_y"] > 360, \
 
 print()
 print("=" * 78)
-print("CASE 5: orders and counters are never dragged")
+print("CASE 5: 指令卡按「打法表」决定能不能拖 —— 2026-09-20 起**不再是一律不拖**")
 print("=" * 78)
-eng = new_engine(hand(("冬季战争", "order", 1, 780),
-                      ("伏击", "counter", 2, 700)), kredits=5)
+# ★ 这条用例原来断言的是"orders must never be dragged"(旧行为)。
+#   2026-09-20 用户把 674 张指令/反制的打法逐张给了出来(config/order_plays.json),
+#   其中 `direct` 那一档(286 张)**拖到中线以下就打出**、和放单位同一个手势。
+#   所以这里从**表里现取**卡名来考,而不是写死某一张卡(表更新了用例不会跟着烂)。
+import orders as _ord  # noqa: E402
+_direct = next(n for n, r in _ord._CARDS.items() if r["mode"] == _ord.MODE_DIRECT)
+_black = next(n for n, r in _ord._CARDS.items() if r["mode"] == _ord.MODE_BLACKLIST)
+
+# ① direct 的指令:允许拖出去,而且日志要写「指令打出」(不是"部署成功")
+drags.clear(); engine_logs.clear()
+eng = new_engine(hand((_direct, "order", 1, 780)), kredits=5)
 run_turn(eng)
-print(f"    drags={drags}")
-assert drags == [], f"orders must never be dragged, got {drags}"
+print(f"    direct 指令「{_direct}」drags={drags}")
+assert drags == [780], f"direct 的指令应当被拖出去: {drags}"
+assert any("指令打出" in m for m in engine_logs), \
+    f"指令成功时日志要写「指令打出」: {engine_logs}"
+
+# ② 反制 / 黑名单指令:一律不拖(fail-closed)
+drags.clear(); engine_logs.clear()
+eng = new_engine(hand(("伏击", "counter", 2, 700), (_black, "order", 1, 660)),
+                 kredits=9)
+run_turn(eng)
+print(f"    反制+黑名单指令「{_black}」drags={drags}")
+assert drags == [], f"反制与黑名单卡不许被拖: {drags}"
+assert any("黑名单卡" in m for m in engine_logs), \
+    f"手里有黑名单卡要说一句(用户要求): {engine_logs}"
+
+# ③ ★★ 指令的成/败**不看战场卡数**(它不占槽位):费用对得上就是成功。
+_flat_before = {"total": 10, "our_support": (2, {}), "rows": []}
+_flat_after = {"total": 10, "our_support": (2, {}), "rows": []}
+eng = new_engine(hand((_direct, "order", 1, 780)), kredits=5)
+eng.kredits_left = 4                     # 账本:已经扣掉这张的 1 费
+state["kredits_left"] = 4                # 画面读数也是 4 -> 对上
+ok_o, note_o, ref_o = eng._judge_deploy(
+    _flat_before, _flat_after, {"name": _direct, "type": "order"}, 1, is_order=True)
+print(f"    指令:卡数没变 + 费用对上 -> ok={ok_o} note={note_o}")
+assert ok_o is True and ref_o is False, \
+    f"指令不占槽位,费用对上就必须判成功: {(ok_o, note_o, ref_o)}"
+
+# ④ 费用读数**对不上**时,两条路才分岔 —— 这也是"指令不占槽位"最要紧的一处:
+#    同一对前后帧(卡数没变),单位判"被拒绝",指令必须判"**结论不可信**"
+#    (拿卡数去判指令,会把打成功的指令记成失败,还塞进 failed_x)。
+eng.kredits_left = 3                     # 账本 3
+state["kredits_left"] = 9                # 画面读到 9(既不是 3,也不是 3+1)
+ok_o2, note_o2, ref_o2 = eng._judge_deploy(
+    _flat_before, _flat_after, {"name": _direct, "type": "order"}, 1, is_order=True)
+ok_u, note_u, _ = eng._judge_deploy(
+    _flat_before, _flat_after, {"name": "轻步兵", "type": "infantry"}, 1, is_order=False)
+print(f"    指令:读数对不上 -> ok={ok_o2} refused={ref_o2} note={note_o2}")
+print(f"    单位:同样的帧   -> ok={ok_u} note={note_u}")
+assert ok_o2 is False and ref_o2 is False, \
+    "指令读不准时不许下结论(更不许按卡数判成'被拒绝')"
+assert "指令" in note_o2 and "不可信" in note_o2, \
+    f"指令那一路必须说清『指令不占槽位、结论不可信』: {note_o2}"
+assert ok_u is False and "卡数没变" in note_u, \
+    f"单位还是老判据(卡数没变 = 没放上去): {note_u}"
 
 print()
 print("=" * 78)
@@ -791,14 +842,20 @@ assert len(eng.attempted_x) == turn_engine.MAX_UNKNOWN_TRIES, eng.attempted_x
 
 print()
 print("=" * 78)
-print("CASE 10: 已知 order/counter 仍然一张都不碰(不能被未知牌逻辑带跑)")
+print("CASE 10: 指令按打法表走(冬季战争=direct 会出)、counter 与黑名单一张都不碰")
 print("=" * 78)
+# ★ 2026-09-20 改:`冬季战争` 在表里是 **direct**(描述里没有任何"要选目标"的说法),
+#   所以它会和单位一起被打出去;`counter`(反制)与黑名单卡仍然一张都不碰。
+#   这里特意**手写**"冬季战争"而不是从表里现取 —— 它是用户第一轮就点过的真实卡,
+#   写死它等于顺手钉住"表里这张确实是 direct"(表被改坏了这条会红)。
 eng = new_engine(hand(("冬季战争", "order", 1, 780),
                       ("伏击", "counter", 2, 700),
                       ("轻步兵", "infantry", 1, 500)), kredits=5)
 run_turn(eng)          # ★ 2026-09-13:不写死 think() 次数(阶段顺序变了)
 print(f"    drags={drags}")
-assert drags == [500], f"只该拖那张单位: {drags}"
+assert 700 not in drags, f"反制(counter)不许被拖: {drags}"
+assert sorted(drags) == [500, 780], \
+    f"direct 的指令和单位都该出(只便宜的先出),反制不出: {drags}"
 print()
 print("=" * 78)
 print("CASE 11: 支援阵线满 4 个后不再白拖(用户确认:线满即使有费也放不下)")

@@ -25,6 +25,7 @@ from card_match import (DATA_JSON, CardHashDB, card_by_name,
                         crop_card_name_band, dhash, hash_to_hex,
                         load_db as load_card_db, match_name, read_cost_badge)
 from hover_card_reader import _ocr
+import orders                     # 指令卡"能不能打"的唯一来源(见 orders.playable)
 from ui_state import match_one
 from win import capture_client_bgr, client_to_screen
 
@@ -184,6 +185,17 @@ NAME_OCR_WINDOW = True
 # 可部署的类型(单位)。和 turn_engine.DEPLOYABLE 一致;
 # 放在这里是为了让 `_probe_layout_until` 能独立判断"这张能不能出"。
 DEPLOYABLE_TYPES = {"infantry", "tank", "fighter", "bomber", "artillery"}
+
+
+def is_playable(ctype, name: str = "") -> bool:
+    """
+    "这张牌允许被拖出去吗" —— **统一问 `orders.playable`**,不在这里自己拼名单。
+
+    ★ 2026-09-20:以前这里只有"类型在 DEPLOYABLE_TYPES 里"一条,于是**指令卡
+      在扫描阶段就被判成不可用** —— 惰性扫描会跳过它、继续往后扫,而引擎那边
+      再怎么支持都没用(候选根本回不来)。这正是"判据分散在两处"的典型后果。
+    """
+    return orders.playable(ctype, name)
 
 # 卡库路径统一由 card_match 解析(2026-09-19 起目录名是 card_db\,旧名字兜底)——
 # 这里不再自己拼一份:两处各写一个路径,改目录名时必漏一处。
@@ -838,7 +850,10 @@ class HandScannerV2:
             return None
         if not self.memory.ok_for(count, allow_draw=allow_draw):
             return None
-        plan = self.memory.plan(budget, DEPLOYABLE_TYPES)
+        # ★ 2026-09-20:`{"order"}` 也交给记忆 —— 否则"记着这张是指令 -> 以后每回合都跳过",
+        #   于是指令永远回不到候选里。真正能不能打仍由 `is_playable()` 决定
+        #   (记忆只用来决定"哪些不用悬停")。
+        plan = self.memory.plan(budget, DEPLOYABLE_TYPES | {"order"})
         if not plan or plan.get("saved", 0) <= 0:
             return None
         self.last_memory = plan
@@ -893,7 +908,7 @@ class HandScannerV2:
             ctype = info.get("type")
             rec.update({"panel": True, "name": info.get("name"), "type": ctype,
                         "cost": cost,
-                        "playable": bool(ctype in DEPLOYABLE_TYPES
+                        "playable": bool(is_playable(ctype, info.get("name"))
                                          and cost is not None and cost <= budget),
                         "why": why,
                         # ★ 2026-09-19:同上,拒绝的原因要能当场看见
@@ -955,8 +970,8 @@ class HandScannerV2:
                     self._memory_broken = True
                     return [], None
                 verify_ok = mem is not None
-            if card["type"] in DEPLOYABLE_TYPES and card["cost"] is not None \
-                    and card["cost"] <= budget:
+            if is_playable(card["type"], card.get("name")) \
+                    and card["cost"] is not None and card["cost"] <= budget:
                 self.memory.note_plan_used(saved, verify_ok)
                 if self.memory.log:
                     self.memory.log(
@@ -994,12 +1009,12 @@ class HandScannerV2:
             if c.get("x") in skip:
                 continue
             cost, ctype = c.get("cost"), c.get("type")
-            if ctype in DEPLOYABLE_TYPES and cost is not None and cost <= ceiling:
+            if is_playable(ctype, c.get("name")) and cost is not None and cost <= ceiling:
                 if best is None or cost < best[1]:
                     best = (c, cost)
         if best is None:
             self._why(f"盲扫兜底:认出 {len(cards)} 张,但预算 {ceiling} 内"
-                      f"没有可部署的单位", debug)
+                      f"没有能出的牌", debug)
             return [], None
         self.last_reason = (f"布局表对不上 -> 盲扫兜底命中 "
                             f"{best[0].get('name')}({best[1]})")
@@ -1118,7 +1133,7 @@ class HandScannerV2:
                                   box=box, frame=hover, debug=debug)
             cost = info.get("cost")
             ctype = info.get("type")
-            playable = (ctype in DEPLOYABLE_TYPES and cost is not None
+            playable = (is_playable(ctype, info.get("name")) and cost is not None
                         and cost <= budget)
             seen.append({"i": i, "x": px, "panel": True, "name": info.get("name"),
                          "type": ctype, "cost": cost, "playable": bool(playable),

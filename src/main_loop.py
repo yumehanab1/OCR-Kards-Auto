@@ -658,6 +658,15 @@ def main() -> int:
     except Exception as _e:
         log(f"⚠️ 费用数字模板状态读不出来({type(_e).__name__}: {_e})")
 
+    # ★★★ 2026-09-20(指令卡):**同一类坑的第三次预防** —— 开局报"指令卡表在不在"。
+    #   表(`config/order_plays.json`)缺失时引擎不崩,只是**指令一张都不打**
+    #   (退回 2026-09-20 之前的行为),而那种"悄悄变笨"最难查。
+    try:
+        import orders as _ord
+        log(_ord.status())
+    except Exception as _e:
+        log(f"⚠️ 指令卡表状态读不出来({type(_e).__name__}: {_e})")
+
     if args.full_frame_state:
         import ui_state as _ui
         _ui.ROI_MATCH = False

@@ -45,6 +45,7 @@ import cv2
 from actions import click, park_cursor
 from attack import Attacker, FrontMover
 from deploy import drag_deploy, deploy_candidates
+import orders                     # 指令卡"能不能打"的唯一来源(见 orders.playable)
 import deploy as deploy_mod
 from hand_scanner_v2 import HandScannerV2, diff_bbox
 from hand_memory import HandMemory
@@ -64,6 +65,10 @@ DEPLOYABLE = {"infantry", "tank", "fighter", "bomber", "artillery"}
 #   这个拼法在新卡组上**根本不会出现** —— 只登记一个就等于没登记。
 #   这里的判据目前都是"正向白名单"(ctype in DEPLOYABLE),所以写漏一个是安全的
 #   (fail-closed);但 `SKIP` 如果哪天被拿去当决策依据,漏这一个就会出错。
+#: ★★ 2026-09-20:**指令卡不再是"一律跳过"了** —— 但只有"不需要选目标"的那一档
+#:   (`orders.playable()`,判据来自 `config/order_plays.json`,用户逐张给的)。
+#:   这个集合只留作**词汇参考/兜底**:实际判据一律走 `orders.playable()`,
+#:   免得两处名单不一致(§7 第 60 条那两套词汇的教训)。
 SKIP = {"order", "counter", "countermeasure"}
 
 # End-turn button must match at least this well to count as "our turn".
@@ -187,6 +192,8 @@ class TurnEngine:
         self.deploy_refused = 0      # 本回合被拒绝的拖拽数(战场卡数没变)
         self.unknown_tried = 0       # 本回合试过的"完全认不出"的牌数
         self.hand_at_turn_start = 0
+        #: 黑名单卡只提醒一次(整个进程一次就够;它是"卡组建议",不是每回合的状态)
+        self._blacklist_warned = False
         # ★★★ 2026-09-13(用户要求,第九个会话):阶段顺序改成
         #   wait_our_turn -> attack -> move_front -> play -> end_turn
         #   —— **先让场上已有的单位行动,最后才部署手牌**。
@@ -225,6 +232,7 @@ class TurnEngine:
         self.deployed_this_turn = 0
         self.deploy_refused = 0
         self.unknown_tried = 0
+        self._blacklist_warned = False       # 新一局重新提醒一次(换牌=换卡组)
         self.attacked_this_turn = 0
         self.hand_at_turn_start = 0
         self.cards = []
@@ -777,7 +785,7 @@ class TurnEngine:
         except Exception:
             return None
 
-    def _judge_deploy(self, before, after, target, cost):
+    def _judge_deploy(self, before, after, target, cost, is_order: bool = False):
         """
         这一次拖拽到底成没成。返回 (ok, note, refused_measured)。
 
@@ -835,6 +843,15 @@ class TurnEngine:
                 self._dump_frame("kredits_mismatch", target.get("name") or "")
         else:
             extra = "费用未知(这张牌没读出费用);"
+
+        if is_order:
+            # ★★★ 2026-09-20(指令卡):**指令不占槽位** —— 打完盘面上不会多出卡,
+            #   所以下面那条"战场卡数 +1 才算成功"对指令是**错的**(会把打成功的
+            #   指令记成被拒绝,还会把它塞进 failed_x)。
+            #   指令只有一条硬判据:**费用对账**(打完一定扣掉这张卡的费);
+            #   读不准就如实写"结论不可信" —— 项目纪律:宁可不下结论,不许伪造结论。
+            return False, (extra + "指令卡:费用读数没法对上 -> "
+                                  "**结论不可信**(指令不占槽位,不能用战场卡数判)"), False
 
         d_total, _d_support = self._field_delta(before, after)
         if d_total == 1:
@@ -1139,12 +1156,32 @@ class TurnEngine:
                 self.cards,
                 key=lambda c: (c.get("cost") is None, c.get("cost") or 0))
 
-            for c in ([] if (line_full or capped) else ordered):
+            for c in ([] if capped else ordered):
                 if c["x"] in self.failed_x:
                     continue
                 cost = c.get("cost")
                 ctype = c.get("type")
-                if ctype in DEPLOYABLE:
+                is_order_c = (ctype == "order")
+                # ★★ 2026-09-20(用户要求):手里有**黑名单卡**就说一句(每局一次)。
+                #   为什么在这儿说:黑名单是"用户请别带进卡组"的那些(惩戒那一族玩法复杂),
+                #   而不是"引擎不会打" —— 用户看不到日志就不知道自己带了。
+                if (not self._blacklist_warned
+                        and orders.is_blacklisted(c.get("name"))):
+                    self._blacklist_warned = True
+                    self.log(f"[turn] ⚠️ 手牌里有**黑名单卡**「{c.get('name')}」——"
+                             f"这类卡玩法复杂(要选目标/多步操作),引擎不会打它;"
+                             f"建议别把它带进卡组(完整名单见 docs\\order_cards_plan.md)")
+                # ★ 支援线满了 -> **单位**放不下;但**指令不占槽位**,照样能打
+                #   (2026-09-20:以前 line_full 直接把整个出牌循环清空,于是
+                #    "线满了"连带把指令也一起禁掉了)。
+                if line_full and not is_order_c:
+                    continue
+                # ★★★ 2026-09-20:**指令卡**。用户把 674 张指令/反制的打法逐张给了出来,
+                #   落在 `config/order_plays.json`;第一版只放行 `direct`(拖到中线以下
+                #   就打出,和放单位同一个手势 —— 用户原话"拖出路径可以直接复用
+                #   下单位时的路径")。target/choice 要第二步操作、blacklist 用户明确
+                #   要求别带,都由 `orders.playable()` 挡在外面。
+                if orders.playable(ctype, c.get("name")):
                     if self._budget(cost):
                         target = c
                         break
@@ -1229,6 +1266,18 @@ class TurnEngine:
                          + f" | 行结构[{_rows_txt}] | 候选{cands[:2]}")
             except Exception:
                 pass
+            is_order = (target.get("type") == "order")
+            if is_order and not cands:
+                # ★★ 指令**不占槽位**:支援线满了(4 个单位)时 `deploy_candidates`
+                #    会把所有候选都过滤掉、返回空列表 —— 但指令照样能打。
+                #    退到"我方那一行上的固定落点"(兜底常数)。
+                cands = [deploy_mod.fallback_drop()]
+                self.log(f"[turn] 算不出空槽位(支援线满?)-> 指令按兜底落点 "
+                         f"({cands[0][0]},{cands[0][1]}) 打")
+            if not cands:
+                # 单位在这儿没候选 = 没地方放 -> 别拖(§候选[] 还照样拖是旧账)
+                self.log("[turn] ⚠️ 一个可用落点都算不出来 -> 这一拖跳过(不白拖)")
+                return "no_targets"
             if not field_row or not field_row.get("rows"):
                 self.log("[turn] ⚠️ 读不到我方那一行 -> 落点用兜底常数"
                          f"(y={cands[0][1]}),这一拖可能丢错行")
@@ -1238,7 +1287,8 @@ class TurnEngine:
             note = ""
             after = before
             for attempt, (dx, dy) in enumerate(tries, 1):
-                self.log(f"[turn] deploying {name} ({target.get('type')}, "
+                verb = "playing  " if is_order else "deploying"
+                self.log(f"[turn] {verb} {name} ({target.get('type')}, "
                          f"cost {cost}) 手牌x={target['x']} -> 落点#{attempt}"
                          f"({dx},{dy})(本回合剩余预算 {self.kredits_left})"
                          f" | {self._ident_text(target)}")
@@ -1252,7 +1302,7 @@ class TurnEngine:
                 before_attempt, after = after, self._field(park=True)
                 self.field_now = after
                 ok, note, refused_measured = self._judge_deploy(
-                    before_attempt or before, after, target, cost)
+                    before_attempt or before, after, target, cost, is_order=is_order)
                 if ok:
                     break
                 # 失败 -> 换一个空槽位再试一次。**但只在真的有理由怀疑"砸在卡上"时**:
@@ -1287,7 +1337,8 @@ class TurnEngine:
             if ok:
                 self.deployed_this_turn += 1
                 self.afford.note_deploy_ok(cost)
-                self.log(f"[turn] {name} 部署成功 "
+                what = "指令打出" if is_order else "部署成功"
+                self.log(f"[turn] {name} {what} "
                          f"(本回合 {self.deployed_this_turn} 个;{note})")
                 # ★★★ 手牌记忆:确认出掉的是**第几张** -> 从记忆里删掉(次序左移)。
                 #   ★ 只在**确认成功**时才删;被拒绝的牌还在手上,记忆不动
@@ -1298,7 +1349,8 @@ class TurnEngine:
                 self.afford.note_deploy_failed(cost)
                 # 阵线满是最常见的拒绝原因,单独提示(用户指出的头号问题)
                 reason = "支援阵线已满" if self._support_line_full() else "费用/规则不允许"
-                self.log(f"[turn] {name} (cost {cost}) **部署被拒绝**({note})"
+                what = "指令没打出去" if is_order else "**部署被拒绝**"
+                self.log(f"[turn] {name} (cost {cost}) {what}({note})"
                          f" -> 推断原因:{reason};"
                          f"可负担上限:{self.afford.describe()}")
 
