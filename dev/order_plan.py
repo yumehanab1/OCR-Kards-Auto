@@ -61,6 +61,8 @@ DOCS = os.path.join(PROJECT_ROOT, "docs")
 # 用户的规格(解析成人能核对的字典;原文见模块 docstring)
 # ---------------------------------------------------------------------------
 #: 目标码 -> 人话
+#: ★ 2026-09-20 用户第二份规格里把**黑名单改成了 `8`**(第一份用的是文字"黑名单")。
+#:   两个都留着:`X` 只在本文件内部用,`8` 是用户现在的写法。
 TARGET_KIND = {
     "1": "指定敌方单位(打不了总部)",
     "2": "敌方单位或总部",
@@ -69,6 +71,7 @@ TARGET_KIND = {
     "5": "选择一张手牌",
     "6": "随意阵营单位",
     "7": "三选一",
+    "8": "黑名单(不打出)",
     "X": "黑名单(不打出)",
 }
 #: 行码 -> 人话
@@ -78,6 +81,11 @@ ROW_KIND = {
     "c": "仅敌方支援阵线",
     "d": "仅我方支援阵线",
 }
+
+#: 抉择类(用户第二份规格)的行码与选项码 —— 和上面那套**完全不是一回事**,别混:
+#:   a = 两个选项、b = 三个选项;1 = 选左边、2 = 选中间、3 = 选右边。
+CHOICE_ARITY = {"a": "两个选项", "b": "三个选项"}
+CHOICE_PICK = {"1": "选左边", "2": "选中间", "3": "选右边"}
 
 #: A 档:用户按 `order_cards_A.md` 的**文件行号**点的
 A_LINE_SPEC: dict[int, tuple[str, str, str]] = {
@@ -170,6 +178,91 @@ BLACKLIST_FAMILY = ("惩戒", "狂怒", "激怒")
 
 
 # ---------------------------------------------------------------------------
+# 第二份规格(2026-09-20 第二遍):覆盖 `order_cards_review.md` 的**第二节「需要目标」**
+# 和**第三节「抉择」**。用户原话逐字留在下面两个字符串里,便于核对。
+# ---------------------------------------------------------------------------
+#: 第二节「需要目标」的编号 1~216。
+NEED_TARGET_RAW = (
+    "1-5,2-8,3-1,4-1,5-8,6-4,7-8,8-1,9不用管,10-6-cd,11-3,12-1,13-1,14-1,15-4,16-5,17-8,"
+    "18-1,19不是指向,20-4,21-8,22-1,23-8,24-1,25-1,26-8,27-1,28-1,29-8,30-4,31-3,32-1,33-1,"
+    "34-8,35-4-d,36-3,37-8,38-8,39-8,40-4,41-8,42-1,43-1,44-8,45-4,46-8,47-4,48-4,49-8,50-4,"
+    "51-4,52-1,53-4,54-1,55-1,56-8,57-8,58-8,59-8,60-8,61-8,62-1,63-1,64-1,65-8,66-4,67-1,"
+    "68-4,69-1,70-1,71-8,72-8,73-4,74-8,75-4,76-8,77-8,78-1,79-1,80-1,81-4,82-8,83-8,84-8,"
+    "85-8,86-4,87-4,88-8,89-4,90-4,91-1,92-4,93-4,94-4,95-8,96-7,97-7,98-1→7（两步）,99-1,"
+    "100-1,105-7,106-6,107-1,108-8,109-8,110-8,111-4,112-1,113-8,114-4,115-4,116-8,117-4,"
+    "118-1,119-8,120-1,121-7,122-8,123-8,124-8,125-7→1,126-4,127-4,128-8,129-1,130-1,131-7,"
+    "132-1,133-1,134-1,135-3,136-1,137-8,138-1,139-7,140-8,141-5,142-1,143-4,144-8,145-8,"
+    "146-1,147-1,148-8,149-8,151-1,152-8,153-1,154-1,155-8,156-1,157-1,158-1,159-1,160-4,"
+    "161-1,162-8,163-3,164-1,165-1,166-4,167-1,168-4,169-4,170-1,171-1,172-4,173-3,174-1,"
+    "175-3,176-1,177-4,178-3,179-3,180-1,181-3,182-4,183-1,184-1,185-8,186-8,187-1,188-8,"
+    "189-7,190-8,191-3,192-3,193-3,194-1,195-5→1,196-1,197-1,198-1,199-4,200-3,201-8,202-1,"
+    "203-1,204-3,205-1,206-7,207-1,208-8,209-1,210-1,211-1,212-3,213-3,214-3,215-8,216-3")
+
+#: 第三节「抉择」——用户给的是**白名单**(只有这些允许用,其余 16 张不打)。
+#: 格式:`编号-选项数-选哪个`,a=两个选项 b=三个选项,1=选左边 2=选中间 3=选右边。
+CHOICE_WHITELIST_RAW = (
+    "4-a-1,7-a-1,8-a-1,9-a-3,10-a-1,13-a-3,17-a-1,18-a-3,19-a-3,20-a-3,21-a-3,23-a-1,25-a-3,"
+    "26-a-3,27-a-3,28-a-1,29-a-3,32-a-3,33-a-3,35-a-3,36-a-3,37-a-1,38-a-3,39-a-1,40-a-1,"
+    "42-a-3,43-a-3")
+
+
+def parse_need_target(raw: str) -> dict[int, dict]:
+    """把第二份规格解析成 {编号: {mode, kind, rows, follow, note}}。
+
+    支持三种写法(都是用户原话里出现过的):
+      `12-1`        普通:目标码 1
+      `10-6-cd`     带行码:**行码前面还有一个连字符**,可以多个(c/d 两行)
+      `98-1→7（两步）` **两步**:先按 1 选目标,再出现 7(三选一);`125-7→1` 没写"两步"也算
+      `9不用管`      跳过(保持不支持)
+      `19不是指向`   **不是指向类** -> 按"不需要目标"处理(可以直接打出)
+    """
+    out: dict[int, dict] = {}
+    for tok in re.split(r"[,，]", raw):
+        tok = tok.strip()
+        if not tok:
+            continue
+        m = re.match(r"^(\d+)不用管$", tok)
+        if m:
+            out[int(m.group(1))] = {"mode": "unsupported", "kind": "", "rows": "",
+                                    "follow": "", "note": "用户说「不用管」"}
+            continue
+        m = re.match(r"^(\d+)不是指向$", tok)
+        if m:
+            out[int(m.group(1))] = {"mode": "direct", "kind": "", "rows": "",
+                                    "follow": "", "note": "用户说「不是指向」-> 按不需要目标"}
+            continue
+        m = re.match(r"^(\d+)-([1-8])(?:-([a-d]+))?→([1-8])(?:（两步）)?$", tok)
+        if m:
+            out[int(m.group(1))] = {"mode": "target", "kind": m.group(2),
+                                    "rows": m.group(3) or "", "follow": m.group(4),
+                                    "note": f"两步:{m.group(2)} -> {m.group(4)}"}
+            continue
+        m = re.match(r"^(\d+)-([1-8])(?:-([a-d]+))?$", tok)
+        if m:
+            kind = m.group(2)
+            out[int(m.group(1))] = {"mode": "blacklist" if kind == "8" else "target",
+                                    "kind": kind, "rows": m.group(3) or "", "follow": "",
+                                    "note": ""}
+            continue
+        raise SystemExit(f"第二份规格里这条看不懂:{tok!r}")
+    return out
+
+
+def parse_choice(raw: str) -> dict[int, dict]:
+    """抉择白名单 -> {编号: {arity, pick}}。"""
+    out: dict[int, dict] = {}
+    for tok in re.split(r"[,，]", raw):
+        tok = tok.strip()
+        if not tok:
+            continue
+        m = re.match(r"^(\d+)-([ab])-([123])$", tok)
+        if not m:
+            raise SystemExit(f"抉择白名单里这条看不懂:{tok!r}")
+        out[int(m.group(1))] = {"arity": m.group(2), "pick": m.group(3)}
+    return out
+
+
+# ---------------------------------------------------------------------------
 # 从两份文档里把编号读回来(★ 直接从**用户看的那份文件**读,
 # 这样编号一定和他们数的一致 —— 自己再算一遍反而可能因为判据改过而对不上)
 # ---------------------------------------------------------------------------
@@ -201,6 +294,28 @@ def read_b_table(path: str) -> dict[int, dict]:
         if stop in sec:
             sec = sec.split(stop)[0]
             break
+    out: dict[int, dict] = {}
+    for m in re.finditer(
+            r"^\| (\d+) \| ([^|]+) \| (\d+) \| (.*?) \| (.*?) \| `([^`]+)` \|$", sec, re.M):
+        out[int(m.group(1))] = {"name": m.group(2).strip(), "cost": int(m.group(3)),
+                                "text": m.group(4).strip(), "cid": m.group(6)}
+    return out
+
+
+def read_section(path: str, start: str, *ends: str) -> dict[int, dict]:
+    """读 `order_cards_review.md` 里某一节带编号的卡表 -> {序号: 卡}。
+
+    ★★ 一定要给**准确的结束标记**:这份文档里每张表的编号都是**从头重新数**的,
+      切宽了就会把下一张表的 1 号当成这一张的 1 号(踩过一次,见 read_b_table)。
+    """
+    with open(path, encoding="utf-8") as f:
+        txt = f.read()
+    if start not in txt:
+        raise SystemExit(f"文档里找不到小节:{start!r}")
+    sec = txt.split(start, 1)[1]
+    for e in ends:
+        if e in sec:
+            sec = sec.split(e, 1)[0]
     out: dict[int, dict] = {}
     for m in re.finditer(
             r"^\| (\d+) \| ([^|]+) \| (\d+) \| (.*?) \| (.*?) \| `([^`]+)` \|$", sec, re.M):
@@ -255,6 +370,10 @@ def verify() -> int:
     if len(unlisted) > 20:
         print(f"  …(还有 {len(unlisted) - 20} 行,完整清单见 order_cards_plan.md)")
     return 0
+
+
+#: `build_plan()` 会把第二节那张表存进来,`write_plan()` 用来列"跳号"的卡
+NEED_ROWS: dict[int, dict] = {}
 
 
 def build_plan() -> tuple[dict, dict]:
@@ -316,6 +435,43 @@ def build_plan() -> tuple[dict, dict]:
                               "kind": code, "rows": rows,
                               "note": f"B#{num} 用户指定" + (f":{note}" if note else ""),
                               "text": c["text"], "src": "B"}
+
+    # --- 第二份规格:第二节「需要目标」 ---
+    NEED = read_section(b_doc, "## 二、", "## 三、")
+    CHOICE = read_section(b_doc, "## 三、", "## 四、", "## 核对完")
+    globals()["NEED_ROWS"] = NEED
+    # ★ 结束标记别用 "---":表格自己的分隔行就是 `|---|---|`,一撞就把它截没了
+    #   (第一次就写成 "---",于是第三节解析出 0 行)。
+    print(f"第二节「需要目标」{len(NEED)} 行;第三节「抉择」{len(CHOICE)} 行")
+    nt_spec = parse_need_target(NEED_TARGET_RAW)
+    ch_spec = parse_choice(CHOICE_WHITELIST_RAW)
+
+    for num, c in NEED.items():
+        sp = nt_spec.get(num)
+        if sp is None:            # 用户没点到(例如 101~104 / 150 跳号了)
+            plan[c["cid"]] = {"name": c["name"], "cost": c["cost"], "mode": "unsupported",
+                              "kind": "", "rows": "", "follow": "",
+                              "note": f"需要目标#{num}:用户没给规格", "text": c["text"],
+                              "src": "需要目标"}
+            continue
+        plan[c["cid"]] = {"name": c["name"], "cost": c["cost"], "mode": sp["mode"],
+                          "kind": sp["kind"], "rows": sp["rows"], "follow": sp["follow"],
+                          "note": f"需要目标#{num}" + (f" {sp['note']}" if sp["note"] else ""),
+                          "text": c["text"], "src": "需要目标"}
+
+    for num, c in CHOICE.items():
+        sp = ch_spec.get(num)
+        if sp is None:
+            plan[c["cid"]] = {"name": c["name"], "cost": c["cost"], "mode": "unsupported",
+                              "kind": "", "rows": "", "follow": "",
+                              "note": f"抉择#{num}:不在白名单里", "text": c["text"],
+                              "src": "抉择"}
+            continue
+        plan[c["cid"]] = {"name": c["name"], "cost": c["cost"], "mode": "choice",
+                          "kind": sp["arity"], "rows": sp["pick"], "follow": "",
+                          "note": f"抉择#{num} 白名单:{CHOICE_ARITY[sp['arity']]} / "
+                                  f"{CHOICE_PICK[sp['pick']]}",
+                          "text": c["text"], "src": "抉择"}
 
     # --- 黑名单那一族:按名字抓(用户说"惩戒和所有同名卡,包括狂怒/激怒") ---
     for cid, info in idx.items():
@@ -381,23 +537,52 @@ def write_plan(plan: dict, stats: Counter) -> None:
     add("|---|---|---|")
     add(f"| `direct` | {stats['direct']} | **拖到中线以下就打出** —— 第一版就做这批 |")
     add(f"| `target` | {stats['target']} | 需要先选目标(第二版做);选什么见下表 |")
+    add(f"| `choice` | {stats['choice']} | 抉择卡(白名单内):弹两个/三个选项,按指定位置点 |")
     add(f"| `blacklist` | {stats['blacklist']} | 不打出,并且要提示用户「别带这张」 |")
-    add(f"| `unsupported` | {stats['unsupported']} | 其余(没给规格 / 抉择 / 反制 / 没描述) |")
+    add(f"| `unsupported` | {stats['unsupported']} | 其余(没给规格 / 不在白名单 / 反制 / 没描述) |")
     add("")
-    add("## 一、你这轮点到的每一条(★ 逐条核对这一节)")
+    add("## 一、你两轮点到的每一条(★ 逐条核对这一节)")
     add("")
     add("| 来源 | 卡名 | 费 | 你的规格 | 说明 | 描述 |")
     add("|---|---|---|---|---|---|")
     for cid, r in sorted(plan.items(), key=lambda kv: kv[1]["note"]):
-        if "用户指定" not in r["note"]:
+        if "用户指定" not in r["note"] and r["src"] not in ("需要目标", "抉择"):
             continue
         kind = r["kind"]
-        spec = "-" if kind in ("", "X") else f"{kind}{r['rows']}"
-        desc = (TARGET_KIND.get(kind, "") +
-                (" + " + "/".join(ROW_KIND[x] for x in r["rows"]) if r["rows"] else ""))
+        if r["mode"] == "choice":
+            spec = f"{kind}-{r['rows']}"
+            desc = f"{CHOICE_ARITY.get(kind, '')} / {CHOICE_PICK.get(r['rows'], '')}"
+        elif r["mode"] == "direct":
+            spec, desc = "直接打出", "用户说「不是指向」"
+        else:
+            spec = "-" if kind in ("", "X") else f"{kind}" + (
+                f"-{r['rows']}" if r["rows"] else "")
+            if r.get("follow"):
+                spec += f"→{r['follow']}"
+            desc = (TARGET_KIND.get(kind, "") +
+                    (" + " + "/".join(ROW_KIND[x] for x in r["rows"]) if r["rows"] else ""))
+            if r.get("follow"):
+                desc += f" —— 两步,之后 {TARGET_KIND.get(r['follow'], r['follow'])}"
         add(f"| {r['note'].split(' 用户指定')[0]} | {_cell(r['name'])} | {r['cost']} | "
             f"`{spec}` | {desc} | {_cell(r['text'])[:60]} |")
     add("")
+
+    # 跳号的:用户漏了 -> 保持不打。★ 必须显式列出来,不然"以为都覆盖了"
+    missing = [n for n in range(1, len(NEED_ROWS) + 1) if n not in parse_need_target(NEED_TARGET_RAW)]
+    if missing:
+        add("## 一b、你**跳号**的那几个(我逐个查了)")
+        add("")
+        add("| 编号 | 卡名 | 费 | 描述 | 实际结果 |")
+        add("|---|---|---|---|---|")
+        for n in missing:
+            c = NEED_ROWS.get(n)
+            if not c:
+                continue
+            got = plan.get(c["cid"], {})
+            tail = ("**已在黑名单**(惩戒同族)—— 等于没漏" if got.get("mode") == "blacklist"
+                    else "先不打(等你补规格)")
+            add(f"| {n} | {_cell(c['name'])} | {c['cost']} | {_cell(c['text'])[:70]} | {tail} |")
+        add("")
 
     def listing(mode: str, title: str, note: str):
         rs = [(r["cost"] if r["cost"] is not None else 99, r) for r in plan.values()
@@ -416,8 +601,11 @@ def write_plan(plan: dict, stats: Counter) -> None:
     listing("direct", "二、`direct`:直接打出",
             "这批会**拖到中线以下**打出去(和放单位一样)。第一版就是它们。")
     listing("target", "三、`target`:需要选目标(第二版)",
-            "第二版做 —— 要先把「目标挑哪个」的判据做出来。")
-    listing("blacklist", "四、`blacklist`:不打出,并提示别带",
+            "第二版做 —— 要先把「目标挑哪个」的判据做出来。带 `→` 的是**两步**"
+            "(先一个动作、再一个动作)。")
+    listing("choice", "四、`choice`:抉择卡(白名单内)",
+            "打出后弹选项:按白名单点左边/右边。")
+    listing("blacklist", "五、`blacklist`:不打出,并提示别带",
             "★ 用户点名的那一族(惩戒/狂怒/激怒):玩法复杂,提示用户**不要带进卡组**。")
 
     out = os.path.join(DOCS, "order_cards_plan.md")
