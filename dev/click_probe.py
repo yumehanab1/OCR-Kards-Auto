@@ -36,6 +36,10 @@ click_probe.py - 「能不能不抢鼠标」的实测探针(★ 只读之外的�
   :: 4. 拖拽(部署/攻击走这条):客户区 (x1,y1) -> (x2,y2)
   .venv\\Scripts\\python.exe dev\\click_probe.py --drag 560 700 640 420
 
+  :: 5. 只测**悬停**(不点击):扫描手牌靠"悬停弹出放大面板",
+  ::    这一条能用的话,连扫描都不用真移光标了。坐标要挑一张**手牌**。
+  .venv\\Scripts\\python.exe dev\\click_probe.py --hover 560 700
+
 判据(脚本自己会打印):
   界面状态(state)**变了** = 游戏吃窗口消息 ⇒ 把 `actions.INPUT_MODE` 改成 "message",
   整条链路(click / move_drag)就切过去了。
@@ -251,6 +255,9 @@ def main() -> int:
     ap.add_argument("--click-template", metavar="名字",
                     help="点某个模板**匹配到的位置**(例如 play_btn / deck_ok_btn / "
                          "end_turn_btn)—— 比手填坐标可靠,省得猜")
+    ap.add_argument("--hover", nargs=2, type=int, metavar=("X", "Y"),
+                    help="只**发移动消息**(不点击),看游戏会不会弹出悬停面板 —— "
+                         "扫描手牌靠的就是这个;能用的话连悬停都不用真移光标")
     ap.add_argument("--drag", nargs=4, type=int, metavar=("X1", "Y1", "X2", "Y2"),
                     help="从客户区 (X1,Y1) 拖到 (X2,Y2)")
     ap.add_argument("--physical", action="store_true",
@@ -303,12 +310,45 @@ def main() -> int:
         args.click = [reg[0] + reg[2] // 2, reg[1] + reg[3] // 2]
         print(f"→ 点它的中心:客户区 {tuple(args.click)}")
 
-    if args.state or (not args.click and not args.drag):
-        print("(只读,没做任何动作。要实测请加 --click X Y)")
+    if args.state or (not args.click and not args.drag and not args.hover):
+        print("(只读,没做任何动作。要实测请加 --click-template play_btn / --click X Y)")
         return 0
 
     os.makedirs(SHOT_DIR, exist_ok=True)
     cv2.imwrite(os.path.join(SHOT_DIR, "before.png"), frame0)
+
+    # --hover:只发移动消息。这是**扫描手牌**那条路能不能也脱离光标的关键 ——
+    #   引擎认牌靠的是"悬停后游戏弹出的放大面板",面板出不来就什么都读不到。
+    if args.hover:
+        hx, hy = args.hover
+        shx, shy = client_to_screen(hwnd, hx, hy)
+        print(f"只发移动消息:客户区 ({hx},{hy}) -> 屏幕 ({shx},{shy})(不点击)")
+        # 从旁边"走"过去,而不是原地跳 —— 有些 UI 要看到移动过程才弹面板
+        hwnd_h, cx0, cy0 = actions.window_under(shx - 60, shy - 30)
+        import win32con as _wc
+        if hwnd_h:
+            for i in range(1, 9):
+                mx = int(cx0 + (hx - cx0) * i / 8)
+                my = int(cy0 + (hy - cy0) * i / 8)
+                actions._send(hwnd_h, _wc.WM_MOUSEMOVE, 0, actions._lp(mx, my), False)
+                time.sleep(0.03)
+        else:
+            actions._send(hwnd, _wc.WM_MOUSEMOVE, 0, actions._lp(hx, hy), False)
+        time.sleep(max(0.3, args.wait))
+        st1, _, frame1 = _state_now(hwnd, tpls, states)
+        cv2.imwrite(os.path.join(SHOT_DIR, "after.png"), frame1)
+        diff = float(cv2.absdiff(frame0, frame1).mean()) if frame1 is not None else -1.0
+        print(f"动作后:state={st1!r}  画面平均差 {diff:.2f}")
+        print(f"存帧:{SHOT_DIR}\\before.png / after.png")
+        print("\n判定(看 after.png 更直观:手牌区上方有没有出现放大的卡):")
+        if diff > 0.5:
+            print(f"  ✅ **游戏认窗口消息的悬停**(画面变了,diff={diff:.2f})"
+                  " ⇒ 扫描手牌也不用真移光标")
+        else:
+            print("  ❌ 画面没变。两种可能:①这个坐标上本来就没有可悬停的东西"
+                  "(要挑一张**手牌**);②游戏不认投递的移动消息。")
+            print("     先确认坐标对不对:同一个位置用真鼠标停一下,面板是会出来的。")
+        return 0
 
     mode = "物理(真的移光标)" if args.physical else \
            ("窗口消息 SendMessage" if args.sync else "窗口消息 PostMessage")
