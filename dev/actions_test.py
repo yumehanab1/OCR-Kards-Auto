@@ -166,6 +166,61 @@ C("恢复之后计数清零(下次失败会重新提示)",
             actions._input_fails == 0)[-1])())
 
 actions.win32api = real
+
+print()
+print("=" * 84)
+print("⑤ ★★★ 「不抢鼠标」那条路:窗口消息模式(默认关,行为不许变)")
+print("=" * 84)
+# 背景(用户 2026-09-20):"程序运行抢鼠标很烦"。物理层做不到不抢(系统只有一个光标),
+# 真正不抢的一条是"不碰光标、直接往窗口发消息" —— 能不能用要先在游戏上实测
+# (`dev\click_probe.py --selftest` 验链路,`--click` 验游戏认不认)。
+# 这一节只考**离线能考的那部分**:默认行为没变 + 消息模式的开关真的能整条切过去。
+C('默认仍是物理模式(改了代码不许悄悄改行为)', actions.INPUT_MODE == "physical",
+  f"实得 {actions.INPUT_MODE!r}")
+
+C("lParam 打包:x 在低 16 位、y 在高 16 位",
+  actions._lp(0x1234, 0x5678) == 0x56781234, hex(actions._lp(0x1234, 0x5678)))
+C("lParam 打包:超出 16 位的部分要截断(不能溢出到另一个坐标里)",
+  actions._lp(70000, 1) == (70000 & 0xFFFF) | (1 << 16)
+  and actions._lp(-1, -1) == 0xFFFFFFFF, hex(actions._lp(-1, -1)))
+
+# 切到消息模式之后:click / move_drag 都必须走消息,**一次都不许碰真实鼠标**
+_clicked, _dragged = [], []
+_real_click_msg, _real_drag_msg = actions.click_message, actions.drag_message
+_real_mouse_event = real.mouse_event if hasattr(real, "mouse_event") else None
+try:
+    actions.click_message = lambda x, y, **k: (_clicked.append((x, y)) or True)
+    actions.drag_message = lambda *a, **k: (_dragged.append(a) or True)
+    actions.INPUT_MODE = "message"
+    r1 = actions.click(640, 360)
+    r2 = actions.move_drag(100, 200, 300, 400)
+    C("★ INPUT_MODE=message 之后 click() 走消息", r1 and _clicked == [(640, 360)],
+      f"实得 {_clicked}")
+    C("★ INPUT_MODE=message 之后 move_drag() 走消息", r2 and len(_dragged) == 1,
+      f"实得 {_dragged}")
+    C("消息模式下没碰真实光标(假 win32api 的 SetCursorPos 一次都没调)",
+      getattr(real, "moves", 0) == 0, f"实得 {getattr(real, 'moves', 0)} 次")
+finally:
+    actions.click_message, actions.drag_message = _real_click_msg, _real_drag_msg
+    actions.INPUT_MODE = "physical"
+
+# 点到底下没有窗口的地方 -> (None,0,0),不许抛异常
+import types  # noqa: E402
+_fake_gui = types.ModuleType("win32gui")
+_fake_gui.WindowFromPoint = lambda pt: 0
+_fake_gui.GetAncestor = lambda h, f: 0
+_fake_gui.ScreenToClient = lambda h, pt: pt
+_saved = sys.modules.get("win32gui")
+sys.modules["win32gui"] = _fake_gui
+try:
+    C("底下没有窗口时 window_under() 返回 (None,0,0),不抛异常",
+      actions.window_under(10, 10) == (None, 0, 0))
+finally:
+    if _saved is not None:
+        sys.modules["win32gui"] = _saved
+    else:
+        sys.modules.pop("win32gui", None)
+
 print()
 print("=" * 84)
 print("全部通过" if ALLOK else "存在失败项")
