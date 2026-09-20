@@ -206,7 +206,97 @@ def write_doc(orders: list[dict], out_path: str) -> Counter:
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
     with open(out_path, "w", encoding="utf-8") as f:
         f.write("\n".join(lines))
-    return stat
+    return stat, v1_sure, v1_risk
+
+
+#: 聚类的归一化:数字 -> N,引号里的卡名 -> 「」,标点去掉。
+#: 目的不是精确,而是把"同一个模板"的卡排在一起,方便整类确认。
+_PUNCT = re.compile(r"[，。、；：！？“”\"'（）()\[\]【】…·,.;:!?\-+/\s]")
+
+
+def _pattern_key(text: str) -> str:
+    t = re.sub(r"“[^”]{0,20}”", "「卡」", text or "")
+    t = re.sub(r"\d+", "N", t)
+    t = _PUNCT.sub("", t)
+    return t[:6] or "(空)"
+
+
+def write_a_doc(rs: list[tuple], out_path: str) -> None:
+    """把 A 档(高置信度、第一版要真的打出去的)单独写成一份**给人核对**的表。"""
+    lines: list[str] = []
+    add = lines.append
+    add("# A 档指令卡核对表 —— ★ 第一版要真的打出去的就是这批")
+    add("")
+    add("> 生成:`dev\\order_review.py`(2026-09-20)。这份是从 "
+        "`docs\\order_cards_review.md` 的「A 高置信度」那一档单独抽出来的。")
+    add("")
+    add("## 你要判断的只有一件事")
+    add("")
+    add("**这张卡打出去的时候,游戏会不会要我指一个目标?**")
+    add("")
+    add("| 判断 | 含义 | 怎么办 |")
+    add("|---|---|---|")
+    add("| **不会** | 它是真的 A 档:拖到中线以下就打出(和放单位一样) | 不用说话,当默认 |")
+    add("| **会** | 它其实属于「需要目标」 | **点名**(第几号 / 卡名),我挪出去 |")
+    add("")
+    add("★ 为什么这条要紧:**拿错手势打出去会落空或者被拒,比「不出这张牌」更糟** ——"
+        "所以宁可你多看一眼。")
+    add("")
+    add(f"## 它们为什么被判成 A 档({len(rs)} 张)")
+    add("")
+    add("描述里**没有出现**任何一个风险词:"
+        "`目标 / 选择 / 任意 / 指定 / 或 / 抉择 / 1 个·1 张·…`")
+    add("—— 也就是说**光看文字根本看不出要点名任何东西**。这是我最有把握的一批;")
+    add("带风险词的 199 张在另一份文档的 B 档里,不在这份。")
+    add("")
+    add("★ 聚类只是把同一个模板的排在一起(数字换成 N、卡名换成「卡」),")
+    add("**不是判据**,别拿它当结论。")
+    add("")
+
+    # 视图一:按描述开头聚类(整类确认用)
+    groups: dict[str, list[tuple]] = {}
+    for r in rs:
+        groups.setdefault(_pattern_key(r[4]), []).append(r)
+    add(f"## 视图一:按描述开头聚类({len(groups)} 类)—— 整类扫一遍最快")
+    add("")
+    add("| 类 | 张数 | 例子(卡名 / 费 / 描述) | 有问题吗 |")
+    add("|---|---|---|---|")
+    for key, items in sorted(groups.items(), key=lambda kv: (-len(kv[1]), kv[0])):
+        items = sorted(items)
+        ex = " · ".join(f"{n}({c}) {t[:38]}" for _, n, c, _i, t, _w, _ty, _rk in items[:3])
+        add(f"| `{key}` | {len(items)} | {_cell(ex)} | |")
+    add("")
+
+    # 视图二:完整清单,按费用分组(第几号可以用于点名)
+    add(f"## 视图二:完整清单(共 {len(rs)} 张,按费用分组)")
+    add("")
+    add("「其实要选目标?」那一栏留空给你写(写 y 或者一句话都行)。")
+    add("")
+    idx = 0
+    by_cost: dict[int, list[tuple]] = {}
+    for r in rs:
+        by_cost.setdefault(r[2] if r[2] is not None else 99, []).append(r)
+    for cost in sorted(by_cost):
+        items = sorted(by_cost[cost])
+        add(f"### {cost} 费({len(items)} 张)")
+        add("")
+        add("| # | 卡名 | 描述 | cardId | 其实要选目标? |")
+        add("|---|---|---|---|---|")
+        for _, name, c, cid, text, _why, _ty, _rk in items:
+            idx += 1
+            add(f"| {idx} | {_cell(name)} | {_cell(text)} | `{cid}` | |")
+        add("")
+
+    add("---")
+    add("")
+    add("## 核对完怎么回我")
+    add("")
+    add("- 「都有问题」:点名第几号(或者卡名)就行。")
+    add("- 「都没问题」:说一句就行 —— 我就按这批写引擎那半。")
+    add("")
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    with open(out_path, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines))
 
 
 def main() -> int:
@@ -243,8 +333,12 @@ def main() -> int:
         return 0
 
     out = args.out or os.path.join(PROJECT_ROOT, "docs", "order_cards_review.md")
-    write_doc(orders, out)
+    _stat, v1_sure, _v1_risk = write_doc(orders, out)
     print(f"\n写好了:{out}")
+
+    a_out = os.path.join(os.path.dirname(out), "order_cards_A.md")
+    write_a_doc(v1_sure, a_out)
+    print(f"写好了:{a_out}(A 档单独一份,{len(v1_sure)} 张,给人核对用)")
     return 0
 
 
