@@ -42,6 +42,13 @@ SKIP_DIRS = {".venv", "venv", "build", "dist", ".git", "shots",
 #: 这些文件名是"这台机器专属"的,别人拿了没用,而且 panel_token 是口令。
 SKIP_FILES = {"gui_window.json", "panel_token.txt"}
 
+#: 这些后缀是备份/半成品,**一律不进包**。
+#: ★★★ 2026-09-20:本机根目录下躺着一个 `KARDS AUTO.exe.bak`(上一版面板,15 MB),
+#:   而打包脚本只排目录、不排后缀 —— 于是它会被原样打进发布包:用户解压后看到
+#:   两个 exe 不知道该点哪个,包还白胖一大截。跟 `logs` 那次一样,靠人记得删是靠不住的,
+#:   把规则写死在这里,并在自检里再拦一道。
+SKIP_SUFFIXES = (".bak", ".old", ".orig", ".tmp", ".rej", "~")
+
 
 def read_version() -> str:
     try:
@@ -75,7 +82,8 @@ def main() -> int:
             skipped += len(dirs) - len(keep)
             dirs[:] = sorted(keep)
             for f in sorted(files):
-                if f in SKIP_FILES or f.endswith((".pyc", ".pyo")):
+                if (f in SKIP_FILES or f.endswith((".pyc", ".pyo"))
+                        or f.endswith(SKIP_SUFFIXES)):
                     skipped += 1
                     continue
                 full = os.path.join(root, f)
@@ -104,6 +112,11 @@ def main() -> int:
             problems.append("**包里混进了面板口令 panel_token.txt**")
         if any("__pycache__" in x for x in names):
             problems.append("混进了 __pycache__")
+        # ★ 2026-09-20:备份文件也不许进包(见 SKIP_SUFFIXES 的说明)。
+        #   自检和"排除"必须是两条独立的关:排除那条写错了,这里还能拦住。
+        _bak = [x for x in names if x.endswith(SKIP_SUFFIXES)]
+        if _bak:
+            problems.append(f"混进了备份文件:{', '.join(_bak[:3])}")
         need = [f"{BASE}/python/python.exe", f"{BASE}/src/main_loop.py",
                 f"{BASE}/KARDS AUTO.exe", f"{BASE}/config/app_version.json",
                 # ★★★ 2026-09-19:v0.1.1 的包里**漏了这个文件**,而引擎硬依赖它。
