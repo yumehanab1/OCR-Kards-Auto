@@ -1,10 +1,12 @@
 """gui_test.py - 面板的**离线**用例(不开窗口、不碰游戏)。
 
-面板里真正会出错的是三件"纯逻辑"的事,所以只考这三件(其余是 HTML/CSS):
+面板里真正会出错的是几件"纯逻辑"的事,所以只考这些(其余是 HTML/CSS):
   ① `build_argv`:勾选 -> 命令行参数(勾错了就会用错的模式跑实机);
   ② `parse_status`:日志 -> 面板顶部那几个数(回合/费用/战场/最近动作/局数);
   ③ `tail_lines` + `mark_line`:日志尾巴与配色语义,以及"汉字不许被切一半"
-     (`watch_log.py` 里踩过那个坑:文本模式从中间 seek 会把多字节字符切断)。
+     (`watch_log.py` 里踩过那个坑:文本模式从中间 seek 会把多字节字符切断);
+  ④ 打包成 exe 之后会错的路径(冻结陷阱)、版本与更新入口、窗口几何、自动更新留痕;
+  ⑧ 日志区"重画"的判据(**不是行数** —— 行数会饱和在 400,见那一节的说明)。
 
 用法:
   .venv\\Scripts\\python.exe src\\gui_test.py
@@ -227,6 +229,39 @@ def main() -> int:
         finally:
             gui.update_check.check = keep_check
             gui.LOG_DIR, gui.UPDATE_LOG = keep_dir, keep_log
+
+    print("\n⑧ ★★★ 日志区\"滚到一定时候就不动了\" —— 判据不能是行数")
+    # 用户 2026-09-19 报的:跑一会儿日志就不刷新了,往下翻也没有新内容。
+    # 根因:面板尾部只取 400 行,日志一旦超过 400 行,**行数永远是 400**,
+    #       而前端原来拿"行数变了没有"当重画判据 -> 从此恒为假 -> 永久冻结。
+    # 这一节用**真实文件**把那个判据钉死:长度(会饱和,坏判据)vs log_rev(好判据)。
+    with tempfile.TemporaryDirectory() as d:
+        p = os.path.join(d, "grow.log")
+        with open(p, "wb") as f:
+            for i in range(1000):                # 远超尾部窗口的 400 行
+                f.write(f"2026-09-19 21:00:{i % 60:02d} 第 {i} 行\n".encode("utf-8"))
+        before = gui.tail_lines(p, 400)
+        rev_before = gui.log_rev(p)
+        check(len(before) == 400,
+              f"尾部窗口取满 400 行(实得 {len(before)})—— 行数从这一刻起就饱和了")
+        with open(p, "ab") as f:                 # 引擎又写了一行
+            f.write("2026-09-19 21:10:00 [turn] our turn starts\n".encode("utf-8"))
+        after = gui.tail_lines(p, 400)
+        rev_after = gui.log_rev(p)
+        check(len(after) == len(before),
+              "★ 新日志进来之后**行数一点没变**(这就是老判据失效的地方)")
+        check(after[-1] != before[-1], "而内容其实变了(最后一行是新的)")
+        check(rev_after != rev_before,
+              "★★ 所以要用 log_rev 判:文件变了,指纹就变(修好的就是这个)")
+        check(gui.log_rev(os.path.join(d, "没有这个文件.log")) == "",
+              "日志还不存在时指纹是空串(不许抛异常 —— 面板第一秒就要能画)")
+        os.utime(p, (1, 1))                      # 只改 mtime、字节数不变
+        check(gui.log_rev(p) != rev_after, "只动了 mtime 也算变了(mtime 进指纹)")
+    # 只查**页面源码**(`gui.HTML`)里的 JS:模块 docstring 里会引用那句老写法当反面教材,
+    # 拿整个模块源码去 search 会把自己的注释也算成"还在"。
+    page = gui.HTML
+    check("lastLen" not in page and "lastRev" in page and "s.log_rev" in page,
+          "★ 页面按 log_rev 重画,老的'按行数判断'(lastLen)已经不在页面里了")
 
     print("=" * 74)
     if FAILS:

@@ -274,6 +274,25 @@ def tail_lines(path: str, n: int = 400) -> list[str]:
     return lines[-n:]
 
 
+def log_rev(path: str) -> str:
+    """
+    日志"变没变"的指纹(大小 + 纳秒级 mtime),面板据此决定要不要重画日志区。
+
+    ★★★ 为什么要专门做这么一个东西 —— 2026-09-19 用户报的 bug:
+      **"日志滚到一定时候就不动了,向下翻也翻不下去。"**
+      面板的尾巴只取 400 行,所以**日志一旦超过 400 行,`len(log_lines)` 就永远是 400**;
+      而前端原来的判据是 `s.log_lines.length !== lastLen` —— 从那以后**恒为假**,
+      日志区再也不重画。用户那边看起来就是"卡住了",而且往下翻也确实没有新内容。
+      ⇒ 教训:**行数是会饱和的量,不能拿它判"变了没有"**。要用文件本身的变化。
+      (这条和 §7 第 96 条那种"判据链退化"是同一类错:判据在边界外悄悄失效。)
+    """
+    try:
+        st = os.stat(path)
+    except OSError:
+        return ""
+    return f"{st.st_size}:{st.st_mtime_ns}"
+
+
 def parse_status(lines: list[str]) -> dict:
     """把日志末尾那几行解析成面板顶部/中间要显示的状态(读不出来就留空)。"""
     out = {
@@ -521,6 +540,9 @@ class Api:
                         if (running and self.started_at) else None),
             "argv": self.last_opts.get("argv") or [],
             "log_lines": [[mark_line(ln), ln] for ln in lines[-400:]],
+            # ★ 面板靠这个判"日志变了没有"(**不是靠行数** —— 行数会饱和在 400,
+            #   见 `log_rev()` 的说明)。空串 = 日志文件还不存在。
+            "log_rev": log_rev(LOG),
             "status": st,
             "version": ver.get("version", "?"),
             "switches": SWITCHES,
@@ -784,7 +806,7 @@ HTML = r"""<!doctype html>
 </main>
 <div class="toast" id="toast"></div>
 <script>
-let onlyKey = false, autoscroll = true, lastLen = -1;
+let onlyKey = false, autoscroll = true, lastRev = '';
 let updUrl = '';   // 查到新版本后存发布页地址,按钮第二次点就是打开它
 const $ = s => document.querySelector(s);
 function toast(msg, ms=3200){ const t=$('#toast'); t.textContent=msg; t.classList.add('show');
@@ -826,8 +848,13 @@ function render(s){
   const iss = st.issues ? `<span class="badge bad">值得看一眼 ${st.issues}</span>` : '<span class="badge ok">本段干净</span>';
   $('#stIssues').innerHTML = iss + (s.error?`<span class="badge bad">${s.error}</span>`:'');
   const log = $('#log');
-  if(s.log_lines.length !== lastLen){
-    lastLen = s.log_lines.length;
+  // ★★ 判据是"**日志文件**变了没有",不是"行数变了没有"。
+  //   尾部只取 400 行 —— 行数会**饱和**,一旦日志超过 400 行就永远是 400,
+  //   拿它当判据会让日志区永久冻结(用户 2026-09-19 报的就是这个:
+  //   "滚到一定时候就不动了,向下翻也翻不下去")。
+  const rev = s.log_rev || '';
+  if(rev !== lastRev){
+    lastRev = rev;
     log.innerHTML = s.log_lines.map(([cls,ln])=>
       `<div class="${cls}">${ln.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}</div>`).join('');
     if(autoscroll) log.scrollTop = log.scrollHeight;
@@ -837,7 +864,14 @@ async function poll(){
   try{
     const s = await window.pywebview.api.snapshot(onlyKey, 400);
     renderSwitches(s.switches, s.default_on); render(s);
-  }catch(e){}
+    $('#logtag').textContent = 'main_loop.log';
+    $('#logtag').style.color = '';
+  }catch(e){
+    // ★ 以前这里是个空 catch:面板一旦读不到状态就**静静地冻住**,和"日志本来
+    //   就没有新内容"长得一模一样 —— 用户看到的又是"日志不动了"。至少要让人看见。
+    $('#logtag').textContent = 'main_loop.log · ⚠ 面板读不到状态';
+    $('#logtag').style.color = 'var(--bad)';
+  }
 }
 window.addEventListener('pywebviewready', async ()=>{
   poll(); setInterval(poll, 1000);
@@ -857,7 +891,7 @@ window.addEventListener('pywebviewready', async ()=>{
     toast(r.msg, r.ok ? 7000 : 11000);       // 查不到/要人照做的消息留久一点
     if (r.has_update && r.url) { updUrl = r.url; $('#btnUpdate').textContent = '打开发布页'; }
   };
-  $('#btnKey').onclick = ()=>{ onlyKey=!onlyKey; lastLen=-1;
+  $('#btnKey').onclick = ()=>{ onlyKey=!onlyKey; lastRev='';
     $('#btnKey').textContent = onlyKey?'看全部':'只看关键行'; poll(); };
   $('#btnBottom').onclick = ()=>{ autoscroll=true; $('#log').scrollTop=$('#log').scrollHeight; };
   $('#log').addEventListener('scroll', ()=>{ const l=$('#log');
@@ -911,6 +945,10 @@ def main() -> int:
                 os.path.join(PROJECT_ROOT, PORTABLE_PYTHON)),
             "log": LOG,
             "log_exists": os.path.exists(LOG),
+            # ★★ 2026-09-19:日志区"滚到一定时候就不动了"那个 bug 的判据。
+            #   面板是 onefile exe、`gui.py` 是编进去的 —— 不重打包就等于没修。
+            #   `log_rev` 只有新代码才有,所以自检里出现这个字段 = 新面板真的在 exe 里。
+            "log_rev": log_rev(LOG),
             "version": read_version(),
             # ★★ 2026-09-19(v0.1.3):把"更新检测这次真的打进 exe 了"写进自检里。
             #   为什么非要这一条:面板是 **onefile exe**,`gui.py` 是**编进去**的 ——
