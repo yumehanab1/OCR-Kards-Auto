@@ -727,10 +727,20 @@ class HandScannerV2:
         #   说明**拖出去的是邻居那张牌**;而 `x=455` 正好是「5 张」那条布局的
         #   第一个探针 —— 在一副**6 张**的手牌上,它落在第 1、2 张的**分界线上**。
         #   日志里以前完全看不到"用的是 5 张那条"这件事。
+        # ★★★ 2026-09-20(用户实机日志,12h44m):**这一行原先少了 `if cands` 守卫。**
+        #   上面的 count / left_edge 都有,只有 n_probes 写了 `(cands[0] or {})`
+        #   —— 那个 `or {}` 只挡得住"元素是假值",挡不住**列表本身是空的**,
+        #   于是 `cands == []` 时直接 IndexError。
+        #   为什么这条是致命的:下面 `if not cands:` 那一整段(盲扫兜底)本来就是
+        #   为"布局表一条都对不上"写的,而 bug 在它**前面一行**就把线程掀了 ——
+        #   兜底永远走不到。异常从 think() 冒到 main_loop.handle_in_game 的 except,
+        #   那一 tick **根本没执行到"该不该结束回合"**,下一 tick 从同一步重来。
+        #   实机指纹:手牌出完那一刻最容易踩(布局表里没有"0 张"这条),
+        #   日志里 34 段卡死、每段 10~61 秒,玩家看到的就是"操作完了不结束回合"。
         self.last_layout = {
             "count": (cands[0].get("count") if cands else None),
             "left_edge": (cands[0].get("left_edge") if cands else None),
-            "n_probes": len((cands[0] or {}).get("probes") or []),
+            "n_probes": (len(cands[0].get("probes") or []) if cands else 0),
             "n_cands": len(cands),
             "cand_counts": [v.get("count") for v in cands],
             "measured_edge": int(edge) if edge is not None else None,
