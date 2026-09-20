@@ -1,0 +1,6761 @@
+{
+ "cards": {
+  "7075_aluminium": {
+   "cost": 0,
+   "kind": "",
+   "mode": "direct",
+   "name": "7075 铝",
+   "note": "B#1(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "将 3 张“A6M2 零战”加入手中，使其花费为 0，获得：“亡计：将 1 张本单位的复制加入手中，使其花费为 0。”"
+  },
+  "a_bridge_too_far": {
+   "cost": 5,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "遥远的桥",
+   "note": "反制卡:这一版不做",
+   "rows": "",
+   "src": "其余",
+   "text": "敌方回合结束时，若可能，将 1 个“三号坦克 J 型”加入前线。否则，消灭前线所有单位。"
+  },
+  "a_few_good_men": {
+   "cost": 2,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "好人寥寥",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "从 3 张随机美国精英单位中选择 1 张加入手牌。"
+  },
+  "aa_barrage": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "防空弹幕",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "使 1 个空军撤退，使友方总部获得 +2 防御力。"
+  },
+  "act_on_the_intel": {
+   "cost": 6,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "见机行事",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "对 1 个敌方目标造成等同于敌方明牌数量的伤害。"
+  },
+  "active_sonar": {
+   "cost": 0,
+   "kind": "",
+   "mode": "direct",
+   "name": "主动声呐",
+   "note": "A#1",
+   "rows": "",
+   "src": "A",
+   "text": "压制所有敌方单位，使对手手牌获得 +3 花费。"
+  },
+  "admiral_yamamoto": {
+   "cost": 1,
+   "kind": "",
+   "mode": "direct",
+   "name": "山本五十六",
+   "note": "A#20",
+   "rows": "",
+   "src": "A",
+   "text": "本回合，所有友方空军具有 +1 攻击力和闪击。"
+  },
+  "advanced_imperial_rd": {
+   "cost": 9,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "高级帝国研发",
+   "note": "抉择:要二选一,多一步操作",
+   "rows": "",
+   "src": "其余",
+   "text": "抉择：将 1 张“7075 铝” 或 1 张“皇国二号兵器”加入手中。"
+  },
+  "advanced_reich_rd": {
+   "cost": 9,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "高级德意志帝国研发",
+   "note": "抉择:要二选一,多一步操作",
+   "rows": "",
+   "src": "其余",
+   "text": "抉择：将 1 张“XXI 级 U 型潜艇” 或 1 张“铀工程”加入手牌。"
+  },
+  "advanced_royal_research": {
+   "cost": 9,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "高级皇家研发",
+   "note": "抉择:要二选一,多一步操作",
+   "rows": "",
+   "src": "其余",
+   "text": "抉择：将 1 张“主动声纳” 或 1 张“布莱切利庄园”加入手牌。"
+  },
+  "advanced_soviet_research": {
+   "cost": 9,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "高级苏联研发",
+   "note": "抉择:要二选一,多一步操作",
+   "rows": "",
+   "src": "其余",
+   "text": "抉择：将 1 张“倾斜装甲” 或 3 张“斯大林管风琴”加入手中。"
+  },
+  "advanced_us_research": {
+   "cost": 9,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "高级美国研发",
+   "note": "抉择:要二选一,多一步操作",
+   "rows": "",
+   "src": "其余",
+   "text": "抉择：将 1 张“青霉素” 或 2 张“曼哈顿计划”加入手牌。"
+  },
+  "aerial_reconnaissance": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "空中侦察",
+   "note": "反制卡:这一版不做",
+   "rows": "",
+   "src": "其余",
+   "text": "敌方部署单位时，使友方手牌中的指令获得 -1 花费，花费至少为 1。"
+  },
+  "aerosani": {
+   "cost": 0,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "气动雪橇",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "对 1 个敌方陆军或总部造成 2 点伤害，对其相邻目标造成 2 点伤害。"
+  },
+  "afrika_korps": {
+   "cost": 2,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "非洲军团",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "从 3 张随机德军精英单位中选择 1 张加入手牌。"
+  },
+  "against_the_odds": {
+   "cost": 0,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "迎难而上",
+   "note": "反制卡:这一版不做",
+   "rows": "",
+   "src": "其余",
+   "text": "单位攻击后，将其压制。抽 1 张牌。"
+  },
+  "agency_africa": {
+   "cost": 2,
+   "kind": "",
+   "mode": "direct",
+   "name": "非洲情报局",
+   "note": "B#93(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "随机将 1 张敌方明牌的复制加入手牌。"
+  },
+  "aid_to_the_front": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "如虎添翼",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "使 1 个对战词条数不小于 2 的单位获得 +2+2。"
+  },
+  "air_blitz": {
+   "cost": 3,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "空中闪击",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "对 1 个总部造成 3 点伤害。"
+  },
+  "air_corps_ferrying": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "航空兵团运输",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "使 1 个友方单位获得 +1+1。若剩余指挥点数不小于 5，改为使所有友方单位获得 +1+1。"
+  },
+  "air_cover": {
+   "cost": 3,
+   "kind": "",
+   "mode": "direct",
+   "name": "空中掩护",
+   "note": "A#82",
+   "rows": "",
+   "src": "A",
+   "text": "将 2 个“F2A 水牛”加入战场，若可能，加入前线。"
+  },
+  "air_defense": {
+   "cost": 2,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "防空",
+   "note": "反制卡:这一版不做",
+   "rows": "",
+   "src": "其余",
+   "text": "单位攻击时，对其造成 3 点伤害。若是空军，改为将其消灭。"
+  },
+  "air_escort": {
+   "cost": 2,
+   "kind": "",
+   "mode": "direct",
+   "name": "空中护航",
+   "note": "A#56",
+   "rows": "",
+   "src": "A",
+   "text": "触发所有友方单位的非指向部署。"
+  },
+  "air_land_sea": {
+   "cost": 1,
+   "kind": "7",
+   "mode": "target",
+   "name": "海陆空",
+   "note": "B#27 用户指定",
+   "rows": "",
+   "src": "B",
+   "text": "开发 1 张卡组中的牌。失去 1 个指挥点槽。"
+  },
+  "air_power": {
+   "cost": 3,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "空军力量",
+   "note": "抉择:要二选一,多一步操作",
+   "rows": "",
+   "src": "其余",
+   "text": "抉择：消灭 1 个坦克 或 对 1 个敌方目标造成 2 点伤害。"
+  },
+  "air_strips": {
+   "cost": 1,
+   "kind": "",
+   "mode": "direct",
+   "name": "跑道",
+   "note": "B#38(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "将 1 张“布雷达 Ba.65”加入手中，将 1 张“RM 罗马号”置于卡组顶。"
+  },
+  "air_superiority": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "空中优势",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "对 1 个单位造成 1 点伤害。若有友方空军，改为造成 3 点伤害。"
+  },
+  "air_support": {
+   "cost": 3,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "空中支援",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "使 1 个友方战斗机获得 +2+2。"
+  },
+  "airdrop": {
+   "cost": 3,
+   "kind": "1",
+   "mode": "target",
+   "name": "空降",
+   "note": "B#118 用户指定",
+   "rows": "a",
+   "src": "B",
+   "text": "使前线 1 个敌方单位撤退。然后若前线没有单位，将 2 个“第 2 伞兵旅”加入前线。"
+  },
+  "airstrike": {
+   "cost": 3,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "空袭",
+   "note": "反制卡:这一版不做",
+   "rows": "",
+   "src": "其余",
+   "text": "敌方单位部署时，将其返回手牌。敌方随机弃 1 张牌。"
+  },
+  "allied_research_effort": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "盟军研发成果",
+   "note": "抉择:要二选一,多一步操作",
+   "rows": "",
+   "src": "其余",
+   "text": "抉择：随机将 1 张花费不小于 7 的美国或英国指令 或 单位加入手牌。"
+  },
+  "alpenfestung": {
+   "cost": 7,
+   "kind": "",
+   "mode": "direct",
+   "name": "阿尔卑斯要塞",
+   "note": "A#147",
+   "rows": "",
+   "src": "A",
+   "text": "使友方总部的防御力为 25。从卡组顶移除 10 张牌。"
+  },
+  "america_at_war": {
+   "cost": 3,
+   "kind": "",
+   "mode": "direct",
+   "name": "战时美利坚",
+   "note": "B#111(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "额外获得 1 个指挥点槽。若剩余指挥点数不小于 2，抽 1 张牌。"
+  },
+  "amphibious_assault": {
+   "cost": 3,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "两栖进攻",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "消灭 1 个攻击力不大于 3 的敌方单位。"
+  },
+  "ancestral_call": {
+   "cost": 6,
+   "kind": "",
+   "mode": "direct",
+   "name": "卫国英烈",
+   "note": "A#138",
+   "rows": "",
+   "src": "A",
+   "text": "使所有友方单位获得等同于同一阵线其他单位数量的攻击力。"
+  },
+  "ancient_empire": {
+   "cost": 2,
+   "kind": "",
+   "mode": "direct",
+   "name": "古老帝国",
+   "note": "B#54(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "使友方总部的防御力为 8，抽 1 张“古老帝国”。"
+  },
+  "anders_army": {
+   "cost": 1,
+   "kind": "",
+   "mode": "direct",
+   "name": "安德斯军团",
+   "note": "A#19",
+   "rows": "",
+   "src": "A",
+   "text": "抽 2 张牌。对友方总部造成 2 点伤害。"
+  },
+  "annihilation": {
+   "cost": 7,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "歼灭",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "消灭 1 个花费不大于 5 的敌方单位，敌方随机弃 1 张牌。"
+  },
+  "arctic_convoy": {
+   "cost": 4,
+   "kind": "",
+   "mode": "direct",
+   "name": "北极护航队",
+   "note": "A#98",
+   "rows": "",
+   "src": "A",
+   "text": "抽 2 张单位。"
+  },
+  "area_bombardment": {
+   "cost": 6,
+   "kind": "",
+   "mode": "direct",
+   "name": "区域轰炸",
+   "note": "B#177(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "将 1 个“兰开斯特 Mk I”加入支援阵线。回合结束时，将其洗入卡组。"
+  },
+  "armaments": {
+   "cost": 4,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "军备",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "对 1 个目标造成 4 点伤害。若在卡组中的回合数不小于 4，改为造成 8 点伤害。"
+  },
+  "arming_the_resistance": {
+   "cost": 4,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "武装抵抗",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "对 1 个单位造成 5 点伤害。将等同于溢出伤害的“抵抗”加入敌方卡组。"
+  },
+  "asw_patrol": {
+   "cost": 7,
+   "kind": "",
+   "mode": "direct",
+   "name": "反潜巡逻",
+   "note": "B#189(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "额外获得 3 个指挥点槽。若美国是盟国，随机消灭 1 个敌方单位。"
+  },
+  "at_all_cost": {
+   "cost": 3,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "不惜代价",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "消灭 1 个友方单位。对所有目标造成 2 点伤害。"
+  },
+  "atlantic_command": {
+   "cost": 1,
+   "kind": "",
+   "mode": "direct",
+   "name": "大西洋航空指挥部",
+   "note": "A#17",
+   "rows": "",
+   "src": "A",
+   "text": "随机将卡组中的 2 张海军卡牌移到卡组顶。"
+  },
+  "atlantic_convoy": {
+   "cost": 3,
+   "kind": "",
+   "mode": "direct",
+   "name": "大西洋护航队",
+   "note": "B#107(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "分别随机将 1 个花费不大于 3 的美国单位加入支援阵线和手牌。"
+  },
+  "ats": {
+   "cost": 3,
+   "kind": "",
+   "mode": "direct",
+   "name": "女子辅助军",
+   "note": "B#108(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "使敌方总部获得：“每回合，累计受到的伤害不小于 3 时，抽 1 张牌。”"
+  },
+  "attack_in_the_colonies": {
+   "cost": 4,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "进攻殖民地",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "对 1 个敌方目标造成 3 点伤害。使友方总部获得 +5 防御力。"
+  },
+  "attrition": {
+   "cost": 2,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "消耗战",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "对 1 个单位造成 2 点伤害。若是老兵，使其撤退。"
+  },
+  "audacity": {
+   "cost": 3,
+   "kind": "",
+   "mode": "direct",
+   "name": "无所畏惧",
+   "note": "B#113(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "将 1 个“D3A2 九九舰爆”加入支援阵线。其随机对 1 个敌方单位造成等同于其攻击力的伤害。"
+  },
+  "aunt_frieda": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "弗里达阿姨手册",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "使 1 个友方步兵获得 +1+1。将 1 张“坦克机动”加入手中。"
+  },
+  "awoken_giant": {
+   "cost": 1,
+   "kind": "1",
+   "mode": "target",
+   "name": "巨人苏醒",
+   "note": "B#16 用户指定",
+   "rows": "a",
+   "src": "B",
+   "text": "对前线 1 个敌方单位造成 2 点伤害。若将其消灭，抽 1 张牌。"
+  },
+  "baker_street_irregulars": {
+   "cost": 1,
+   "kind": "5",
+   "mode": "target",
+   "name": "贝克街分队",
+   "note": "B#36 用户指定",
+   "rows": "",
+   "src": "B",
+   "text": "开发 1 张英国特种单位。若有友方突击队，额外开发 1 张英国指令。"
+  },
+  "balloon_bombs": {
+   "cost": 0,
+   "kind": "",
+   "mode": "direct",
+   "name": "气球炸弹",
+   "note": "A#5",
+   "rows": "",
+   "src": "A",
+   "text": "压制所有敌方单位。"
+  },
+  "banzai": {
+   "cost": 6,
+   "kind": "",
+   "mode": "direct",
+   "name": "万岁冲锋",
+   "note": "A#134",
+   "rows": "",
+   "src": "A",
+   "text": "消灭所有攻击力不大于 4 的单位，结束回合。"
+  },
+  "barrage": {
+   "cost": 2,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "弹幕",
+   "note": "抉择:要二选一,多一步操作",
+   "rows": "",
+   "src": "其余",
+   "text": "抉择：本回合，使所有敌方单位具有 -4 攻击力 或 对 1 个陆军造成 2 点伤害。"
+  },
+  "battery": {
+   "cost": 4,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "炮火支援",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "对 1 个单位造成 4 点伤害，溢出伤害转移到敌方总部。"
+  },
+  "battle_valor": {
+   "cost": 5,
+   "kind": "X",
+   "mode": "blacklist",
+   "name": "勇气迸发",
+   "note": "B#164 用户指定",
+   "rows": "",
+   "src": "B",
+   "text": "若可能，将目标单位升为老兵，使其获得 +2+4。"
+  },
+  "betasom": {
+   "cost": 2,
+   "kind": "",
+   "mode": "direct",
+   "name": "波尔多潜艇指挥部",
+   "note": "B#69(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "开发 1 张海军牌。使卡组顶的牌算作是海军，直到下个友方回合结束。"
+  },
+  "blackout": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "灯火管制",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "压制 1 个敌方空军，抽 1 张牌。"
+  },
+  "blade_of_the_samurai": {
+   "cost": 6,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "武士之刃",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "消灭 1 个敌方单位。"
+  },
+  "blast": {
+   "cost": 0,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "爆破",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "对 1 个单位造成 1 点伤害。"
+  },
+  "bletchley_park": {
+   "cost": 12,
+   "kind": "",
+   "mode": "direct",
+   "name": "布莱切利庄园",
+   "note": "A#163",
+   "rows": "",
+   "src": "A",
+   "text": "将敌方手中和场上所有花费不大于 5 的卡牌返回其卡组顶。"
+  },
+  "blitz_doctrine": {
+   "cost": 2,
+   "kind": "7",
+   "mode": "target",
+   "name": "闪击战法",
+   "note": "B#89 用户指定",
+   "rows": "",
+   "src": "B",
+   "text": "开发 1 张德国轻型坦克。将 1 张“竞争战法”加入手牌。"
+  },
+  "blitzkrieg": {
+   "cost": 3,
+   "kind": "",
+   "mode": "direct",
+   "name": "闪电战",
+   "note": "A#87",
+   "rows": "",
+   "src": "A",
+   "text": "使前线所有友方单位获得 +3 攻击力和 -1 行动花费，直到回合结束。"
+  },
+  "blockade": {
+   "cost": 5,
+   "kind": "",
+   "mode": "direct",
+   "name": "封锁",
+   "note": "A#126",
+   "rows": "",
+   "src": "A",
+   "text": "对所有敌方单位造成 2 点伤害。若卡组顶是海军牌，改为造成 3 点伤害。"
+  },
+  "blood_red_sky": {
+   "cost": 2,
+   "kind": "",
+   "mode": "direct",
+   "name": "血洒长空",
+   "note": "A#61",
+   "rows": "",
+   "src": "A",
+   "text": "使所有友方苏联空军获得 +2+2。"
+  },
+  "bloody_sickle": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "血红镰刀",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "对 1 个单位和友方总部造成 1 点伤害，抽 1 张牌。"
+  },
+  "blue_sky": {
+   "cost": 0,
+   "kind": "7",
+   "mode": "target",
+   "name": "蓝天",
+   "note": "A#7 L147 用户指定:同上",
+   "rows": "",
+   "src": "A",
+   "text": "将是晴天。"
+  },
+  "bocage_warfare": {
+   "cost": 1,
+   "kind": "4",
+   "mode": "target",
+   "name": "篱墙之战",
+   "note": "B#33 用户指定",
+   "rows": "d",
+   "src": "B",
+   "text": "使支援阵线 1 个友方单位获得：“移至前线时，获得 +2+2。”"
+  },
+  "bolster_the_ranks": {
+   "cost": 4,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "激励部队",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "使 1 个单位获得等同于其行动花费的攻击力和防御力，使其行动花费为 0。"
+  },
+  "bomber_mafia": {
+   "cost": 4,
+   "kind": "7",
+   "mode": "target",
+   "name": "轰炸机黑手党",
+   "note": "B#151 用户指定",
+   "rows": "",
+   "src": "B",
+   "text": "开发 1 张美国轰炸机。若剩余指挥点数不小于 5，对所有敌方单位造成 2 点伤害。"
+  },
+  "bomber_run": {
+   "cost": 2,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "轰炸航路",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "对 1 个单位造成 2 点伤害。若有攻击力不小于 5 的友方轰炸机，改为造成 5 点伤害。"
+  },
+  "bombing_raid": {
+   "cost": 4,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "轰炸突袭",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "对 1 个敌方目标造成 3 点伤害，对其相邻目标造成 2 点伤害。"
+  },
+  "bpf": {
+   "cost": 2,
+   "kind": "7",
+   "mode": "target",
+   "name": "英国太平洋舰队",
+   "note": "B#75 用户指定",
+   "rows": "",
+   "src": "B",
+   "text": "从“爆破”、“计划”和“生产”中开发 1 张，开发 1 张英国海军牌。"
+  },
+  "breaking_point": {
+   "cost": 2,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "临界点",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "消灭 1 个被抑制或被压制的单位。"
+  },
+  "breakout": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "突围",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "使 1 个老兵单位获得奋战和冲击。"
+  },
+  "breakthrough": {
+   "cost": 3,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "突破",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "对 1 个单位造成 3 点伤害。若其被消灭，使所有友方单位具有 -1 行动花费，直到回合结束。"
+  },
+  "brute_force": {
+   "cost": 2,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "蛮力",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "对 1 个敌方目标造成等同于友方比敌方多控制单位数量的伤害。"
+  },
+  "burning_sky": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "燃烧的天空",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "对 1 个敌方空军造成 4 点伤害。"
+  },
+  "burning_sun": {
+   "cost": 3,
+   "kind": "",
+   "mode": "direct",
+   "name": "烈日",
+   "note": "A#80",
+   "rows": "",
+   "src": "A",
+   "text": "使所有友方空军具有 +3 攻击力，直到回合结束。"
+  },
+  "burst_of_fire": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "火力爆发",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "使 1 个友方战斗机具有 +1 攻击力和奋战，直到回合结束。"
+  },
+  "buzz_bomb": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "嗡嗡炸弹",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "对 1 个敌方目标造成 1 点伤害。若是总部，抽 1 张牌。"
+  },
+  "by_the_sword": {
+   "cost": 4,
+   "kind": "",
+   "mode": "direct",
+   "name": "以剑之名",
+   "note": "A#93",
+   "rows": "",
+   "src": "A",
+   "text": "抽取等同于敌方单位数的卡牌。"
+  },
+  "bypass": {
+   "cost": 5,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "迂回",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "对 1 个总部造成等同于前线所有友方德国坦克花费之和的伤害。"
+  },
+  "cadet_nurse_corps": {
+   "cost": 3,
+   "kind": "",
+   "mode": "direct",
+   "name": "军校护士团",
+   "note": "A#73",
+   "rows": "",
+   "src": "A",
+   "text": "完全修复所有友方单位，使其获得 +1+1。"
+  },
+  "call_to_the_colonies": {
+   "cost": 4,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "呼叫殖民地",
+   "note": "抉择:要二选一,多一步操作",
+   "rows": "",
+   "src": "其余",
+   "text": "抉择：使友方总部获得 +8 防御力 或 抽 2 张牌。"
+  },
+  "calm_before_the_storm": {
+   "cost": 4,
+   "kind": "",
+   "mode": "direct",
+   "name": "暴风雨前的宁静",
+   "note": "A#105",
+   "rows": "",
+   "src": "A",
+   "text": "使所有友方单位获得 +3+1，结束回合。"
+  },
+  "campaign_trail": {
+   "cost": 4,
+   "kind": "",
+   "mode": "direct",
+   "name": "战役路线",
+   "note": "A#103",
+   "rows": "",
+   "src": "A",
+   "text": "本回合，所有友方单位具有 -2 行动花费，回合结束时，将其完全修复。"
+  },
+  "capitulation": {
+   "cost": 9,
+   "kind": "",
+   "mode": "direct",
+   "name": "一触即溃",
+   "note": "A#155",
+   "rows": "",
+   "src": "A",
+   "text": "将所有敌方单位转换为“溃军”。"
+  },
+  "careless_talk": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "无心漫谈",
+   "note": "反制卡:这一版不做",
+   "rows": "",
+   "src": "其余",
+   "text": "敌方单位部署时，对其造成 3 点伤害。"
+  },
+  "carpet_bombing": {
+   "cost": 7,
+   "kind": "",
+   "mode": "direct",
+   "name": "地毯式轰炸",
+   "note": "A#145",
+   "rows": "",
+   "src": "A",
+   "text": "对所有敌方单位造成 3 点伤害。"
+  },
+  "carrier_battle": {
+   "cost": 3,
+   "kind": "2",
+   "mode": "target",
+   "name": "航母战",
+   "note": "A#84 L239 用户指定:同快速胜利",
+   "rows": "",
+   "src": "A",
+   "text": "造成 3 点伤害。将“航母战”加入敌方手牌，使其所有数值 +1。"
+  },
+  "carrier_cover": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "航母掩护",
+   "note": "抉择:要二选一,多一步操作",
+   "rows": "",
+   "src": "其余",
+   "text": "抉择：使所有友方战斗机获得 +1+1 或 移至前线。"
+  },
+  "case_blue": {
+   "cost": 9,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "蓝色方案",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "每有 1 个攻击力不小于 4 的友方单位，对 1 个敌方目标造成 4 点伤害。"
+  },
+  "case_yellow": {
+   "cost": 5,
+   "kind": "2",
+   "mode": "target",
+   "name": "黄色方案",
+   "note": "B#175 用户指定",
+   "rows": "",
+   "src": "B",
+   "text": "造成 1 点伤害。使所有友方单位获得 +1+0。敌方随机弃 1 张牌。"
+  },
+  "chain_home": {
+   "cost": 2,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "本土链",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "使 1 个友方单位的攻击力等同于其防御力。使其随机与 1 个敌方单位战斗。"
+  },
+  "chasing_shadows": {
+   "cost": 0,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "捕风捉影",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "指向 1 个单位，使其移至前线。"
+  },
+  "claim_objective": {
+   "cost": 2,
+   "kind": "",
+   "mode": "direct",
+   "name": "夺取目标",
+   "note": "B#56(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "本回合，单位行动每花费过 1 个指挥点，使所有友方单位获得一次 +1 攻击力。"
+  },
+  "claim_the_skies": {
+   "cost": 1,
+   "kind": "1",
+   "mode": "target",
+   "name": "夺取制空",
+   "note": "B#13 用户指定",
+   "rows": "",
+   "src": "B",
+   "text": "随机使 1 个攻击力最高的友方空军获得 +1+1，然后与 1 个敌方单位战斗。"
+  },
+  "close_air_support": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "近距离空中支援",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "使 1 个友方英国空军和其相邻单位获得 +1+1。"
+  },
+  "close_call": {
+   "cost": 2,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "千钧一发",
+   "note": "反制卡:这一版不做",
+   "rows": "",
+   "src": "其余",
+   "text": "指令或部署指向友方单位时，将其反制。"
+  },
+  "close_combat": {
+   "cost": 2,
+   "kind": "",
+   "mode": "direct",
+   "name": "短兵相接",
+   "note": "A#54",
+   "rows": "",
+   "src": "A",
+   "text": "使所有友方步兵具有 +3 攻击力，直到回合结束。"
+  },
+  "cobelligerents": {
+   "cost": 7,
+   "kind": "1",
+   "mode": "target",
+   "name": "战时盟国",
+   "note": "B#191 用户指定",
+   "rows": "",
+   "src": "B",
+   "text": "将 1 个敌方单位洗入友方卡组。"
+  },
+  "code_of_bushido": {
+   "cost": 3,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "武士道准则",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "选择并弃 1 张空军，消灭 1 个攻击力不大于 5 的单位。"
+  },
+  "cold_trap": {
+   "cost": 2,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "极寒陷阱",
+   "note": "反制卡:这一版不做",
+   "rows": "",
+   "src": "其余",
+   "text": "敌方单位攻击时，加入 1 张“游击队员”，使其成为攻击目标。"
+  },
+  "colonial_dreams": {
+   "cost": 1,
+   "kind": "",
+   "mode": "direct",
+   "name": "殖民梦",
+   "note": "A#28",
+   "rows": "",
+   "src": "A",
+   "text": "手牌中单位数最多的玩家抽 2 张牌。"
+  },
+  "colossus": {
+   "cost": 1,
+   "kind": "",
+   "mode": "direct",
+   "name": "巨人计算机",
+   "note": "B#17(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "随机将敌方卡组中的 3 张指令的复制洗入友方卡组。使其获得：“抽 1 张牌。”"
+  },
+  "combined_arms": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "协同作战",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "友方单位每有一种单位类型，使 1 个友方坦克获得一次 +1+1。"
+  },
+  "combined_chiefs_of_staff": {
+   "cost": 6,
+   "kind": "",
+   "mode": "direct",
+   "name": "参谋长联席会议",
+   "note": "A#139",
+   "rows": "",
+   "src": "A",
+   "text": "使所有友方英国和美国单位获得 +2+3。"
+  },
+  "command_failure": {
+   "cost": 3,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "指挥不当",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "消灭 1 个攻击力小于防御力的单位。"
+  },
+  "commando_raid": {
+   "cost": 6,
+   "kind": "",
+   "mode": "direct",
+   "name": "突击队突击",
+   "note": "A#142",
+   "rows": "",
+   "src": "A",
+   "text": "造成 1 点伤害。将 2 个“第 10 突击队”加入支援阵线。"
+  },
+  "commit_the_reserves": {
+   "cost": 2,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "穷兵黩武",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "消灭 1 个攻击力不大于友方指挥点槽数的单位。失去 1 个指挥点槽。"
+  },
+  "committed_crew": {
+   "cost": 10,
+   "kind": "",
+   "mode": "direct",
+   "name": "恪尽职守",
+   "note": "A#160",
+   "rows": "",
+   "src": "A",
+   "text": "直到回合结束，所有喷火花费为 0，使其部署时获得 +3+3。"
+  },
+  "compromise": {
+   "cost": 4,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "妥协",
+   "note": "抉择:要二选一,多一步操作",
+   "rows": "",
+   "src": "其余",
+   "text": "抉择：抽 1 张牌，使总部获得 +3 防御力 或 双方进行两次。"
+  },
+  "confusion": {
+   "cost": 3,
+   "kind": "X",
+   "mode": "blacklist",
+   "name": "混乱",
+   "note": "B#116 用户指定",
+   "rows": "",
+   "src": "B",
+   "text": "控制 1 个花费不大于 3 的敌方单位，直到回合结束。"
+  },
+  "conquest": {
+   "cost": 2,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "征服",
+   "note": "卡库里没有中文描述",
+   "rows": "",
+   "src": "其余",
+   "text": ""
+  },
+  "conscripts": {
+   "cost": 2,
+   "kind": "",
+   "mode": "direct",
+   "name": "征召兵",
+   "note": "B#60(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "每有 1 个敌方单位，将 1 张“预备役”洗入卡组。抽 1 张牌。"
+  },
+  "contest_doctrine": {
+   "cost": 4,
+   "kind": "7",
+   "mode": "target",
+   "name": "竞争战法",
+   "note": "B#149 用户指定",
+   "rows": "",
+   "src": "B",
+   "text": "开发 1 张德国中型或重型坦克。使友方总部获得：“友方坦克部署时，使其获得 +1+1。”"
+  },
+  "convoy_attack": {
+   "cost": 0,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "护航攻击",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "对 1 个目标造成 0-2 点伤害。"
+  },
+  "convoy_hx_175": {
+   "cost": 3,
+   "kind": "",
+   "mode": "direct",
+   "name": "HX 175 护航队",
+   "note": "A#68",
+   "rows": "",
+   "src": "A",
+   "text": "抽 2 张牌。"
+  },
+  "costly_victory": {
+   "cost": 5,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "惨胜",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "消灭 1 个单位，从卡组顶移除等同于其攻击力的卡牌。"
+  },
+  "counter_offensive": {
+   "cost": 2,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "反击攻势",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "每有 1 个受伤单位，使 1 个步兵或坦克获得一次 +2+1。"
+  },
+  "counter_strike": {
+   "cost": 2,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "反袭",
+   "note": "反制卡:这一版不做",
+   "rows": "",
+   "src": "其余",
+   "text": "敌方单位攻击友方总部时，将其消灭。"
+  },
+  "counterattack": {
+   "cost": 3,
+   "kind": "",
+   "mode": "direct",
+   "name": "反击",
+   "note": "B#104(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "使所有友方老兵单位获得 +2+2。使每个友方单位随机与 1 个敌方单位战斗。"
+  },
+  "covert_operation": {
+   "cost": 5,
+   "kind": "",
+   "mode": "direct",
+   "name": "秘密行动",
+   "note": "B#172(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "将卡组顶的 1 张隐蔽单位和 1 个复制加入支援阵线。"
+  },
+  "creeping_barrage": {
+   "cost": 2,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "徐进弹幕",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "压制 1 个单位。压制移除时，使其撤退。"
+  },
+  "critical_damage": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "致命伤害",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "对 1 个单位造成 1 点伤害。若其没有相邻单位，改为造成 2 点伤害。"
+  },
+  "critical_hit": {
+   "cost": 4,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "致命一击",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "消灭 1 个受伤单位。"
+  },
+  "cross_of_lorraine": {
+   "cost": 9,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "洛林十字",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "敌方每有 1 张手牌，具有 -1 花费。对 1 个敌方目标造成 3 点伤害。"
+  },
+  "crossfire": {
+   "cost": 5,
+   "kind": "",
+   "mode": "direct",
+   "name": "交叉火力",
+   "note": "A#119",
+   "rows": "",
+   "src": "A",
+   "text": "对所有敌方单位造成 1 点伤害。若有单位被消灭，重复此效果。"
+  },
+  "cruiser_scouts": {
+   "cost": 2,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "巡洋舰侦察机",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "压制 1 个单位并预报。若指挥点数为 0，具有情报 3。"
+  },
+  "cup_of_tea": {
+   "cost": 1,
+   "kind": "",
+   "mode": "direct",
+   "name": "一杯茶",
+   "note": "A#10",
+   "rows": "",
+   "src": "A",
+   "text": "使所有友方英国单位获得 +2 防御力。"
+  },
+  "cyclone": {
+   "cost": 6,
+   "kind": "",
+   "mode": "direct",
+   "name": "旋风",
+   "note": "B#182(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "对所有敌方目标造成 2 点伤害。"
+  },
+  "daring_strike": {
+   "cost": 4,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "英勇一击",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "每有 1 个友方流亡单位，具有 -2 花费。对 1 个目标造成 2 点伤害。"
+  },
+  "dark_deeds": {
+   "cost": 1,
+   "kind": "",
+   "mode": "direct",
+   "name": "阴谋",
+   "note": "B#41(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "将 1 个“游击队员”加入支援阵线。抽 1 张牌。下个友方回合结束时，将其弃掉。"
+  },
+  "dawn_operations": {
+   "cost": 2,
+   "kind": "",
+   "mode": "direct",
+   "name": "拂晓行动",
+   "note": "B#64(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "本回合，使所有友方的空军行动花费为 0。失去 1 个指挥点槽。"
+  },
+  "daylight_bombing": {
+   "cost": 4,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "日间轰炸",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "对 1 个目标造成 2 点伤害，敌方失去 1 个指挥点槽。"
+  },
+  "deadly_duty": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "极限使命",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "消灭 1 个友方单位，抽 2 张牌。"
+  },
+  "death_from_above": {
+   "cost": 4,
+   "kind": "",
+   "mode": "direct",
+   "name": "死神降临",
+   "note": "B#142(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "随机消灭 1 个敌方单位。"
+  },
+  "decisive_defense": {
+   "cost": 3,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "关键防御",
+   "note": "反制卡:这一版不做",
+   "rows": "",
+   "src": "其余",
+   "text": "单位攻击友方总部时，将 1 个“第 6 山地团”加入总部相邻处，使其成为攻击目标。"
+  },
+  "decoy_tactics": {
+   "cost": 3,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "诱饵战术",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "使 1 个单位获得伏击和冲击，且：“被敌方指向或攻击时，敌方随机弃 1 张牌。”"
+  },
+  "deep_operation": {
+   "cost": 2,
+   "kind": "",
+   "mode": "direct",
+   "name": "大纵深作战",
+   "note": "A#37",
+   "rows": "",
+   "src": "A",
+   "text": "将 2 张“轻步兵”加入手牌，使手牌中的“轻步兵”获得闪击。"
+  },
+  "defeat_in_detail": {
+   "cost": 1,
+   "kind": "",
+   "mode": "direct",
+   "name": "逐个击破",
+   "note": "A#33",
+   "rows": "",
+   "src": "A",
+   "text": "使所有友方单位获得：“本单位对敌方总部造成伤害时，获得 +1+1。”"
+  },
+  "defend_in_depth": {
+   "cost": 3,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "纵深防御",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "对 1 个单位造成等同于敌方手牌数的伤害。"
+  },
+  "defend_the_nation": {
+   "cost": 1,
+   "kind": "",
+   "mode": "direct",
+   "name": "保家卫国",
+   "note": "A#12",
+   "rows": "",
+   "src": "A",
+   "text": "抽取卡组顶的非法国牌，洗切卡组。"
+  },
+  "delaying_tactics": {
+   "cost": 2,
+   "kind": "",
+   "mode": "direct",
+   "name": "拖延战术",
+   "note": "A#41",
+   "rows": "",
+   "src": "A",
+   "text": "使前线所有单位撤退。"
+  },
+  "deluge": {
+   "cost": 2,
+   "kind": "",
+   "mode": "direct",
+   "name": "暴雨",
+   "note": "B#67(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "增加 6 点防御力，随机分配至所有友方目标。"
+  },
+  "depot_raid": {
+   "cost": 4,
+   "kind": "1",
+   "mode": "target",
+   "name": "劫营",
+   "note": "B#128 用户指定",
+   "rows": "",
+   "src": "B",
+   "text": "将 1 个敌方单位返回手牌。将 1 张被收缴的复制加入友方手牌。"
+  },
+  "depth_charges": {
+   "cost": 0,
+   "kind": "",
+   "mode": "direct",
+   "name": "深水炸弹",
+   "note": "B#4(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "额外获得 1 个指挥点槽。使友方总部具有烟幕，直到下个友方回合开始。"
+  },
+  "depths_of_winter": {
+   "cost": 5,
+   "kind": "",
+   "mode": "direct",
+   "name": "严冬",
+   "note": "A#117",
+   "rows": "",
+   "src": "A",
+   "text": "移除所有单位。将等量“轻步兵”加入同一阵线。"
+  },
+  "desert_dust": {
+   "cost": 3,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "沙尘满目",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "压制 1 个单位。将 2 个“卫戍”加入支援阵线。"
+  },
+  "desert_push": {
+   "cost": 1,
+   "kind": "4",
+   "mode": "target",
+   "name": "沙漠推进",
+   "note": "B#26 用户指定",
+   "rows": "",
+   "src": "B",
+   "text": "完全修复 1 个陆军。若其被压制，移除压制。"
+  },
+  "desert_raid": {
+   "cost": 2,
+   "kind": "",
+   "mode": "direct",
+   "name": "沙漠突袭",
+   "note": "A#46",
+   "rows": "",
+   "src": "A",
+   "text": "所有单位造成的对战伤害为 1，直到下个友方回合开始。"
+  },
+  "desperate_measures": {
+   "cost": 2,
+   "kind": "",
+   "mode": "direct",
+   "name": "亡命之计",
+   "note": "B#47(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "对所有敌方目标造成 2 点伤害。友方失去 1 个指挥点槽。"
+  },
+  "detailed_recon": {
+   "cost": 4,
+   "kind": "",
+   "mode": "direct",
+   "name": "周密侦察",
+   "note": "B#130(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "本回合，单位行动每花费 1 个指挥点，具有 -1 花费。抽 1 张牌，获得 1 个指挥点。"
+  },
+  "dilemma": {
+   "cost": 1,
+   "kind": "1",
+   "mode": "target",
+   "name": "两难困境",
+   "note": "B#9 用户指定",
+   "rows": "",
+   "src": "B",
+   "text": "将 1 个单位的攻击力和行动花费交换。"
+  },
+  "diplomatic_attach": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "外交专员",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "对 1 个敌方目标造成 1 点伤害，此前每使用过 1 张“外交专员”，伤害 +1。"
+  },
+  "direct_hit": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "直接命中",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "对 1 个单位造成 1 点伤害。若其行动花费为 0，改为将其消灭。"
+  },
+  "distant_front": {
+   "cost": 1,
+   "kind": "4",
+   "mode": "target",
+   "name": "鞭长莫及",
+   "note": "B#43 用户指定:仅 3 攻以下",
+   "rows": "",
+   "src": "B",
+   "text": "移除 1 个攻击力不大于 3 的单位。下个友方回合开始时，将其返回战场。"
+  },
+  "dive_bombing": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "俯冲轰炸",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "对 1 个敌方单位造成 1 点伤害。使其攻击力为 0，直到下个友方回合开始。"
+  },
+  "diversion": {
+   "cost": 2,
+   "kind": "4",
+   "mode": "target",
+   "name": "转移目标",
+   "note": "B#84 用户指定:仅非守护单位",
+   "rows": "d",
+   "src": "B",
+   "text": "使支援阵线 1 个非守护陆军获得烟幕，抽 1 张牌。"
+  },
+  "divine_wind": {
+   "cost": 3,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "神风行动",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "消灭 1 个单位，随机弃 1 张牌。"
+  },
+  "do_or_die": {
+   "cost": 2,
+   "kind": "",
+   "mode": "direct",
+   "name": "拼死一搏",
+   "note": "B#65(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "本回合，友方单位被消灭时，将 1 张“爆破”和 1 张“生产”加入手中。"
+  },
+  "double_strength": {
+   "cost": 1,
+   "kind": "",
+   "mode": "direct",
+   "name": "双倍力量",
+   "note": "B#11(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "随机将手牌中的 1 张指令的复制洗入卡组。"
+  },
+  "dowding_system": {
+   "cost": 3,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "道丁系统",
+   "note": "反制卡:这一版不做",
+   "rows": "",
+   "src": "其余",
+   "text": "敌方使用花费不小于 4 的指令时，将其反制。"
+  },
+  "drive_into_the_sea": {
+   "cost": 3,
+   "kind": "4",
+   "mode": "target",
+   "name": "驱敌入海",
+   "note": "B#124 用户指定",
+   "rows": "",
+   "src": "B",
+   "text": "移除 1 个单位。下个友方回合开始时，将其返回手牌。"
+  },
+  "dug_in": {
+   "cost": 0,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "深挖",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "对 1 个单位造成 1 点伤害。将 1 张“转变战法”洗入卡组。"
+  },
+  "duress": {
+   "cost": 0,
+   "kind": "1",
+   "mode": "target",
+   "name": "胁迫",
+   "note": "B#6 用户指定",
+   "rows": "",
+   "src": "B",
+   "text": "抑制 1 个单位。"
+  },
+  "duty_bound": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "责无旁贷",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "使 1 个友方单位获得 +1+1。此前每使用过 1 张“责无旁贷”，额外获得一次 +1+1。"
+  },
+  "duty_is_a_mountain": {
+   "cost": 6,
+   "kind": "",
+   "mode": "direct",
+   "name": "义重如山",
+   "note": "A#135",
+   "rows": "",
+   "src": "A",
+   "text": "使所有友方单位获得：“本单位的亡计额外触发一次。”"
+  },
+  "eagle_claws": {
+   "cost": 3,
+   "kind": "",
+   "mode": "direct",
+   "name": "鹰爪",
+   "note": "A#89",
+   "rows": "",
+   "src": "A",
+   "text": "对敌方支援阵线所有单位造成 2 点伤害。"
+  },
+  "eagle_day": {
+   "cost": 5,
+   "kind": "X",
+   "mode": "blacklist",
+   "name": "鹰日计划",
+   "note": "B#174 用户指定",
+   "rows": "",
+   "src": "B",
+   "text": "选择手牌中的 1 张德国空军，将其加入战场并使其获得闪击。回合结束时，将其返回手牌。"
+  },
+  "eastern_front_bound": {
+   "cost": 3,
+   "kind": "",
+   "mode": "direct",
+   "name": "东线边界",
+   "note": "B#99(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "使所有友方山地单位获得 +1+1，抽 1 张山地单位。"
+  },
+  "echelon": {
+   "cost": 2,
+   "kind": "",
+   "mode": "direct",
+   "name": "梯队",
+   "note": "A#43",
+   "rows": "",
+   "src": "A",
+   "text": "使所有友方单位获得：“其他友方单位被攻击时，本单位获得 +1+1。“"
+  },
+  "edge_of_the_empire": {
+   "cost": 2,
+   "kind": "",
+   "mode": "direct",
+   "name": "帝国边境",
+   "note": "A#39",
+   "rows": "",
+   "src": "A",
+   "text": "将所有手牌洗入卡组。回合结束时，抽 3 张牌。"
+  },
+  "elusive_force": {
+   "cost": 2,
+   "kind": "",
+   "mode": "direct",
+   "name": "潜在力量",
+   "note": "A#49",
+   "rows": "",
+   "src": "A",
+   "text": "下个敌方回合中，敌方无法使用指令。"
+  },
+  "embargo": {
+   "cost": 2,
+   "kind": "",
+   "mode": "direct",
+   "name": "禁止通商",
+   "note": "A#55",
+   "rows": "",
+   "src": "A",
+   "text": "下个回合，敌方失去 2 个指挥点。"
+  },
+  "emergency_measures": {
+   "cost": 2,
+   "kind": "",
+   "mode": "direct",
+   "name": "紧急措施",
+   "note": "B#74(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "选择并弃 1 张喷火，将 1 个“皇家空军地勤”加入支援阵线。"
+  },
+  "empire_of_the_sun": {
+   "cost": 9,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "太阳帝国",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "消灭 1 个敌方单位。抽取等同于其攻击力的卡牌。"
+  },
+  "encirclement": {
+   "cost": 3,
+   "kind": "X",
+   "mode": "blacklist",
+   "name": "包围",
+   "note": "B#103 用户指定",
+   "rows": "",
+   "src": "B",
+   "text": "将前线 1 个花费不大于 3 的友方单位的复制加入同一阵线，使其获得闪击。"
+  },
+  "enemy_at_the_gates": {
+   "cost": 4,
+   "kind": "",
+   "mode": "direct",
+   "name": "兵临城下",
+   "note": "A#96",
+   "rows": "",
+   "src": "A",
+   "text": "使所有单位获得 +2 攻击力，对其造成 2 点伤害。"
+  },
+  "enemy_contact": {
+   "cost": 2,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "逢敌",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "压制 1 个单位。抽 1 张牌。"
+  },
+  "enemy_sighted": {
+   "cost": 5,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "目击敌人",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "消灭 1 个花费不大于 3 的单位，抽 1 张牌。"
+  },
+  "enemy_spotted": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "发现敌人",
+   "note": "反制卡:这一版不做",
+   "rows": "",
+   "src": "其余",
+   "text": "敌方占领前线时，抽 3 张牌。"
+  },
+  "engage_at_range": {
+   "cost": 2,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "远距离交战",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "对 1 个敌方目标造成 2 点伤害。若被返回卡组，转换为“近距离交战”。"
+  },
+  "engage_up_close": {
+   "cost": 2,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "近距离交战",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "消灭 1 个单位。"
+  },
+  "enigma": {
+   "cost": 4,
+   "kind": "",
+   "mode": "direct",
+   "name": "恩尼格玛",
+   "note": "A#101",
+   "rows": "",
+   "src": "A",
+   "text": "抽数张牌，直到友方手牌数与敌方相同。"
+  },
+  "entanglement": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "障碍",
+   "note": "反制卡:这一版不做",
+   "rows": "",
+   "src": "其余",
+   "text": "友方单位被攻击时，使其在伤害造成前获得 +2 防御力。将 1 个“卫戍”加入支援阵线。"
+  },
+  "entrapment": {
+   "cost": 5,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "圈套",
+   "note": "反制卡:这一版不做",
+   "rows": "",
+   "src": "其余",
+   "text": "单位攻击时，将其消灭。使所有友方单位获得 +1+1。"
+  },
+  "entrenched": {
+   "cost": 2,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "深沟固垒",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "使 1 个友方守护单位获得 +3 攻击力、奋战和收缴。"
+  },
+  "envelop": {
+   "cost": 3,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "合围",
+   "note": "反制卡:这一版不做",
+   "rows": "",
+   "src": "其余",
+   "text": "单位移至前线时，消灭前线所有单位。"
+  },
+  "escaut_plan": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "埃斯科计划",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "指向 1 个单位，使其移至前线。若是本回合使用的第一张指令，使其获得伏击。"
+  },
+  "escort_group": {
+   "cost": 3,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "护航船队",
+   "note": "抉择:要二选一,多一步操作",
+   "rows": "",
+   "src": "其余",
+   "text": "抉择：将 1 张“原料” 或 1 张“军备”洗入卡组。"
+  },
+  "evasive_action": {
+   "cost": 0,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "规避动作",
+   "note": "反制卡:这一版不做",
+   "rows": "",
+   "src": "其余",
+   "text": "敌方部署单位部署时，反制其部署。"
+  },
+  "exhaust_all_options": {
+   "cost": 4,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "竭尽全力",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "压制 1 个单位和其相邻单位。压制下回合部署或加入的敌方单位。"
+  },
+  "exiled_forces": {
+   "cost": 5,
+   "kind": "4",
+   "mode": "target",
+   "name": "流亡部队",
+   "note": "B#168 用户指定",
+   "rows": "",
+   "src": "B",
+   "text": "将 1 个单位的复制加入友方支援阵线。三回合后，将其消灭。"
+  },
+  "expanded_imperial_rd": {
+   "cost": 6,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "扩展帝国研发",
+   "note": "抉择:要二选一,多一步操作",
+   "rows": "",
+   "src": "其余",
+   "text": "抉择：将 1 张“氧气鱼雷” 或 1 张“高级帝国研发”加入手中。"
+  },
+  "expanded_reich_rd": {
+   "cost": 6,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "扩展德意志帝国研发",
+   "note": "抉择:要二选一,多一步操作",
+   "rows": "",
+   "src": "其余",
+   "text": "抉择：将 1 张“合成机油” 或 1 张“高级德意志帝国研发”加入手牌。"
+  },
+  "expanded_royal_research": {
+   "cost": 6,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "扩展皇家研发",
+   "note": "抉择:要二选一,多一步操作",
+   "rows": "",
+   "src": "其余",
+   "text": "抉择：将 1 张“合成橡胶” 或 1 张“高级皇家研发”加入手牌。"
+  },
+  "expanded_soviet_research": {
+   "cost": 6,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "扩展苏联研发",
+   "note": "抉择:要二选一,多一步操作",
+   "rows": "",
+   "src": "其余",
+   "text": "抉择：将 1 张“标准弹药” 或 1 张“高级苏联研发”加入手中。"
+  },
+  "expanded_us_research": {
+   "cost": 6,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "扩展美国研发",
+   "note": "抉择:要二选一,多一步操作",
+   "rows": "",
+   "src": "其余",
+   "text": "抉择：将 1 张“加压舱” 或 1 张“高级美国研发”加入手牌。"
+  },
+  "expansion": {
+   "cost": 1,
+   "kind": "",
+   "mode": "direct",
+   "name": "扩张",
+   "note": "A#24",
+   "rows": "",
+   "src": "A",
+   "text": "若前线有友方日本单位，抽 2 张牌。"
+  },
+  "experimental_flight": {
+   "cost": 1,
+   "kind": "5",
+   "mode": "target",
+   "name": "试验飞行",
+   "note": "B#35 用户指定",
+   "rows": "",
+   "src": "B",
+   "text": "选择并弃 1 张牌，随机将 1 张日本精英空军加入手牌。"
+  },
+  "exploit_the_gap": {
+   "cost": 6,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "扩大优势",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "若前线有友方单位，从卡组顶 3 张单位中选择 1 张，使其获得闪击且花费为 0，将其余 2 张置于卡组底。"
+  },
+  "exposed": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "暴露无遗",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "若有友方美国单位，具有 -1 花费。对 1 个没有对战词条的单位造成 5 点伤害。"
+  },
+  "extended_barrage": {
+   "cost": 2,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "持续弹幕",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "对 1 个单位造成 6 点伤害。下个友方回合开始时，失去 2 个指挥点。"
+  },
+  "fast_heinz": {
+   "cost": 1,
+   "kind": "",
+   "mode": "direct",
+   "name": "古德里安",
+   "note": "A#15",
+   "rows": "",
+   "src": "A",
+   "text": "使所有友方德国坦克获得 +2+1。"
+  },
+  "feigned_retreat": {
+   "cost": 6,
+   "kind": "",
+   "mode": "direct",
+   "name": "假装撤退",
+   "note": "B#176(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "弃掉全部手牌。使友方总部获得：“友方单位部署时，抽 1 张牌。”"
+  },
+  "field_hospital": {
+   "cost": 4,
+   "kind": "",
+   "mode": "direct",
+   "name": "野战医院",
+   "note": "B#153(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "完全修复所有友方单位。每修复 1 个，抽 1 张牌。"
+  },
+  "field_recon": {
+   "cost": 2,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "野外侦察",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "每有 1 个友方隐蔽单位，使 1 个步兵或坦克获得一次 +2+2。"
+  },
+  "fiery_ambush": {
+   "cost": 3,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "猛烈伏击",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "对 1 个单位造成 3 点伤害。然后若没有敌方单位，对敌方总部造成 3 点伤害。"
+  },
+  "final_push": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "最后一击",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "使 1 个友方单位获得 +3 攻击力。友方回合结束时，将其消灭。"
+  },
+  "finest_hour": {
+   "cost": 2,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "最光辉的时刻",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "使 1 个空军获得 +1+1 和闪击。"
+  },
+  "firebomb": {
+   "cost": 4,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "燃烧弹",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "对 1 个单位造成 5 点伤害，若剩余指挥点数不小于 2，随机将溢出的伤害分配至所有敌方目标。"
+  },
+  "firewall": {
+   "cost": 2,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "防火墙",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "使 1 个单位获得：“无法攻击敌方总部”。"
+  },
+  "first_responders": {
+   "cost": 3,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "第一响应",
+   "note": "反制卡:这一版不做",
+   "rows": "",
+   "src": "其余",
+   "text": "敌方回合结束时，将 1 个“第 5 步兵旅”加入支援阵线。若敌方单位数不小于 3，使其获得 +3+3。"
+  },
+  "first_to_fight": {
+   "cost": 2,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "冲锋在前",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "使 1 个友方单位获得：“本单位交战并存活后，将 1 个“军团”加入支援阵线。”"
+  },
+  "five_year_plan": {
+   "cost": 5,
+   "kind": "",
+   "mode": "direct",
+   "name": "五年计划",
+   "note": "A#118",
+   "rows": "",
+   "src": "A",
+   "text": "抽 5 张牌，对友方总部造成 5 点伤害。"
+  },
+  "flight_to_oblivion": {
+   "cost": 3,
+   "kind": "",
+   "mode": "direct",
+   "name": "终焉之行",
+   "note": "B#119(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "移除卡组顶的 1 张空军。造成等同于其攻击力的伤害，随机分配至所有敌方目标。"
+  },
+  "focused_attack": {
+   "cost": 6,
+   "kind": "",
+   "mode": "direct",
+   "name": "集中攻击",
+   "note": "B#187(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "友方单位每有一种单位类型，使所有友方步兵和坦克获得一次 +1+1。"
+  },
+  "fog_of_war": {
+   "cost": 4,
+   "kind": "6",
+   "mode": "target",
+   "name": "战争迷雾",
+   "note": "B#137 用户指定",
+   "rows": "",
+   "src": "B",
+   "text": "移除 1 个单位。将 2 张复制置于所有者卡组顶。"
+  },
+  "foiled_plans": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "轻虑浅谋",
+   "note": "反制卡:这一版不做",
+   "rows": "",
+   "src": "其余",
+   "text": "敌方指令使用时，对敌方总部造成等同于其花费的伤害。"
+  },
+  "for_freedom": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "为了自由",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "使 1 个单位获得 +1+1，抽 1 张牌。"
+  },
+  "for_glory": {
+   "cost": 2,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "为了荣耀",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "消灭 1 个精英单位。"
+  },
+  "for_prosperity": {
+   "cost": 2,
+   "kind": "",
+   "mode": "direct",
+   "name": "为了繁荣",
+   "note": "A#34",
+   "rows": "",
+   "src": "A",
+   "text": "使所有友方日本单位获得 +1+1。"
+  },
+  "for_the_emperor": {
+   "cost": 1,
+   "kind": "",
+   "mode": "direct",
+   "name": "为了天皇",
+   "note": "A#11",
+   "rows": "",
+   "src": "A",
+   "text": "使所有友方日本单位具有 +1 攻击力和 -1 行动花费，直到回合结束。"
+  },
+  "for_the_king": {
+   "cost": 2,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "为了国王",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "对 1 个敌方坦克造成 5 点伤害。"
+  },
+  "forced_surrender": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "逼迫投降",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "压制 1 个单位。所有被压制的敌方单位额外压制一回合。"
+  },
+  "forged_in_fire": {
+   "cost": 2,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "千锤百炼",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "使 1 个单位获得 1 个随机对战词条。然后若其对战词条数不小于 2，抽 1 张牌。"
+  },
+  "form_battle_line": {
+   "cost": 4,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "形成战线",
+   "note": "抉择:要二选一,多一步操作",
+   "rows": "",
+   "src": "其余",
+   "text": "抉择：将 3 个“轻步兵”加入支援阵线，使其获得闪击 或 +1+1。"
+  },
+  "fortification": {
+   "cost": 3,
+   "kind": "",
+   "mode": "direct",
+   "name": "防御工事",
+   "note": "A#88",
+   "rows": "",
+   "src": "A",
+   "text": "使友方总部获得 +7 防御力。"
+  },
+  "fortified_position": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "加固阵地",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "压制 1 个敌方单位。若在前线，使其撤退。"
+  },
+  "fortunes_of_war": {
+   "cost": 3,
+   "kind": "X",
+   "mode": "blacklist",
+   "name": "战争财",
+   "note": "B#110 用户指定",
+   "rows": "",
+   "src": "B",
+   "text": "触发 1 个单位的亡计，视为由友方触发，若是敌方单位，再使其失去亡计。"
+  },
+  "forward_observers": {
+   "cost": 4,
+   "kind": "",
+   "mode": "direct",
+   "name": "前进观察员",
+   "note": "B#127(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "对所有敌方单位造成 2 点伤害。若上回合友方部署过英国步兵，抽 1 张牌。"
+  },
+  "frappe": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "攻击",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "若有友方动员单位，消灭 1 个防御力不大于 3 的单位。"
+  },
+  "free_french_navy": {
+   "cost": 2,
+   "kind": "",
+   "mode": "direct",
+   "name": "自由法国海军",
+   "note": "A#60",
+   "rows": "",
+   "src": "A",
+   "text": "抽取卡组顶行动花费为 3 的单位。使友方总部获得 +3 防御力。"
+  },
+  "fresh_recruits": {
+   "cost": 2,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "新兵入伍",
+   "note": "反制卡:这一版不做",
+   "rows": "",
+   "src": "其余",
+   "text": "友方单位被消灭时，随机使 1 个友方单位获得 +2+3。"
+  },
+  "friendly_fire": {
+   "cost": 2,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "误伤",
+   "note": "反制卡:这一版不做",
+   "rows": "",
+   "src": "其余",
+   "text": "敌方单位攻击时，随机将攻击伤害转移至 1 个其他敌方目标。"
+  },
+  "from_the_deep": {
+   "cost": 2,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "来自深处",
+   "note": "反制卡:这一版不做",
+   "rows": "",
+   "src": "其余",
+   "text": "敌方单位部署时，将其消灭。"
+  },
+  "from_the_people": {
+   "cost": 3,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "来自人民",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "对 1 个单位造成 3 点伤害。"
+  },
+  "front_and_homeland": {
+   "cost": 4,
+   "kind": "",
+   "mode": "direct",
+   "name": "前线与家乡",
+   "note": "A#97",
+   "rows": "",
+   "src": "A",
+   "text": "在第四回合抽取。\\r\\n使卡组中的所有奇数花费的德国卡牌获得 -1 花费。"
+  },
+  "front_formation": {
+   "cost": 9,
+   "kind": "",
+   "mode": "direct",
+   "name": "方面军",
+   "note": "B#198(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "使友方总部获得：“友方回合开始时，受到 1 点伤害，将 1 个‘T-34 1942’加入支援阵线。回合结束时，将其消灭。”"
+  },
+  "frontal_assault": {
+   "cost": 2,
+   "kind": "",
+   "mode": "direct",
+   "name": "正面突击",
+   "note": "A#45",
+   "rows": "",
+   "src": "A",
+   "text": "使所有友方“轻步兵”获得 +1+2。若没有友方“轻步兵”，将 2 张“轻步兵”加入手牌。"
+  },
+  "frontal_defense": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "正面防御",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "使 1 个友方单位获得：“友方回合结束时，对所有单位造成 1 点伤害。”"
+  },
+  "frozen_assets": {
+   "cost": 4,
+   "kind": "",
+   "mode": "direct",
+   "name": "强制冻结",
+   "note": "B#136(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "将 1 个“游击队员”加入 1 个友方单位相邻处。使其具有闪击和收缴。"
+  },
+  "furor": {
+   "cost": 1,
+   "kind": "X",
+   "mode": "blacklist",
+   "name": "狂怒",
+   "note": "黑名单同族「狂怒」:用户点名别带",
+   "rows": "",
+   "src": "B",
+   "text": "完全修复 1 个受伤的友方单位。将 1 张“激怒”加入手牌。"
+  },
+  "gale": {
+   "cost": 0,
+   "kind": "7",
+   "mode": "target",
+   "name": "狂风",
+   "note": "A#6 L146 用户指定:新的天气牌,打出后弹三张卡三选一",
+   "rows": "",
+   "src": "A",
+   "text": "风暴将至。"
+  },
+  "gambit": {
+   "cost": 5,
+   "kind": "",
+   "mode": "direct",
+   "name": "博弈",
+   "note": "A#123",
+   "rows": "",
+   "src": "A",
+   "text": "将双方手牌中花费最高的单位加入各自支援阵线。"
+  },
+  "gathering_storm": {
+   "cost": 8,
+   "kind": "",
+   "mode": "direct",
+   "name": "风暴前夕",
+   "note": "B#197(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "抽 1 张步兵，坦克，炮兵和战斗机。"
+  },
+  "glide_bombing": {
+   "cost": 2,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "滑翔轰炸",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "使 1 个单位的攻击力为 0，直到下个友方回合开始。若其本回合被消灭，抽 1 张牌。"
+  },
+  "grand_plans": {
+   "cost": 1,
+   "kind": "5",
+   "mode": "target",
+   "name": "好高骛远",
+   "note": "B#14 用户指定",
+   "rows": "",
+   "src": "B",
+   "text": "选择并弃 1 张牌，抽 1 张花费更高的牌。"
+  },
+  "great_patriotic_war": {
+   "cost": 6,
+   "kind": "",
+   "mode": "direct",
+   "name": "伟大的卫国战争",
+   "note": "A#137",
+   "rows": "",
+   "src": "A",
+   "text": "使双方总部的防御力为 12。"
+  },
+  "greater_purpose": {
+   "cost": 4,
+   "kind": "",
+   "mode": "direct",
+   "name": "远大目标",
+   "note": "B#152(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "使所有友方单位获得：“亡计：抽 1 张牌。”"
+  },
+  "grim_day": {
+   "cost": 1,
+   "kind": "",
+   "mode": "direct",
+   "name": "朝不保夕",
+   "note": "B#24(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "直到下个友方回合开始，敌方指向或攻击友方单位时，+2 花费。"
+  },
+  "grounded": {
+   "cost": 5,
+   "kind": "6",
+   "mode": "target",
+   "name": "停飞",
+   "note": "B#162 用户指定",
+   "rows": "",
+   "src": "B",
+   "text": "将 1 个单位返回其所有者卡组顶。"
+  },
+  "guerilla_warfare_school": {
+   "cost": 1,
+   "kind": "",
+   "mode": "direct",
+   "name": "游击战学校",
+   "note": "B#28(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "若是最右侧手牌，具有 -1 花费。随机使 1 个敌方单位撤退。"
+  },
+  "gunboat_hit": {
+   "cost": 1,
+   "kind": "1",
+   "mode": "target",
+   "name": "炮艇命中",
+   "note": "B#30 用户指定",
+   "rows": "c",
+   "src": "B",
+   "text": "对敌方支援阵线 1 个单位造成 2 点伤害。将 1 张“炮艇出击”加入手牌。回合结束时，弃掉此牌。"
+  },
+  "gunboat_raid": {
+   "cost": 4,
+   "kind": "1",
+   "mode": "target",
+   "name": "炮艇突袭",
+   "note": "B#145 用户指定",
+   "rows": "a",
+   "src": "B",
+   "text": "对前线 1 个敌方单位造成 3 点伤害。将 1 张“炮艇命中”加入手牌。"
+  },
+  "gunboat_run": {
+   "cost": 1,
+   "kind": "",
+   "mode": "direct",
+   "name": "炮艇出击",
+   "note": "A#32",
+   "rows": "",
+   "src": "A",
+   "text": "对敌方总部造成 1 点伤害。回合结束时，弃掉此牌。"
+  },
+  "gunship_mission": {
+   "cost": 2,
+   "kind": "2",
+   "mode": "target",
+   "name": "炮艇任务",
+   "note": "B#71 用户指定",
+   "rows": "c",
+   "src": "B",
+   "text": "对敌方支援阵线 1 个目标造成 2 点伤害。使友方总部获得 +2 防御力。"
+  },
+  "hammer_home": {
+   "cost": 4,
+   "kind": "X",
+   "mode": "blacklist",
+   "name": "捷报传乡",
+   "note": "B#138 用户指定",
+   "rows": "",
+   "src": "B",
+   "text": "将 1 个友方流亡单位的复制加入同一阵线，使两者获得 +1+1 和 -1 行动花费。"
+  },
+  "happy_time": {
+   "cost": 4,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "美好时光",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "从敌方 3 张手牌中选择 1 张。将 1 张复制加入手中，将两者转换为“计划”。"
+  },
+  "harass": {
+   "cost": 3,
+   "kind": "4",
+   "mode": "target",
+   "name": "侵扰",
+   "note": "B#100 用户指定",
+   "rows": "",
+   "src": "B",
+   "text": "将 1 个单位返回手牌。若有友方空军，随机将其转换为 1 个花费相同的单位。"
+  },
+  "hasty_reinforcements": {
+   "cost": 1,
+   "kind": "",
+   "mode": "direct",
+   "name": "急速增援",
+   "note": "B#19(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "本回合，友方单位部署或加入时，随机使其获得 +1+1、闪击或伏击。"
+  },
+  "heartland_defense": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "腹地防御",
+   "note": "反制卡:这一版不做",
+   "rows": "",
+   "src": "其余",
+   "text": "友方总部受到伤害时，将 1 个“游击队员”加入支援阵线。使其获得同等的攻击力和防御力。"
+  },
+  "heatwave": {
+   "cost": 2,
+   "kind": "",
+   "mode": "direct",
+   "name": "热浪",
+   "note": "A#50",
+   "rows": "",
+   "src": "A",
+   "text": "使所有陆军具有 +2 攻击力，空军具有 +3 攻击力，直到回合结束。"
+  },
+  "hel": {
+   "cost": 2,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "海尔要塞",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "使 1 个“军团”获得 +6 防御力，且：“友方总部具有免疫。”"
+  },
+  "hell_on_wheels": {
+   "cost": 4,
+   "kind": "",
+   "mode": "direct",
+   "name": "地狱之轮",
+   "note": "B#131(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "复制 1 个友方坦克，使其获得 -2 行动花费。若是谢尔曼，使其攻击力翻倍。"
+  },
+  "heroes_of_the_soviet_union": {
+   "cost": 2,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "苏联英雄",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "从 3 张随机苏联精英单位中选择 1 张加入手牌。"
+  },
+  "hidden_plans": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "保密计划",
+   "note": "抉择:要二选一,多一步操作",
+   "rows": "",
+   "src": "其余",
+   "text": "抉择：抽 1 张隐蔽单位 或 揭示 1 个隐蔽单位，使其获得 +1+1。"
+  },
+  "high_altitude_bombing": {
+   "cost": 8,
+   "kind": "",
+   "mode": "direct",
+   "name": "高空轰炸",
+   "note": "A#154",
+   "rows": "",
+   "src": "A",
+   "text": "随机消灭 2 个敌方单位。"
+  },
+  "his_majestys_chosen": {
+   "cost": 2,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "皇家旨意",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "从 3 张随机英国精英单位中选择 1 张加入手牌。"
+  },
+  "hit_the_drop_point": {
+   "cost": 0,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "袭击落点",
+   "note": "反制卡:这一版不做",
+   "rows": "",
+   "src": "其余",
+   "text": "敌方单位部署时，将其抑制。可影响隐蔽单位。"
+  },
+  "hmas_warramunga": {
+   "cost": 0,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "HMAS 瓦拉孟加号",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "选择 1 张手牌。将其移至最左侧。若是澳新军团牌，使其获得 -1 花费。"
+  },
+  "hms_belfast": {
+   "cost": 4,
+   "kind": "6",
+   "mode": "target",
+   "name": "HMS 贝尔法斯特号",
+   "note": "B#126 用户指定",
+   "rows": "",
+   "src": "B",
+   "text": "将 1 个单位返回其所有者卡组顶。若友方卡组顶是海军牌，洗切其所有者卡组。"
+  },
+  "hms_formidable": {
+   "cost": 4,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "HMS 可畏号",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "使 1 个友方单位的攻击力等同于其防御力。使其以随机顺序与所有敌方单位战斗。"
+  },
+  "hms_hermes": {
+   "cost": 6,
+   "kind": "",
+   "mode": "direct",
+   "name": "HMS 竞技神号",
+   "note": "A#133",
+   "rows": "",
+   "src": "A",
+   "text": "将数个“剑鱼 Mk I”加入支援阵线，直到已满。"
+  },
+  "hms_illustrious": {
+   "cost": 3,
+   "kind": "",
+   "mode": "direct",
+   "name": "HMS 光辉号",
+   "note": "A#67",
+   "rows": "",
+   "src": "A",
+   "text": "将 2 个“剑鱼 Mk I”加入支援阵线，使其获得闪击。"
+  },
+  "hms_sceptre": {
+   "cost": 2,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "HMS 权杖号",
+   "note": "反制卡:这一版不做",
+   "rows": "",
+   "src": "其余",
+   "text": "敌方使用指令时，将其反制，转换为“计划”并返回手牌。"
+  },
+  "hms_talbot": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "HMS 塔尔伯特",
+   "note": "反制卡:这一版不做",
+   "rows": "",
+   "src": "其余",
+   "text": "友方总部即将受到致命伤害时，先获得 +6 防御力。"
+  },
+  "hold_the_line": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "坚守阵线",
+   "note": "反制卡:这一版不做",
+   "rows": "",
+   "src": "其余",
+   "text": "敌方单位移至前线时，压制前线所有单位并对他们造成 1 点伤害。"
+  },
+  "home_defense": {
+   "cost": 8,
+   "kind": "",
+   "mode": "direct",
+   "name": "本土决战",
+   "note": "A#151",
+   "rows": "",
+   "src": "A",
+   "text": "友方总部防御力不大于 10 时，花费为 4 。将“三式中战车”和“D3A2 九九舰爆”加入支援阵线。"
+  },
+  "home_guard": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "国土警卫队",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "对 1 个单位造成 2 点伤害。将 1 张“卫戍”加入手牌。"
+  },
+  "honor": {
+   "cost": 3,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "玉碎",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "使 1 个友方单位获得 +4+4。回合结束时，将其消灭。"
+  },
+  "honor_and_loyalty": {
+   "cost": 1,
+   "kind": "",
+   "mode": "direct",
+   "name": "荣誉与忠诚",
+   "note": "B#34(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "将 1 个友方单位洗入卡组，抽 2 张牌。"
+  },
+  "honorable_death": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "光荣死亡",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "消灭 1 个攻击力不大于 3 的单位，其所有者抽 1 张牌。"
+  },
+  "honorifics": {
+   "cost": 2,
+   "kind": "4",
+   "mode": "target",
+   "name": "荣誉称号",
+   "note": "B#76 用户指定",
+   "rows": "",
+   "src": "B",
+   "text": "将 1 个友方单位转换为上 1 个被消灭的友方单位。"
+  },
+  "hull_down": {
+   "cost": 2,
+   "kind": "X",
+   "mode": "blacklist",
+   "name": "车体隐蔽",
+   "note": "B#82 用户指定:仅坦克",
+   "rows": "",
+   "src": "B",
+   "text": "选择手中 1 张坦克。使其部署时获得 +1+2 并随机与 1 个敌方单位战斗。"
+  },
+  "human_torpedo": {
+   "cost": 5,
+   "kind": "1",
+   "mode": "target",
+   "name": "人控鱼雷",
+   "note": "B#161 用户指定",
+   "rows": "c",
+   "src": "B",
+   "text": "消灭敌方支援阵线 1 个单位。"
+  },
+  "ijn_akagi": {
+   "cost": 4,
+   "kind": "",
+   "mode": "direct",
+   "name": "IJN 赤城号",
+   "note": "A#91",
+   "rows": "",
+   "src": "A",
+   "text": "将所有手牌洗入卡组，抽 3 张牌。使其本回合具有 -2 花费。"
+  },
+  "ijn_mikura": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "IJN 御藏号",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "压制 1 个单位。回合结束时，抽 1 张“IJN 御藏号”。"
+  },
+  "ijn_shinano": {
+   "cost": 3,
+   "kind": "",
+   "mode": "direct",
+   "name": "IJN 信浓号",
+   "note": "B#95(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "造成等同于所有单位数的伤害，随机分配至所有敌方目标。"
+  },
+  "ijn_shirakumo": {
+   "cost": 2,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "IJN 白云号",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "压制 1 个单位。若其已被压制，将其移除。使友方总部获得 +2 防御力。"
+  },
+  "ijn_yamato": {
+   "cost": 10,
+   "kind": "",
+   "mode": "direct",
+   "name": "IJN 大和号",
+   "note": "A#157",
+   "rows": "",
+   "src": "A",
+   "text": "使手中，卡组和场上所有友方日本单位获得：“亡计：对敌方总部造成 2 点伤害。”"
+  },
+  "imperial_decree": {
+   "cost": 0,
+   "kind": "",
+   "mode": "direct",
+   "name": "天皇诏令",
+   "note": "A#2",
+   "rows": "",
+   "src": "A",
+   "text": "使本回合下个友方伤害指令造成的伤害 +1。"
+  },
+  "imperial_order": {
+   "cost": 1,
+   "kind": "6",
+   "mode": "target",
+   "name": "帝国指令",
+   "note": "B#18 用户指定",
+   "rows": "",
+   "src": "B",
+   "text": "完全修复 1 个单位，使其获得 +1+1。"
+  },
+  "imperial_research": {
+   "cost": 3,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "帝国研发",
+   "note": "抉择:要二选一,多一步操作",
+   "rows": "",
+   "src": "其余",
+   "text": "抉择：将 1 张“气球炸弹” 或 1 张“扩展帝国研发”加入手中。"
+  },
+  "imperial_strength": {
+   "cost": 1,
+   "kind": "",
+   "mode": "direct",
+   "name": "帝国之力",
+   "note": "A#22",
+   "rows": "",
+   "src": "A",
+   "text": "弃掉双方所有激活的反制，对敌方总部造成 2 点伤害。"
+  },
+  "imperial_weapon_no_2": {
+   "cost": 12,
+   "kind": "",
+   "mode": "direct",
+   "name": "皇国二号兵器",
+   "note": "A#165",
+   "rows": "",
+   "src": "A",
+   "text": "将 4 张“试制橘花”置于卡组顶。使其花费和行动花费为 0。"
+  },
+  "in_hour_of_need": {
+   "cost": 4,
+   "kind": "",
+   "mode": "direct",
+   "name": "战争需要",
+   "note": "A#102",
+   "rows": "",
+   "src": "A",
+   "text": "额外获得 2 个指挥点槽。"
+  },
+  "in_the_navy": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "海军服役",
+   "note": "反制卡:这一版不做",
+   "rows": "",
+   "src": "其余",
+   "text": "友方单位被攻击时，使其在伤害造成前获得 +1+2。"
+  },
+  "industrial_might": {
+   "cost": 2,
+   "kind": "",
+   "mode": "direct",
+   "name": "工业力量",
+   "note": "B#57(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "本回合，此前友方每部署或加入过 1 个单位，抽 1 张牌。"
+  },
+  "infiltrate": {
+   "cost": 5,
+   "kind": "",
+   "mode": "direct",
+   "name": "渗透",
+   "note": "B#169(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "每个友方突击队随机对 1 个敌方目标造成等同于敌方明牌数的伤害。"
+  },
+  "ingenuity": {
+   "cost": 2,
+   "kind": "7",
+   "mode": "target",
+   "name": "革新",
+   "note": "B#94 用户指定",
+   "rows": "",
+   "src": "B",
+   "text": "开发 1 张英国或美国轰炸机。"
+  },
+  "interception": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "拦截",
+   "note": "反制卡:这一版不做",
+   "rows": "",
+   "src": "其余",
+   "text": "敌方指令指向友方目标时，将其反制。"
+  },
+  "iron_from_the_north": {
+   "cost": 1,
+   "kind": "",
+   "mode": "direct",
+   "name": "北方铁矿",
+   "note": "A#14",
+   "rows": "",
+   "src": "A",
+   "text": "若前线有友方单位，获得 3 个指挥点。"
+  },
+  "iron_victory": {
+   "cost": 5,
+   "kind": "",
+   "mode": "direct",
+   "name": "百炼成钢",
+   "note": "B#171(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "弃掉全部手牌。每弃 1 张，将 1 张“T-34 1942”加入手牌，使其行动花费为 1。"
+  },
+  "irregular_recruits": {
+   "cost": 1,
+   "kind": "",
+   "mode": "direct",
+   "name": "非常规兵员",
+   "note": "B#42(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "随机将总计 2 张“轻步兵”和/或“爆破”加入手中。"
+  },
+  "island_defense": {
+   "cost": 4,
+   "kind": "",
+   "mode": "direct",
+   "name": "岛屿防御",
+   "note": "B#134(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "若友方总部防御力不大于 10，抽 1 张牌。使友方总部获得 +8 防御力。"
+  },
+  "island_hopping": {
+   "cost": 3,
+   "kind": "",
+   "mode": "direct",
+   "name": "跳岛战术",
+   "note": "B#121(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "使敌方总部获得：“每回合，累计受到的伤害不小于 3 时，随机使 1 个友方单位获得 +2+2。”"
+  },
+  "isolation": {
+   "cost": 1,
+   "kind": "4",
+   "mode": "target",
+   "name": "孤立",
+   "note": "B#15 用户指定",
+   "rows": "",
+   "src": "B",
+   "text": "移除 1 个单位，下个友方回合开始时，将其返回战场。"
+  },
+  "joint_operation": {
+   "cost": 2,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "联合行动",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "对 1 个单位造成等同于友方单位类型数 +1 的伤害。"
+  },
+  "juggernaut": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "主宰者",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "使 1 个友方坦克或步兵获得 +2+1。回合结束时，若其当回合没有攻击，将其消灭。"
+  },
+  "jungle_fever": {
+   "cost": 4,
+   "kind": "",
+   "mode": "direct",
+   "name": "丛林热",
+   "note": "A#92",
+   "rows": "",
+   "src": "A",
+   "text": "将卡组顶的单位加入支援阵线。将其压制，直到回合结束。"
+  },
+  "jungle_warfare": {
+   "cost": 4,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "丛林战",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "使 1 个单位获得：“亡计：随机对 1 个敌方目标造成 2 点伤害。”触发其亡计。"
+  },
+  "kamikaze": {
+   "cost": 1,
+   "kind": "",
+   "mode": "direct",
+   "name": "神风特攻队",
+   "note": "B#32(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "对敌方总部造成 1 点伤害，抽 1 张牌。"
+  },
+  "kangaroo_transport": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "袋鼠运输",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "使 1 个英国步兵获得闪击和 +1 重甲。"
+  },
+  "kettenkrad": {
+   "cost": 2,
+   "kind": "",
+   "mode": "direct",
+   "name": "轻型履带摩托车",
+   "note": "B#85(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "将 1 个友方单位返回手牌。使手牌，卡组和场上所有友方德国单位获得 +1 攻击力。"
+  },
+  "km_admiral_hipper": {
+   "cost": 5,
+   "kind": "6",
+   "mode": "target",
+   "name": "KM 希佩尔海军上将号",
+   "note": "B#157 用户指定",
+   "rows": "",
+   "src": "B",
+   "text": "将 1 个单位返回手牌。下个敌方回合开始时，敌方无法增加指挥点槽或抽牌。"
+  },
+  "km_bismarck": {
+   "cost": 10,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "KM 俾斯麦号",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "对 1 个总部造成 8 点伤害。"
+  },
+  "km_prinz_eugen": {
+   "cost": 4,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "KM 欧根亲王号",
+   "note": "反制卡:这一版不做",
+   "rows": "",
+   "src": "其余",
+   "text": "敌方单位部署时，将其返回卡组顶并转换为“生产”。"
+  },
+  "km_tirpitz": {
+   "cost": 5,
+   "kind": "",
+   "mode": "direct",
+   "name": "KM 提尔皮茨号",
+   "note": "A#115",
+   "rows": "",
+   "src": "A",
+   "text": "对敌方总部造成 4 点伤害。下个敌方回合中，敌方无法部署单位。"
+  },
+  "kriegsmarine": {
+   "cost": 7,
+   "kind": "",
+   "mode": "direct",
+   "name": "战争海军",
+   "note": "B#190(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "对敌方总部造成等同于其手牌数的伤害，敌方随机弃 1 张牌。"
+  },
+  "land_of_the_free": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "自由之地",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "使 1 个单位的行动花费为 0。"
+  },
+  "last_rites": {
+   "cost": 3,
+   "kind": "",
+   "mode": "direct",
+   "name": "最后的仪式",
+   "note": "A#77",
+   "rows": "",
+   "src": "A",
+   "text": "将 8 张“神风特攻队”洗入卡组。"
+  },
+  "lend_lease": {
+   "cost": 7,
+   "kind": "",
+   "mode": "direct",
+   "name": "租借法案",
+   "note": "A#146",
+   "rows": "",
+   "src": "A",
+   "text": "抽 4 张牌。"
+  },
+  "lesser_of_two_evils": {
+   "cost": 2,
+   "kind": "5",
+   "mode": "target",
+   "name": "权衡",
+   "note": "B#68 用户指定",
+   "rows": "",
+   "src": "B",
+   "text": "抽 2 张牌，选择并弃 1 张牌。"
+  },
+  "liberation": {
+   "cost": 3,
+   "kind": "",
+   "mode": "direct",
+   "name": "解放",
+   "note": "A#86",
+   "rows": "",
+   "src": "A",
+   "text": "将 3 张“抵抗”加入敌方卡组。使友方总部获得 +6 防御力。"
+  },
+  "lightning_conquest": {
+   "cost": 2,
+   "kind": "",
+   "mode": "direct",
+   "name": "闪电征服",
+   "note": "A#64",
+   "rows": "",
+   "src": "A",
+   "text": "本回合，所有友方步兵具有免疫，且能在同一回合移动并攻击。"
+  },
+  "lightning_strike": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "闪电袭击",
+   "note": "反制卡:这一版不做",
+   "rows": "",
+   "src": "其余",
+   "text": "敌方额外抽 1 张牌时，对其总部造成 4 点伤害。"
+  },
+  "line_of_engagement": {
+   "cost": 2,
+   "kind": "",
+   "mode": "direct",
+   "name": "交战线",
+   "note": "B#48(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "将 2 张“轻步兵”加入战场，若可能，将其中 1 张加入前线。"
+  },
+  "lion_for_a_day": {
+   "cost": 4,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "一日之狮",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "消灭 1 个攻击力不小于 4 的单位。"
+  },
+  "long_lance": {
+   "cost": 0,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "氧气鱼雷",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "消灭 1 个单位。若其攻击力不大于 3，抽 2 张牌。"
+  },
+  "long_range_desert_group": {
+   "cost": 5,
+   "kind": "",
+   "mode": "direct",
+   "name": "长距离沙漠群",
+   "note": "A#132",
+   "rows": "",
+   "src": "A",
+   "text": "使友方单位获得：“消灭受到本单位伤害的单位。”"
+  },
+  "long_range_recon": {
+   "cost": 4,
+   "kind": "",
+   "mode": "direct",
+   "name": "远距离侦察",
+   "note": "A#112",
+   "rows": "",
+   "src": "A",
+   "text": "使友方总部获得等同于场上所有卡牌数的防御力。"
+  },
+  "lost_convoy": {
+   "cost": 0,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "护航覆灭",
+   "note": "反制卡:这一版不做",
+   "rows": "",
+   "src": "其余",
+   "text": "敌方单位部署时，使其获得 -2 攻击力。"
+  },
+  "lotta_svrd": {
+   "cost": 2,
+   "kind": "",
+   "mode": "direct",
+   "name": "洛塔组织",
+   "note": "A#48",
+   "rows": "",
+   "src": "A",
+   "text": "使所有友方单位获得 +1 防御力和 -1 行动花费。"
+  },
+  "lure": {
+   "cost": 2,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "诱敌",
+   "note": "反制卡:这一版不做",
+   "rows": "",
+   "src": "其余",
+   "text": "敌方使用本回合的第二张指令时，将其反制。"
+  },
+  "lurking_danger": {
+   "cost": 1,
+   "kind": "",
+   "mode": "direct",
+   "name": "潜在危险",
+   "note": "A#31",
+   "rows": "",
+   "src": "A",
+   "text": "抽 2 张反制。"
+  },
+  "machines_of_war": {
+   "cost": 5,
+   "kind": "",
+   "mode": "direct",
+   "name": "全民参战",
+   "note": "B#163(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "将卡组顶的 1 张苏联步兵加入支援阵线。"
+  },
+  "maelstrom": {
+   "cost": 8,
+   "kind": "",
+   "mode": "direct",
+   "name": "大混战",
+   "note": "A#149",
+   "rows": "",
+   "src": "A",
+   "text": "对所有非老兵单位造成 4 点伤害。"
+  },
+  "magic": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "魔法",
+   "note": "抉择:要二选一,多一步操作",
+   "rows": "",
+   "src": "其余",
+   "text": "抉择：完全修复 1 个单位 或 使 1 个单位失去守护、伏击和烟幕。"
+  },
+  "maginot_line": {
+   "cost": 3,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "马奇诺防线",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "使 1 个陆军获得 +3+4，且：“无法撤退或被抑制。”"
+  },
+  "manhattan_project": {
+   "cost": 6,
+   "kind": "",
+   "mode": "direct",
+   "name": "曼哈顿计划",
+   "note": "B#183(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "对所有敌方目标造成 6 点伤害。"
+  },
+  "manpower": {
+   "cost": 5,
+   "kind": "4",
+   "mode": "target",
+   "name": "人力",
+   "note": "B#160 用户指定",
+   "rows": "",
+   "src": "B",
+   "text": "完全修复 1 个受伤的友方单位。将 1 个复制加入支援阵线。"
+  },
+  "mare_nostrum": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "我们的海",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "对 1 个单位造成 1 点伤害。若友方总部防御力大于敌方总部，改为造成 3 点伤害。"
+  },
+  "mass_attack": {
+   "cost": 4,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "大规模攻击",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "对 1 个目标造成等同于友方单位数的伤害。"
+  },
+  "mass_deployment": {
+   "cost": 10,
+   "kind": "",
+   "mode": "direct",
+   "name": "大规模部署",
+   "note": "A#159",
+   "rows": "",
+   "src": "A",
+   "text": "随机将总花费等同于指挥点槽数的 3 个美国单位加入支援阵线。"
+  },
+  "materials": {
+   "cost": 4,
+   "kind": "",
+   "mode": "direct",
+   "name": "原料",
+   "note": "A#99",
+   "rows": "",
+   "src": "A",
+   "text": "抽 4 张牌。若在卡组中的回合数不小于 4，改为抽 8 张牌。"
+  },
+  "mayhem": {
+   "cost": 4,
+   "kind": "X",
+   "mode": "blacklist",
+   "name": "骚乱",
+   "note": "B#156 用户指定",
+   "rows": "",
+   "src": "B",
+   "text": "选择手中的 1 张单位。将其与场上 1 个友方单位交换。"
+  },
+  "mediterranean_raid": {
+   "cost": 3,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "地中海突袭",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "对 1 个单位造成 2 点伤害。若友方单位数大于敌方单位，改为造成 4 点伤害。"
+  },
+  "men_of_steel": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "钢铁之躯",
+   "note": "抉择:要二选一,多一步操作",
+   "rows": "",
+   "src": "其余",
+   "text": "抉择：使所有友方单位获得 +1 重甲 或 将 1 张“铁锤”加入手牌。"
+  },
+  "mi5": {
+   "cost": 3,
+   "kind": "",
+   "mode": "direct",
+   "name": "军情五处",
+   "note": "B#101(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "敌方随机将 1 张手牌放回卡组顶，友方抽 1 张牌。"
+  },
+  "minority_recruits": {
+   "cost": 10,
+   "kind": "1",
+   "mode": "target",
+   "name": "小国成员",
+   "note": "B#199 用户指定",
+   "rows": "",
+   "src": "B",
+   "text": "控制 1 个敌方单位。"
+  },
+  "missing": {
+   "cost": 2,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "失踪",
+   "note": "反制卡:这一版不做",
+   "rows": "",
+   "src": "其余",
+   "text": "单位移至前线时，将其消灭。"
+  },
+  "mist": {
+   "cost": 0,
+   "kind": "7",
+   "mode": "target",
+   "name": "薄雾",
+   "note": "A#8 L148 用户指定:同上",
+   "rows": "",
+   "src": "A",
+   "text": "即将降雨。"
+  },
+  "mobile_defense": {
+   "cost": 2,
+   "kind": "",
+   "mode": "direct",
+   "name": "机动防御",
+   "note": "A#42",
+   "rows": "",
+   "src": "A",
+   "text": "将 2 个“T-70”加入支援阵线。下个友方回合结束时，将其消灭。"
+  },
+  "mobilization": {
+   "cost": 2,
+   "kind": "",
+   "mode": "direct",
+   "name": "动员",
+   "note": "A#35",
+   "rows": "",
+   "src": "A",
+   "text": "抽 2 张单位。回合结束时弃掉。"
+  },
+  "molotov_cocktail": {
+   "cost": 2,
+   "kind": "",
+   "mode": "direct",
+   "name": "莫洛托夫鸡尾酒",
+   "note": "B#77(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "造成 2 点伤害。敌方随机弃 1 张牌。友方回合结束时，弃掉此牌。"
+  },
+  "momentum": {
+   "cost": 4,
+   "kind": "",
+   "mode": "direct",
+   "name": "破竹之势",
+   "note": "A#109",
+   "rows": "",
+   "src": "A",
+   "text": "若前线没有敌方单位，将 2 个“一号坦克 B 型”加入前线。"
+  },
+  "monastyr": {
+   "cost": 8,
+   "kind": "",
+   "mode": "direct",
+   "name": "修道院行动",
+   "note": "A#148",
+   "rows": "",
+   "src": "A",
+   "text": "消灭所有对战词条数不大于 1 的单位。"
+  },
+  "monsoon_rain": {
+   "cost": 6,
+   "kind": "",
+   "mode": "direct",
+   "name": "季风雨",
+   "note": "B#179(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "双方移除手中和/或场上 2 张花费最高的卡牌。"
+  },
+  "monsoon_rot": {
+   "cost": 6,
+   "kind": "",
+   "mode": "direct",
+   "name": "季风侵袭",
+   "note": "A#140",
+   "rows": "",
+   "src": "A",
+   "text": "使所有敌方单位的防御力为 1。"
+  },
+  "monty": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "蒙哥马利",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "压制 1 个单位和其相邻单位。抽 1 张牌。"
+  },
+  "mother_russia": {
+   "cost": 4,
+   "kind": "",
+   "mode": "direct",
+   "name": "俄罗斯母亲",
+   "note": "A#94",
+   "rows": "",
+   "src": "A",
+   "text": "将每张本回合被消灭的友方苏联单位的复制加入手牌。"
+  },
+  "motherland_calls": {
+   "cost": 3,
+   "kind": "",
+   "mode": "direct",
+   "name": "祖国在召唤！",
+   "note": "B#117(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "将卡组中的 1 个苏联亡计单位加入支援阵线。使其获得闪击。回合结束时，将其消灭。"
+  },
+  "motti_tactic": {
+   "cost": 8,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "柴堆战术",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "消灭 1 个单位。将 1 张此单位的复制加入手中。"
+  },
+  "mountain_offensive": {
+   "cost": 6,
+   "kind": "",
+   "mode": "direct",
+   "name": "山地攻势",
+   "note": "B#180(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "随机将花费为 1，2 和 3 的山地单位各 1 个加入支援阵线。"
+  },
+  "mud": {
+   "cost": 2,
+   "kind": "",
+   "mode": "direct",
+   "name": "泥泞",
+   "note": "A#47",
+   "rows": "",
+   "src": "A",
+   "text": "下个敌方回合，所有陆军无法攻击。"
+  },
+  "national_fire_service": {
+   "cost": 2,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "国家消防局",
+   "note": "反制卡:这一版不做",
+   "rows": "",
+   "src": "其余",
+   "text": "本回合，每次友方总部受到的伤害至多为 1。"
+  },
+  "national_service": {
+   "cost": 5,
+   "kind": "",
+   "mode": "direct",
+   "name": "国民服役",
+   "note": "A#125",
+   "rows": "",
+   "src": "A",
+   "text": "使卡组中所有英国单位获得 +2 防御力，使卡组中所有英国指令和反制获得 -1 花费。"
+  },
+  "naval_battle": {
+   "cost": 7,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "海战",
+   "note": "抉择:要二选一,多一步操作",
+   "rows": "",
+   "src": "其余",
+   "text": "抉择：消灭所有奇数花费 或 所有偶数花费的单位。"
+  },
+  "naval_bombardment": {
+   "cost": 4,
+   "kind": "6",
+   "mode": "target",
+   "name": "海军轰炸",
+   "note": "B#143 用户指定",
+   "rows": "",
+   "src": "B",
+   "text": "将 1 个单位返回手牌。若前线有敌方单位，具有 -2 花费。"
+  },
+  "naval_engagement": {
+   "cost": 9,
+   "kind": "",
+   "mode": "direct",
+   "name": "海军交战",
+   "note": "A#156",
+   "rows": "",
+   "src": "A",
+   "text": "完全修复友方支援阵线所有单位。消灭敌方支援阵线所有单位。"
+  },
+  "naval_operation": {
+   "cost": 3,
+   "kind": "",
+   "mode": "direct",
+   "name": "海军行动",
+   "note": "A#78",
+   "rows": "",
+   "src": "A",
+   "text": "压制所有敌方陆军，对其造成 1 点伤害。"
+  },
+  "naval_power": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "海军力量",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "压制 1 个敌方单位。使友方总部获得 +3 防御力。"
+  },
+  "naval_supply_run": {
+   "cost": 3,
+   "kind": "",
+   "mode": "direct",
+   "name": "海上补给运输",
+   "note": "B#115(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "使所有友方单位获得 +2+1。下个友方回合开始时，随机弃 1 张牌。"
+  },
+  "naval_support": {
+   "cost": 2,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "海军支援",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "使 1 个单位的攻击力等同于其防御力。"
+  },
+  "naval_task_force": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "海军特遣队",
+   "note": "抉择:要二选一,多一步操作",
+   "rows": "",
+   "src": "其余",
+   "text": "抉择：将 1 张“海军轰炸” 或 1 张“运输补给”加入手牌。"
+  },
+  "new_doctrine": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "新式战法",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "使 1 个单位忽略“无法攻击敌方总部”。"
+  },
+  "night_attack": {
+   "cost": 3,
+   "kind": "4",
+   "mode": "target",
+   "name": "夜间攻击",
+   "note": "B#106 用户指定",
+   "rows": "",
+   "src": "B",
+   "text": "移除 1 个单位，然后将其返回并使其获得闪击和冲击。回合结束时，将其返回手牌。"
+  },
+  "night_bombing": {
+   "cost": 5,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "夜间轰炸",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "消灭 1 个未受伤单位，随机排列所有敌方单位。"
+  },
+  "night_hunters": {
+   "cost": 4,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "暗夜猎手",
+   "note": "反制卡:这一版不做",
+   "rows": "",
+   "src": "其余",
+   "text": "敌方单位部署时，将其消灭。抽 1 张牌。"
+  },
+  "night_patrol": {
+   "cost": 2,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "黑夜巡视",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "抽 2 张牌。选择 1 张手牌并将其返回卡组顶。"
+  },
+  "night_raid": {
+   "cost": 4,
+   "kind": "",
+   "mode": "direct",
+   "name": "夜袭",
+   "note": "B#132(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "随机将敌方卡组中的 1 张指令的复制加入手中，将 1 个“第 10 突击队”加入支援阵线。"
+  },
+  "night_witches": {
+   "cost": 3,
+   "kind": "",
+   "mode": "direct",
+   "name": "黑夜女巫",
+   "note": "A#90",
+   "rows": "",
+   "src": "A",
+   "text": "将 3 张“波-2-II”加入手牌。"
+  },
+  "no_retreat": {
+   "cost": 0,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "背水一战",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "使 1 个单位获得：“无法撤退或被抑制。”"
+  },
+  "no_surrender": {
+   "cost": 5,
+   "kind": "",
+   "mode": "direct",
+   "name": "决不投降",
+   "note": "A#121",
+   "rows": "",
+   "src": "A",
+   "text": "将数个“轻步兵”加入支援阵线，直到已满，使其获得闪击。"
+  },
+  "nzans": {
+   "cost": 3,
+   "kind": "",
+   "mode": "direct",
+   "name": "新西兰陆军护理队",
+   "note": "B#112(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "使友方总部获得 +3 防御力。额外获得 1 个指挥点槽。"
+  },
+  "observer_corps": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "观察团",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "选择 1 张花费不小于 5 的手牌，使其获得 -2 花费。"
+  },
+  "old_hares": {
+   "cost": 2,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "老兔子",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "使 1 个步兵或坦克具有 +5 攻击力，直到回合结束。"
+  },
+  "on_the_ascent": {
+   "cost": 3,
+   "kind": "",
+   "mode": "direct",
+   "name": "如日方升",
+   "note": "A#75",
+   "rows": "",
+   "src": "A",
+   "text": "消灭并收缴所有攻击力最低的单位。"
+  },
+  "on_the_horizon": {
+   "cost": 1,
+   "kind": "",
+   "mode": "direct",
+   "name": "海平面",
+   "note": "A#30",
+   "rows": "",
+   "src": "A",
+   "text": "本回合，使所有友方单位具有免疫，且：“无法攻击敌方总部。”"
+  },
+  "one_roof": {
+   "cost": 4,
+   "kind": "",
+   "mode": "direct",
+   "name": "八纮一宇",
+   "note": "A#95",
+   "rows": "",
+   "src": "A",
+   "text": "抽 2 张牌。若本局对战友方失去的指挥点槽数不小于 2，获得 4 个指挥点。"
+  },
+  "order_227": {
+   "cost": 2,
+   "kind": "",
+   "mode": "direct",
+   "name": "第 227 号命令",
+   "note": "A#57",
+   "rows": "",
+   "src": "A",
+   "text": "使所有友方受伤苏联单位获得 +2 攻击力，将其完全修复。"
+  },
+  "order_of_the_day": {
+   "cost": 3,
+   "kind": "",
+   "mode": "direct",
+   "name": "动员令",
+   "note": "B#102(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "将 2 个“游击队员”加入支援阵线。使所有友方“游击队员”获得：“敌方指向或攻击本单位时，+1 花费。”"
+  },
+  "orders_from_above": {
+   "cost": 2,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "上级指令",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "指向 1 个坦克或步兵。若是友方，每有 1 个受伤单位，使其获得一次 +1+1。若是敌方，对其造成 3 点伤害。"
+  },
+  "orp_byskawica": {
+   "cost": 3,
+   "kind": "",
+   "mode": "direct",
+   "name": "ORP 闪电号",
+   "note": "B#96(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "随机复制敌方卡组中的 1 张指令，使友方总部获得等同于其花费的防御力。"
+  },
+  "orp_general_haller": {
+   "cost": 8,
+   "kind": "1",
+   "mode": "target",
+   "name": "ORP 哈勒将军号",
+   "note": "B#195 用户指定",
+   "rows": "",
+   "src": "B",
+   "text": "将 1 个单位和其相邻单位转换为“溃军”。"
+  },
+  "orp_orze": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "ORP 鹰号",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "使 1 张敌方明牌获得 +2 花费。"
+  },
+  "out_of_the_mist": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "穿云破雾",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "对 1 个单位造成 1 点伤害。若其在本回合被消灭，将其收缴。"
+  },
+  "out_of_the_sun": {
+   "cost": 2,
+   "kind": "",
+   "mode": "direct",
+   "name": "逆光攻击",
+   "note": "A#63",
+   "rows": "",
+   "src": "A",
+   "text": "使所有友方空军获得 -1 行动花费。若本回合使用过晴天牌，使其获得 +2 攻击力。"
+  },
+  "out_with_the_old": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "推陈出新",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "指向 1 个受伤的苏联空军。触发其亡计，将其转换为“雅克-9”。"
+  },
+  "outflank": {
+   "cost": 3,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "包抄",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "消灭 1 个守护单位。"
+  },
+  "outmaneuver": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "以智取胜",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "使 1 个日本单位的行动花费为 0，直到回合结束。若是烟幕单位，使其获得 +2+2。"
+  },
+  "outrage": {
+   "cost": 2,
+   "kind": "X",
+   "mode": "blacklist",
+   "name": "激怒",
+   "note": "黑名单同族「激怒」:用户点名别带",
+   "rows": "",
+   "src": "B",
+   "text": "开发 1 张“惩戒”。"
+  },
+  "overcast": {
+   "cost": 2,
+   "kind": "7",
+   "mode": "target",
+   "name": "阴云密布",
+   "note": "B#91 用户指定",
+   "rows": "",
+   "src": "B",
+   "text": "预报。使双方总部获得 +2 防御力。双方额外获得 1 个指挥点槽，抽 1 张牌。"
+  },
+  "overpower": {
+   "cost": 2,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "摧枯拉朽",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "消灭 1 个攻击力不大于 2 的单位和其他同名单位。"
+  },
+  "overrun": {
+   "cost": 2,
+   "kind": "",
+   "mode": "direct",
+   "name": "横扫千军",
+   "note": "A#44",
+   "rows": "",
+   "src": "A",
+   "text": "本回合，陆军攻击时，造成等同于其防御力的伤害。"
+  },
+  "overwhelming_force": {
+   "cost": 5,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "势不可挡",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "选择并弃 1 张单位。使 1 个友方步兵或坦克获得其攻击力和防御力。"
+  },
+  "pact_of_steel": {
+   "cost": 4,
+   "kind": "",
+   "mode": "direct",
+   "name": "钢铁条约",
+   "note": "B#154(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "双方玩家抽 1 张牌，弃掉花费更低的那张，再重复三次。"
+  },
+  "parade": {
+   "cost": 3,
+   "kind": "",
+   "mode": "direct",
+   "name": "阅兵",
+   "note": "B#123(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "抽 1 张单位，将 1 张复制加入手牌。"
+  },
+  "partisans": {
+   "cost": 6,
+   "kind": "1",
+   "mode": "target",
+   "name": "游击队",
+   "note": "B#184 用户指定",
+   "rows": "",
+   "src": "B",
+   "text": "控制 1 个敌方单位。友方回合结束时，将其返回所有者手牌。"
+  },
+  "partnership": {
+   "cost": 6,
+   "kind": "",
+   "mode": "direct",
+   "name": "合作关系",
+   "note": "B#178(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "随机将 1 个美国精英单位加入支援阵线。"
+  },
+  "patriotic_firestorm": {
+   "cost": 2,
+   "kind": "",
+   "mode": "direct",
+   "name": "爱国风暴",
+   "note": "A#52",
+   "rows": "",
+   "src": "A",
+   "text": "本回合，友方支援阵线所有单位具有 +2 攻击力。"
+  },
+  "patriotic_zeal": {
+   "cost": 7,
+   "kind": "",
+   "mode": "direct",
+   "name": "爱国热忱",
+   "note": "B#194(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "将 1 个友方单位的攻击力和防御力翻倍。"
+  },
+  "patrol": {
+   "cost": 2,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "巡逻队",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "使 1 个敌方单位失去守护、烟幕和亡计，对其造成 2 点伤害。"
+  },
+  "patton": {
+   "cost": 1,
+   "kind": "",
+   "mode": "direct",
+   "name": "巴顿",
+   "note": "A#21",
+   "rows": "",
+   "src": "A",
+   "text": "本回合，手牌中的所有单位具有 -1 花费，部署后具有闪击。"
+  },
+  "penicillin": {
+   "cost": 0,
+   "kind": "",
+   "mode": "direct",
+   "name": "青霉素",
+   "note": "A#9",
+   "rows": "",
+   "src": "A",
+   "text": "使所有友方单位和总部获得 +6 防御力，抽 4 张牌。"
+  },
+  "persian_corridor": {
+   "cost": 2,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "波斯走廊",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "使 1 个友方英国或美国单位获得：“亡计：触发所有友方苏联单位的亡计。”"
+  },
+  "phoney_war": {
+   "cost": 5,
+   "kind": "",
+   "mode": "direct",
+   "name": "假战",
+   "note": "A#120",
+   "rows": "",
+   "src": "A",
+   "text": "双方抽数张牌，直到手牌数为 8。"
+  },
+  "pilot_escape": {
+   "cost": 2,
+   "kind": "7",
+   "mode": "target",
+   "name": "异乡之翼",
+   "note": "B#59 用户指定",
+   "rows": "",
+   "src": "B",
+   "text": "开发 1 张主国空军。 使其获得 -1 花费和 -1 行动花费。"
+  },
+  "plan": {
+   "cost": 2,
+   "kind": "",
+   "mode": "direct",
+   "name": "计划",
+   "note": "B#81(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "抽 1 张牌。"
+  },
+  "plan_d": {
+   "cost": 3,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "迪勒计划",
+   "note": "抉择:要二选一,多一步操作",
+   "rows": "",
+   "src": "其余",
+   "text": "抉择：使所有友方单位本回合具有 +2 攻击力 或 获得 +2 防御力。"
+  },
+  "plan_west": {
+   "cost": 3,
+   "kind": "",
+   "mode": "direct",
+   "name": "西线计划",
+   "note": "A#85",
+   "rows": "",
+   "src": "A",
+   "text": "将 2 个“军团”加入支援阵线。"
+  },
+  "planned_attack": {
+   "cost": 2,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "预定攻势",
+   "note": "抉择:要二选一,多一步操作",
+   "rows": "",
+   "src": "其余",
+   "text": "抉择：造成 2 点伤害并将 1 张“计划”加入手中 或 抽 1 张牌并将 1 张“爆破”加入手中。"
+  },
+  "pontoon_bridge": {
+   "cost": 2,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "浮桥",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "使 1 个友方单位获得 +1+2。若此前其攻击力不小于 4，使其行动花费为 0。"
+  },
+  "pound": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "重击",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "对 1 个陆军造成等同于所有友方空军攻击力之和的伤害。"
+  },
+  "precision_bombing": {
+   "cost": 7,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "精准轰炸",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "降低等同于友方轰炸机最高攻击力的花费。消灭 1 个敌方单位。"
+  },
+  "pressurized_cabin": {
+   "cost": 0,
+   "kind": "",
+   "mode": "direct",
+   "name": "加压舱",
+   "note": "B#2(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "将 1 张“B-29 超级堡垒”加入手牌。随机消灭 1 个敌方单位。"
+  },
+  "production": {
+   "cost": 0,
+   "kind": "",
+   "mode": "direct",
+   "name": "生产",
+   "note": "B#5(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "获得 1 个指挥点。"
+  },
+  "production_order": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "生产令",
+   "note": "抉择:要二选一,多一步操作",
+   "rows": "",
+   "src": "其余",
+   "text": "抉择：将 1 张“B-24D” 或 1 张“B-24J”加入手牌。"
+  },
+  "prolonged_siege": {
+   "cost": 5,
+   "kind": "",
+   "mode": "direct",
+   "name": "长久围困",
+   "note": "A#131",
+   "rows": "",
+   "src": "A",
+   "text": "抽 4 张牌。下个友方回合结束时，将其弃掉。"
+  },
+  "promotion": {
+   "cost": 3,
+   "kind": "",
+   "mode": "direct",
+   "name": "晋升",
+   "note": "B#114(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "抽 1 张单位，使其部署时获得 +2+2。"
+  },
+  "propaganda": {
+   "cost": 1,
+   "kind": "X",
+   "mode": "blacklist",
+   "name": "战争宣传",
+   "note": "B#20 用户指定:选择并弃一张反制",
+   "rows": "",
+   "src": "B",
+   "text": "选择并弃 1 张反制，对敌方总部造成 3 点伤害。"
+  },
+  "protect_the_pocket": {
+   "cost": 10,
+   "kind": "",
+   "mode": "direct",
+   "name": "困兽犹斗",
+   "note": "A#158",
+   "rows": "",
+   "src": "A",
+   "text": "抽 4 张牌。若友方钳击单位数不小于 4，立即结束下个敌方回合。"
+  },
+  "protected_convoy": {
+   "cost": 1,
+   "kind": "",
+   "mode": "direct",
+   "name": "护送航运",
+   "note": "B#23(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "将 1 张“生产”和 1 张“计划”加入手中。"
+  },
+  "provence_landing": {
+   "cost": 1,
+   "kind": "",
+   "mode": "direct",
+   "name": "普罗旺斯登陆",
+   "note": "A#25",
+   "rows": "",
+   "src": "A",
+   "text": "本回合，友方单位部署时，移至前线。"
+  },
+  "pummel": {
+   "cost": 4,
+   "kind": "1",
+   "mode": "target",
+   "name": "炮火连击",
+   "note": "B#144 用户指定",
+   "rows": "",
+   "src": "B",
+   "text": "抑制 1 个单位，若其花费不大于 3，将其消灭。"
+  },
+  "punish": {
+   "cost": 2,
+   "kind": "",
+   "mode": "direct",
+   "name": "严惩",
+   "note": "B#46(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "敌方随机弃 1 张牌。若是明牌，友方抽 1 张牌。"
+  },
+  "pursuit": {
+   "cost": 4,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "追击",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "使 1 个单位撤退。本回合，使所有友方单位具有 -1 行动花费。"
+  },
+  "push": {
+   "cost": 4,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "推进！",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "对友方总部造成 3 点伤害。对 1 个敌方目标造成等同于本回合此前友方总部所受伤害的伤害。"
+  },
+  "quinine": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "奎宁",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "使 1 个步兵获得 +1+2 和 -1 行动花费。"
+  },
+  "radar": {
+   "cost": 0,
+   "kind": "",
+   "mode": "direct",
+   "name": "雷达",
+   "note": "B#7(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "抽 1 张牌。使友方总部获得 +4 防御力。"
+  },
+  "radar_alert": {
+   "cost": 2,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "雷达警报",
+   "note": "反制卡:这一版不做",
+   "rows": "",
+   "src": "其余",
+   "text": "敌方单位部署时，随机将 1 个与其花费相近的英国空军加入战场。"
+  },
+  "raid": {
+   "cost": 1,
+   "kind": "",
+   "mode": "direct",
+   "name": "奇袭",
+   "note": "A#18",
+   "rows": "",
+   "src": "A",
+   "text": "下个敌方回合中，敌方手牌具有 +2 花费。"
+  },
+  "rally": {
+   "cost": 2,
+   "kind": "",
+   "mode": "direct",
+   "name": "重整旗鼓",
+   "note": "B#88(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "使所有友方单位具有 +1 攻击力，直到回合结束。移除其压制。抽 1 张牌。"
+  },
+  "rapid_engagement": {
+   "cost": 3,
+   "kind": "4",
+   "mode": "target",
+   "name": "迅速交战",
+   "note": "B#122 用户指定",
+   "rows": "",
+   "src": "B",
+   "text": "移除 1 个友方单位，然后将其返回并使其获得闪击。"
+  },
+  "rapid_response": {
+   "cost": 2,
+   "kind": "",
+   "mode": "direct",
+   "name": "迅速响应",
+   "note": "B#86(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "前线每有 1 个敌方单位，将 1 个“军团”加入支援阵线。"
+  },
+  "rationing": {
+   "cost": 2,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "配给制",
+   "note": "抉择:要二选一,多一步操作",
+   "rows": "",
+   "src": "其余",
+   "text": "抉择：使所有友方手牌失去协力 或 使友方总部获得 +4 防御力。"
+  },
+  "reckless_assault": {
+   "cost": 2,
+   "kind": "",
+   "mode": "direct",
+   "name": "鲁莽攻击",
+   "note": "A#66",
+   "rows": "",
+   "src": "A",
+   "text": "使所有友方单位获得 +2+2，且：“本单位造成伤害时，对友方总部造成等量伤害。”"
+  },
+  "recuperation": {
+   "cost": 2,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "休养",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "使 1 个单位获得 +2 攻击力。若其被压制，改为移除压制并使其获得 +4 攻击力。"
+  },
+  "red_banner": {
+   "cost": 2,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "红色旗帜",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "消灭 1 个友方单位。随机将 1 个花费高 2 点的相同国家单位加入同一阵线。"
+  },
+  "red_dawn": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "赤色黎明",
+   "note": "抉择:要二选一,多一步操作",
+   "rows": "",
+   "src": "其余",
+   "text": "抉择：对 1 个单位和友方总部造成 3 点伤害 或 将 1 张“来自人民”加入手牌。"
+  },
+  "red_october": {
+   "cost": 4,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "红色十月",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "使 1 个苏联坦克或步兵获得 +3+3。"
+  },
+  "redeployment": {
+   "cost": 4,
+   "kind": "",
+   "mode": "direct",
+   "name": "重新部署",
+   "note": "A#113",
+   "rows": "",
+   "src": "A",
+   "text": "将所有手牌洗入卡组，抽取洗入数量加 1 的卡牌。"
+  },
+  "refit": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "整修",
+   "note": "抉择:要二选一,多一步操作",
+   "rows": "",
+   "src": "其余",
+   "text": "抉择：抽 1 张喷火 或 使 1 个喷火获得闪击。"
+  },
+  "regia_aeronautica": {
+   "cost": 5,
+   "kind": "",
+   "mode": "direct",
+   "name": "意大利皇家空军",
+   "note": "B#165(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "对所有敌方目标造成等同于友方空军数的伤害。"
+  },
+  "regia_marina": {
+   "cost": 2,
+   "kind": "",
+   "mode": "direct",
+   "name": "意大利皇家海军",
+   "note": "A#40",
+   "rows": "",
+   "src": "A",
+   "text": "抽取花费最高的卡牌。若是构筑之外的牌，重复此效果。"
+  },
+  "reich_research": {
+   "cost": 3,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "德意志帝国研发",
+   "note": "抉择:要二选一,多一步操作",
+   "rows": "",
+   "src": "其余",
+   "text": "抉择：将 1 张“V-1 飞行炸弹” 或 1 张“扩展德意志帝国研发”加入手牌。"
+  },
+  "reichsbank": {
+   "cost": 3,
+   "kind": "",
+   "mode": "direct",
+   "name": "德意志帝国银行",
+   "note": "A#76",
+   "rows": "",
+   "src": "A",
+   "text": "下个友方回合，获得 5 个指挥点，无法使用指令。"
+  },
+  "reinforcements": {
+   "cost": 3,
+   "kind": "",
+   "mode": "direct",
+   "name": "增援",
+   "note": "B#105(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "完全修复所有友方单位，抽 1 张牌。"
+  },
+  "reorganize": {
+   "cost": 0,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "调整",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "选择 1 张手牌洗入卡组，抽 1 张牌。"
+  },
+  "rescue_mission": {
+   "cost": 4,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "营救任务",
+   "note": "反制卡:这一版不做",
+   "rows": "",
+   "src": "其余",
+   "text": "友方单位被消灭时，将 2 张复制加入手牌。"
+  },
+  "reserves": {
+   "cost": 1,
+   "kind": "",
+   "mode": "direct",
+   "name": "预备役",
+   "note": "B#44(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "将 2 张“轻步兵”加入手牌，此前每使用过 1 张“预备役”，额外加入 1 张。"
+  },
+  "resistance_b": {
+   "cost": 0,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "抵抗",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "抽取：使用。失去 1 个指挥点。对友方总部造成 1 点伤害。压制 1 个友方单位。抽 1 张牌。"
+  },
+  "resistance_council": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "全国抵抗委员会",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "压制 1 个单位。对敌方总部造成 1 点伤害。将 1 张“抵抗”加入敌方卡组。"
+  },
+  "resolute_defense": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "坚决守护",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "使 1 个守护单位获得 +1+3。"
+  },
+  "resourcefulness": {
+   "cost": 1,
+   "kind": "",
+   "mode": "direct",
+   "name": "足智多谋",
+   "note": "B#37(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "抽 1 张突击队。"
+  },
+  "respite": {
+   "cost": 4,
+   "kind": "",
+   "mode": "direct",
+   "name": "喘息之机",
+   "note": "A#100",
+   "rows": "",
+   "src": "A",
+   "text": "使所有友方单位获得 +1+3。使敌方总部获得 +5 防御力。"
+  },
+  "retaliation": {
+   "cost": 2,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "复仇",
+   "note": "反制卡:这一版不做",
+   "rows": "",
+   "src": "其余",
+   "text": "友方总部受到伤害后，对敌方总部造成同等伤害。"
+  },
+  "retribution": {
+   "cost": 2,
+   "kind": "X",
+   "mode": "blacklist",
+   "name": "惩戒",
+   "note": "黑名单同族「惩戒」:用户点名别带",
+   "rows": "",
+   "src": "同族",
+   "text": "对 1 个单位造成 5 点伤害。"
+  },
+  "retribution_b": {
+   "cost": 0,
+   "kind": "X",
+   "mode": "blacklist",
+   "name": "惩戒",
+   "note": "黑名单同族「惩戒」:用户点名别带",
+   "rows": "",
+   "src": "同族",
+   "text": "对 1 个单位造成 2 点伤害。"
+  },
+  "retribution_c": {
+   "cost": 3,
+   "kind": "X",
+   "mode": "blacklist",
+   "name": "惩戒",
+   "note": "黑名单同族「惩戒」:用户点名别带",
+   "rows": "",
+   "src": "同族",
+   "text": "使 1 个友方单位造成等同于其攻击力的伤害，随机分配至所有敌方目标。"
+  },
+  "retribution_d": {
+   "cost": 2,
+   "kind": "X",
+   "mode": "blacklist",
+   "name": "惩戒",
+   "note": "黑名单同族「惩戒」:用户点名别带",
+   "rows": "",
+   "src": "同族",
+   "text": "使 1 个友方单位获得 +2+2 和闪击。"
+  },
+  "retribution_e": {
+   "cost": 2,
+   "kind": "X",
+   "mode": "blacklist",
+   "name": "惩戒",
+   "note": "黑名单同族「惩戒」:用户点名别带",
+   "rows": "",
+   "src": "同族",
+   "text": "对 1 个单位造成 2 点伤害。抽 1 张牌。"
+  },
+  "retribution_f": {
+   "cost": 3,
+   "kind": "X",
+   "mode": "blacklist",
+   "name": "惩戒",
+   "note": "黑名单同族「惩戒」:用户点名别带",
+   "rows": "",
+   "src": "B",
+   "text": "对敌方支援阵线 1 个目标造成 4 点伤害。使友方总部获得 +2 防御力。"
+  },
+  "retribution_g": {
+   "cost": 6,
+   "kind": "X",
+   "mode": "blacklist",
+   "name": "惩戒",
+   "note": "黑名单同族「惩戒」:用户点名别带",
+   "rows": "",
+   "src": "A",
+   "text": "开发 2 张“惩戒”。"
+  },
+  "retribution_h": {
+   "cost": 5,
+   "kind": "X",
+   "mode": "blacklist",
+   "name": "惩戒",
+   "note": "黑名单同族「惩戒」:用户点名别带",
+   "rows": "",
+   "src": "A",
+   "text": "对所有敌方单位造成 2 点伤害。"
+  },
+  "retribution_i": {
+   "cost": 12,
+   "kind": "X",
+   "mode": "blacklist",
+   "name": "惩戒",
+   "note": "黑名单同族「惩戒」:用户点名别带",
+   "rows": "",
+   "src": "A",
+   "text": "造成 3 点伤害。抽 3 张牌。额外获得 3 个指挥点槽。使所有友方单位获得 +3+3。"
+  },
+  "retribution_j": {
+   "cost": 2,
+   "kind": "X",
+   "mode": "blacklist",
+   "name": "惩戒",
+   "note": "黑名单同族「惩戒」:用户点名别带",
+   "rows": "",
+   "src": "同族",
+   "text": "使 1 个友方单位获得：“亡计：将 1 张复制加入所有者手牌。”"
+  },
+  "retribution_k": {
+   "cost": 1,
+   "kind": "X",
+   "mode": "blacklist",
+   "name": "惩戒",
+   "note": "黑名单同族「惩戒」:用户点名别带",
+   "rows": "",
+   "src": "同族",
+   "text": "使 1 个单位获得 +1+1。使其行动花费为 0 。"
+  },
+  "retribution_l": {
+   "cost": 1,
+   "kind": "X",
+   "mode": "blacklist",
+   "name": "惩戒",
+   "note": "黑名单同族「惩戒」:用户点名别带",
+   "rows": "",
+   "src": "同族",
+   "text": "友方单位被消灭时，随机消灭 1 个敌方单位。"
+  },
+  "ride_of_the_valkyries": {
+   "cost": 2,
+   "kind": "",
+   "mode": "direct",
+   "name": "女武神的骑行",
+   "note": "A#38",
+   "rows": "",
+   "src": "A",
+   "text": "使敌方总部获得：“每回合，累计受到的伤害不小于 3 时，获得 2 个指挥点。”"
+  },
+  "rm_bersagliere": {
+   "cost": 1,
+   "kind": "",
+   "mode": "direct",
+   "name": "RM 神射手号",
+   "note": "B#8(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "抽 1 张构筑之外的牌。使友方总部获得等同于其花费的防御力。"
+  },
+  "rm_roma": {
+   "cost": 4,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "RM 罗马号",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "对 1 个敌方目标造成 4 点伤害。使卡组顶的牌算作是海军，直到下个友方回合结束。"
+  },
+  "road_to_berlin": {
+   "cost": 1,
+   "kind": "",
+   "mode": "direct",
+   "name": "柏林之路",
+   "note": "A#27",
+   "rows": "",
+   "src": "A",
+   "text": "使敌方总部获得：“每回合，累计受到的伤害不小于 3 时，使友方总部获得 +3 防御力。”"
+  },
+  "romanian_bridgehead": {
+   "cost": 2,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "罗马尼亚桥头堡",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "使 1 个单位获得 +2+2 和闪击。两回合后，将其消灭。"
+  },
+  "root_out_the_enemy": {
+   "cost": 4,
+   "kind": "",
+   "mode": "direct",
+   "name": "斩草除根",
+   "note": "A#104",
+   "rows": "",
+   "src": "A",
+   "text": "使所有单位获得 -1-2。"
+  },
+  "rout": {
+   "cost": 1,
+   "kind": "1",
+   "mode": "target",
+   "name": "溃敌",
+   "note": "B#29 用户指定",
+   "rows": "",
+   "src": "B",
+   "text": "将 1 个花费不大于 2 的单位转换为“溃军”。"
+  },
+  "royal_research": {
+   "cost": 3,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "皇家研发",
+   "note": "抉择:要二选一,多一步操作",
+   "rows": "",
+   "src": "其余",
+   "text": "抉择：将 1 张“雷达” 或 1 张“扩展皇家研发”加入手牌。"
+  },
+  "rule_britannia": {
+   "cost": 8,
+   "kind": "",
+   "mode": "direct",
+   "name": "统治吧！不列颠尼亚！",
+   "note": "A#153",
+   "rows": "",
+   "src": "A",
+   "text": "使所有友方英国单位获得 +2 防御力，使其攻击力等同于其防御力。"
+  },
+  "rule_the_skies": {
+   "cost": 2,
+   "kind": "",
+   "mode": "direct",
+   "name": "统治天空",
+   "note": "A#58",
+   "rows": "",
+   "src": "A",
+   "text": "使敌方总部获得：“每回合，累计受到的伤害不小于 3 时，使所有友方空军获得 +1+1。”"
+  },
+  "run_the_battlefield": {
+   "cost": 4,
+   "kind": "",
+   "mode": "direct",
+   "name": "掌控战场",
+   "note": "B#139(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "每个攻击力不小于 4 的友方单位随机触发一项：获得 3 个指挥点，获得 +2+2 或抽 1 张牌。"
+  },
+  "rush": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "强袭",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "对 1 个友方单位造成 1 点伤害。随机对 1 个敌方单位造成 4 点伤害。"
+  },
+  "rush_production": {
+   "cost": 1,
+   "kind": "",
+   "mode": "direct",
+   "name": "加急生产",
+   "note": "A#13",
+   "rows": "",
+   "src": "A",
+   "text": "本回合，友方德国单位部署时，使其获得 +2-1。"
+  },
+  "saar_offensive": {
+   "cost": 6,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "萨尔攻势",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "对 1 个单位造成 7 点伤害。若是本回合使用的第一张指令，将 1 张“洛林十字”加入手牌。"
+  },
+  "sabotage": {
+   "cost": 7,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "毁坏",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "从敌方 3 张手牌中选择 1 张并弃掉，将 1 张复制加入友方手牌。"
+  },
+  "sally": {
+   "cost": 0,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "出动",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "指向 1 个单位。若是坦克，将其压制；若是步兵，将其抑制；若是炮兵，将其消灭；若是空军，使其撤退。"
+  },
+  "salpa_line": {
+   "cost": 2,
+   "kind": "",
+   "mode": "direct",
+   "name": "萨尔帕防线",
+   "note": "B#78(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "将 1 个“游击队员”加入支援阵线，使所有友方“游击队员”获得 +3 防御力。"
+  },
+  "scatter_tactics": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "分散战术",
+   "note": "反制卡:这一版不做",
+   "rows": "",
+   "src": "其余",
+   "text": "单位攻击时，使所有敌方单位获得 -2 攻击力，直到回合结束。"
+  },
+  "scorched_earth": {
+   "cost": 2,
+   "kind": "",
+   "mode": "direct",
+   "name": "焦土政策",
+   "note": "A#51",
+   "rows": "",
+   "src": "A",
+   "text": "使所有单位的行动花费为 4。"
+  },
+  "scorching_sun": {
+   "cost": 6,
+   "kind": "",
+   "mode": "direct",
+   "name": "骄阳",
+   "note": "A#143",
+   "rows": "",
+   "src": "A",
+   "text": "将手中所有单位加入战场。将其压制，直到回合结束。"
+  },
+  "scouting_party": {
+   "cost": 3,
+   "kind": "",
+   "mode": "direct",
+   "name": "侦察队",
+   "note": "A#72",
+   "rows": "",
+   "src": "A",
+   "text": "将 2 个“搜索第三十三联队”加入支援阵线。"
+  },
+  "scrap_metal": {
+   "cost": 1,
+   "kind": "5",
+   "mode": "target",
+   "name": "金属废料",
+   "note": "B#40 用户指定",
+   "rows": "",
+   "src": "B",
+   "text": "选择并弃 1 张单位以抽 1 张牌。若是被收缴单位，获得 4 个指挥点。"
+  },
+  "screening_force": {
+   "cost": 7,
+   "kind": "",
+   "mode": "direct",
+   "name": "掩护部队",
+   "note": "B#192(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "每有 1 个友方“F2A 水牛”，具有 -1 花费。将 2 个“SBD 3 无畏”加入支援阵线，使其获得闪击。"
+  },
+  "sea_embargo": {
+   "cost": 2,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "海运禁令",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "使 1 个单位获得 +1+1。若是空军，开发 1 张攻击力不大于 2 的英国空军。"
+  },
+  "sea_patrol": {
+   "cost": 4,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "海上巡逻",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "对 1 个敌方目标造成 3 点伤害。每有 1 个友方空军，具有 -1 花费。"
+  },
+  "seaborne_invasion": {
+   "cost": 8,
+   "kind": "",
+   "mode": "direct",
+   "name": "海上入侵",
+   "note": "A#152",
+   "rows": "",
+   "src": "A",
+   "text": "使前线所有敌方单位撤退，随机将 2 个攻击力之和为 6 的美国步兵加入前线。"
+  },
+  "seac": {
+   "cost": 3,
+   "kind": "",
+   "mode": "direct",
+   "name": "东南亚司令部",
+   "note": "B#98(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "抽 1 张构筑之外的牌。将 1 张复制加入手中。"
+  },
+  "second_chance": {
+   "cost": 4,
+   "kind": "",
+   "mode": "direct",
+   "name": "第二次机会",
+   "note": "A#110",
+   "rows": "",
+   "src": "A",
+   "text": "抽 2 张指令。"
+  },
+  "second_front": {
+   "cost": 4,
+   "kind": "X",
+   "mode": "blacklist",
+   "name": "第二战线",
+   "note": "B#150 用户指定",
+   "rows": "",
+   "src": "B",
+   "text": "移除 1 个德国陆军。下个敌方回合结束时，将其返回并复制。"
+  },
+  "secret_operatives": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "秘密特工",
+   "note": "反制卡:这一版不做",
+   "rows": "",
+   "src": "其余",
+   "text": "敌方指令指向友方单位时，将其反制，使被指向单位获得 +2 防御力。"
+  },
+  "section_ii": {
+   "cost": 2,
+   "kind": "",
+   "mode": "direct",
+   "name": "总参二局",
+   "note": "B#61(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "抽 1 张牌。"
+  },
+  "seek_and_destroy": {
+   "cost": 4,
+   "kind": "",
+   "mode": "direct",
+   "name": "穷追猛打",
+   "note": "B#148(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "使所有友方单位获得：“本单位攻击敌方总部后，抽 1 张牌。”"
+  },
+  "semper_fi": {
+   "cost": 1,
+   "kind": "",
+   "mode": "direct",
+   "name": "永远忠诚",
+   "note": "A#29",
+   "rows": "",
+   "src": "A",
+   "text": "将卡组顶的前 8 张牌中的 4 张转换为“第 22 陆战团”。使其算作是海军。"
+  },
+  "shadow_strike": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "暗影袭击",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "使 1 个友方单位获得冲击。回合结束时，使其获得烟幕。"
+  },
+  "shelling": {
+   "cost": 5,
+   "kind": "",
+   "mode": "direct",
+   "name": "炮击",
+   "note": "B#170(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "压制所有敌方单位，对其造成 1 点伤害。敌方失去 1 个指挥点槽。"
+  },
+  "shifting_attack": {
+   "cost": 2,
+   "kind": "4",
+   "mode": "target",
+   "name": "转变攻击",
+   "note": "B#83 用户指定",
+   "rows": "",
+   "src": "B",
+   "text": "将 1 个友方单位返回手牌。使其花费为 0，直到回合结束。"
+  },
+  "shifting_doctrine": {
+   "cost": 1,
+   "kind": "",
+   "mode": "direct",
+   "name": "转变战法",
+   "note": "B#39(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "随机将 1 张手牌洗入卡组，抽 2 张牌。"
+  },
+  "shinyo_motorboats": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "震洋特攻摩托艇",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "失去 1 个指挥点槽。对 1 个单位造成等同于本局对战友方失去的指挥点槽数 +1 的伤害。"
+  },
+  "shock_attack": {
+   "cost": 2,
+   "kind": "",
+   "mode": "direct",
+   "name": "震慑冲击",
+   "note": "A#65",
+   "rows": "",
+   "src": "A",
+   "text": "本回合，友方单位失去烟幕时，使其获得 +2+2。"
+  },
+  "shock_tactics": {
+   "cost": 2,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "突击战术",
+   "note": "抉择:要二选一,多一步操作",
+   "rows": "",
+   "src": "其余",
+   "text": "抉择：使 1 个陆军获得闪击 或 冲击。若有攻击力不小于 4 的友方单位，两项都触发。"
+  },
+  "shore_bombardment": {
+   "cost": 4,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "对岸轰炸",
+   "note": "抉择:要二选一,多一步操作",
+   "rows": "",
+   "src": "其余",
+   "text": "抉择：对 1 个单位造成 3 点伤害 或 使 1 个单位获得 +2+3。"
+  },
+  "siberian_transfer": {
+   "cost": 2,
+   "kind": "",
+   "mode": "direct",
+   "name": "西伯利亚转移",
+   "note": "B#80(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "将 1 个“T-34 1942”加入支援阵线，友方回合结束时，将其消灭。"
+  },
+  "sincerely_yours": {
+   "cost": 4,
+   "kind": "",
+   "mode": "direct",
+   "name": "诚挚问候",
+   "note": "A#111",
+   "rows": "",
+   "src": "A",
+   "text": "使友方总部获得 +6 防御力。抽 2 张牌。"
+  },
+  "sisu": {
+   "cost": 3,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "西苏精神",
+   "note": "反制卡:这一版不做",
+   "rows": "",
+   "src": "其余",
+   "text": "友方总部受到伤害时，改为由敌方总部承受。"
+  },
+  "sky_barons": {
+   "cost": 4,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "空中男爵",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "消灭 1 个空军，抽 1 张牌。"
+  },
+  "sloped_armor": {
+   "cost": 0,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "倾斜装甲",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "将 1 个“IS-2”加入支援阵线。使其与 1 个敌方单位战斗。回合结束时，将其返回手中。"
+  },
+  "sneak_attack": {
+   "cost": 8,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "潜行突击",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "消灭 1 个单位，从其所有者的手牌和卡组中移除所有复制。"
+  },
+  "sneak_maneuver": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "潜伏特训",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "使 1 个行动花费为 0 的步兵或坦克获得 +2 攻击力。"
+  },
+  "sniped": {
+   "cost": 2,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "阻击",
+   "note": "反制卡:这一版不做",
+   "rows": "",
+   "src": "其余",
+   "text": "敌方单位攻击时，将其变为 2/2。"
+  },
+  "snowstorm": {
+   "cost": 1,
+   "kind": "",
+   "mode": "direct",
+   "name": "暴风雪",
+   "note": "A#26",
+   "rows": "",
+   "src": "A",
+   "text": "使所有单位的行动花费为 4，直到下个友方回合开始。"
+  },
+  "sortie": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "出击",
+   "note": "抉择:要二选一,多一步操作",
+   "rows": "",
+   "src": "其余",
+   "text": "抉择：使 1 个友方单位获得动员 或 将 1 张“攻击”加入手牌。"
+  },
+  "soul_of_old_japan": {
+   "cost": 2,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "大和魂",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "从 3 张随机日本精英单位中选择 1 张加入手牌。"
+  },
+  "southern_plan": {
+   "cost": 4,
+   "kind": "",
+   "mode": "direct",
+   "name": "南进计划",
+   "note": "B#129(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "额外获得 1 个指挥点槽。敌方失去 1 个指挥点槽。"
+  },
+  "soviet_military_research": {
+   "cost": 3,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "苏联军事研发",
+   "note": "抉择:要二选一,多一步操作",
+   "rows": "",
+   "src": "其余",
+   "text": "抉择：将 1 张“气动雪橇” 或 1 张“扩展苏联研发”加入手中。"
+  },
+  "spars": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "妇女预备队",
+   "note": "抉择:要二选一,多一步操作",
+   "rows": "",
+   "src": "其余",
+   "text": "抉择：抽取卡组顶的单位 或 使其获得伏击和冲击。"
+  },
+  "spearhead": {
+   "cost": 2,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "先锋",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "消灭 1 个友方单位和其相邻单位。使友方单位获得等同于被消灭单位数的攻击力和防御力。"
+  },
+  "special_assignment": {
+   "cost": 6,
+   "kind": "5",
+   "mode": "target",
+   "name": "特别任务",
+   "note": "B#185 用户指定",
+   "rows": "",
+   "src": "B",
+   "text": "选择手中的 1 张单位，将其加入战场。"
+  },
+  "special_attack": {
+   "cost": 2,
+   "kind": "",
+   "mode": "direct",
+   "name": "特攻",
+   "note": "B#72(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "失去 1 个指挥点槽。使所有友方单位获得：“亡计：对敌方总部造成 1 点伤害。获得 1 个指挥点槽。”"
+  },
+  "special_delivery": {
+   "cost": 2,
+   "kind": "",
+   "mode": "direct",
+   "name": "特快专递",
+   "note": "A#53",
+   "rows": "",
+   "src": "A",
+   "text": "弃掉手牌中所有花费不大于 2 的牌，抽 2 张牌。"
+  },
+  "special_reinforcements": {
+   "cost": 2,
+   "kind": "",
+   "mode": "direct",
+   "name": "特殊增援",
+   "note": "B#73(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "将上 1 个被消灭的友方单位的复制加入手牌。"
+  },
+  "spirit_of_rome": {
+   "cost": 5,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "罗马精神",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "友方总部防御力每大于敌方总部 1 点，使 1 个友方步兵获得一次 +1+1。"
+  },
+  "spoils_of_war": {
+   "cost": 2,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "战利品",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "从卡组顶 3 张牌中选择 1 张并抽取，将其余 2 张置于卡组底。"
+  },
+  "spring_offensive": {
+   "cost": 4,
+   "kind": "",
+   "mode": "direct",
+   "name": "春季攻势",
+   "note": "B#141(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "抽 2 张牌。每抽到 1 张攻击力不小于 4 的单位，获得 2 个指挥点。"
+  },
+  "spy_ring": {
+   "cost": 2,
+   "kind": "",
+   "mode": "direct",
+   "name": "间谍组织",
+   "note": "B#90(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "随机将 1 张研发加入手牌。"
+  },
+  "stalins_organ": {
+   "cost": 4,
+   "kind": "",
+   "mode": "direct",
+   "name": "斯大林管风琴",
+   "note": "B#140(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "造成 8 点伤害，随机分配至所有敌方目标。"
+  },
+  "stand_fast": {
+   "cost": 3,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "坚守不退",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "使 1 个步兵或坦克获得 +5+5 和 +5 行动花费。"
+  },
+  "stand_together": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "同仇敌忾",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "消灭 1 个友方步兵。随机将 1 个花费相同的苏联坦克加入同一阵线。使其获得闪击。"
+  },
+  "standard_ammo": {
+   "cost": 0,
+   "kind": "",
+   "mode": "direct",
+   "name": "标准弹药",
+   "note": "A#4",
+   "rows": "",
+   "src": "A",
+   "text": "使手中和卡组中所有友方单位获得 -1 花费和 -1 行动花费。"
+  },
+  "stars_stripes": {
+   "cost": 5,
+   "kind": "",
+   "mode": "direct",
+   "name": "星条旗",
+   "note": "A#128",
+   "rows": "",
+   "src": "A",
+   "text": "对敌方支援阵线所有单位造成等同于该阵线单位数的伤害。"
+  },
+  "stealth_mission": {
+   "cost": 3,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "潜行任务",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "使 1 个友方单位获得：“友方回合开始时，移除本单位，获得 6 个指挥点并抽 3 张牌。”"
+  },
+  "stiff_upper_lip": {
+   "cost": 2,
+   "kind": "",
+   "mode": "direct",
+   "name": "咬紧牙关",
+   "note": "B#55(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "抽 1 张牌。若有友方守护单位，额外抽 1 张牌。"
+  },
+  "strafing": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "低空扫射",
+   "note": "抉择:要二选一,多一步操作",
+   "rows": "",
+   "src": "其余",
+   "text": "抉择：消灭 1 个炮兵 或 压制前线所有单位。"
+  },
+  "stranglehold": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "截断",
+   "note": "反制卡:这一版不做",
+   "rows": "",
+   "src": "其余",
+   "text": "敌方部署单位时，失去剩余指挥点。"
+  },
+  "strategic_bombing": {
+   "cost": 6,
+   "kind": "",
+   "mode": "direct",
+   "name": "战略轰炸",
+   "note": "B#181(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "对敌方支援阵线所有目标造成 3 点伤害。敌方失去 1 个指挥点槽。"
+  },
+  "strategic_focus": {
+   "cost": 7,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "战略重心",
+   "note": "抉择:要二选一,多一步操作",
+   "rows": "",
+   "src": "其余",
+   "text": "抉择：对所有陆军 或 空军造成 5 点伤害。"
+  },
+  "strategic_planning": {
+   "cost": 10,
+   "kind": "",
+   "mode": "direct",
+   "name": "战略规划",
+   "note": "A#161",
+   "rows": "",
+   "src": "A",
+   "text": "将所有友方单位的攻击力和防御力翻倍。"
+  },
+  "stretch_the_line": {
+   "cost": 2,
+   "kind": "",
+   "mode": "direct",
+   "name": "延长战线",
+   "note": "B#58(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "将 1 个“军团”加入支援阵线，触发等同于友方“军团”数量的情报。"
+  },
+  "strike_from_the_woods": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "林间袭击",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "压制 1 个单位。将 1 个“游击队员”加入支援阵线。"
+  },
+  "strike_group": {
+   "cost": 3,
+   "kind": "",
+   "mode": "direct",
+   "name": "航母打击群",
+   "note": "B#120(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "抽取：抽 1 张空军。\\r\\n使所有友方空军获得 +1+1。"
+  },
+  "strong_bond": {
+   "cost": 4,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "戮力同心",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "使 1 个友方陆军获得守护，且：“友方回合开始时，将 1 个花费为 3 的美国单位加入支援阵线。”"
+  },
+  "stubborn_defense": {
+   "cost": 0,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "殊死防守",
+   "note": "反制卡:这一版不做",
+   "rows": "",
+   "src": "其余",
+   "text": "友方单位被攻击时，使其在伤害造成前获得 +1 防御力。若其存活，抽 1 张牌。"
+  },
+  "sudden_strike": {
+   "cost": 2,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "突然袭击",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "消灭 1 个花费不大于 2 的单位。"
+  },
+  "supply_chain": {
+   "cost": 2,
+   "kind": "",
+   "mode": "direct",
+   "name": "供应链",
+   "note": "B#49(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "抽 1 张牌。被弃掉时，将 2 张花费为 1 的复制加入手牌。"
+  },
+  "supply_drop": {
+   "cost": 2,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "空投补给",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "使 1 个坦克或步兵获得 +4 防御力和守护，失去烟幕。"
+  },
+  "supply_front": {
+   "cost": 5,
+   "kind": "",
+   "mode": "direct",
+   "name": "前线补给",
+   "note": "A#122",
+   "rows": "",
+   "src": "A",
+   "text": "完全修复前线所有单位，使其获得 +1+2。"
+  },
+  "supply_priorities": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "补给优先",
+   "note": "抉择:要二选一,多一步操作",
+   "rows": "",
+   "src": "其余",
+   "text": "抉择：对所有单位造成 1 点伤害 或 完全修复所有单位。"
+  },
+  "supply_shipment": {
+   "cost": 2,
+   "kind": "6",
+   "mode": "target",
+   "name": "运输补给",
+   "note": "B#87 用户指定",
+   "rows": "ab",
+   "src": "B",
+   "text": "使前线 1 个单位获得 +2+3。"
+  },
+  "supply_shortage": {
+   "cost": 3,
+   "kind": "",
+   "mode": "direct",
+   "name": "物资短缺",
+   "note": "A#81",
+   "rows": "",
+   "src": "A",
+   "text": "使所有敌方单位获得：“本单位所有者回合开始时，对本单位造成 1 点伤害。”"
+  },
+  "support_column": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "支援纵队",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "使 1 个单位获得：“相邻陆军具有 +1 攻击力和 -1 行动花费。”"
+  },
+  "suppression": {
+   "cost": 1,
+   "kind": "1",
+   "mode": "target",
+   "name": "抑制",
+   "note": "B#22 用户指定",
+   "rows": "",
+   "src": "B",
+   "text": "抑制 1 个单位。若有友方空军，抽 1 张牌。"
+  },
+  "surazh_gate": {
+   "cost": 2,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "苏拉日之门",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "压制 1 个单位，对其相邻单位造成 2 点伤害。"
+  },
+  "surging_power": {
+   "cost": 4,
+   "kind": "",
+   "mode": "direct",
+   "name": "澎湃力量",
+   "note": "A#107",
+   "rows": "",
+   "src": "A",
+   "text": "使卡组顶的前 4 张单位依次获得 +1+1、+2+2、+3+3 和 +4+4。"
+  },
+  "surprise_attack": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "偷袭",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "压制 1 个敌方单位。若其已被压制，将其消灭。"
+  },
+  "surprise_engagement": {
+   "cost": 5,
+   "kind": "",
+   "mode": "direct",
+   "name": "突发交战",
+   "note": "B#173(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "若本回合使用过降雨牌，具有 -2 花费。随机消灭 1 个敌方单位。抽 1 张卡组顶的单位。"
+  },
+  "surveil": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "监视",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "选择 1 张手牌。将其转换为 1 个单位。"
+  },
+  "sustained_pressure": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "持续施压",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "对 1 个单位造成等同于本回合单位行动花费的指挥点数的伤害。"
+  },
+  "swift_response": {
+   "cost": 2,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "快速响应",
+   "note": "反制卡:这一版不做",
+   "rows": "",
+   "src": "其余",
+   "text": "友方单位被消灭时，使所有友方单位获得 +1+1 和冲击。"
+  },
+  "swift_victory": {
+   "cost": 1,
+   "kind": "2",
+   "mode": "target",
+   "name": "快速胜利",
+   "note": "A#23 L168 用户指定:对一个目标造成伤害",
+   "rows": "",
+   "src": "A",
+   "text": "造成 3 点伤害。使敌方卡组中的所有单位获得 +3 攻击力。"
+  },
+  "synthetic_oil": {
+   "cost": 0,
+   "kind": "",
+   "mode": "direct",
+   "name": "合成机油",
+   "note": "B#3(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "下个回合开始时，获得 10 个指挥点并抽 1 张牌。"
+  },
+  "synthetic_rubber": {
+   "cost": 0,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "合成橡胶",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "使 1 个单位获得 +4 防御力，使其攻击力等同于其防御力。"
+  },
+  "tactical_retreat": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "暂避锋芒",
+   "note": "反制卡:这一版不做",
+   "rows": "",
+   "src": "其余",
+   "text": "友方单位被攻击时，在伤害造成前将其返回手中。"
+  },
+  "tactical_strike": {
+   "cost": 3,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "战术打击",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "对 1 个单位造成 2 点伤害。若其在支援阵线，改为造成 4 点伤害。"
+  },
+  "tactical_withdrawal": {
+   "cost": 1,
+   "kind": "4",
+   "mode": "target",
+   "name": "战术撤退",
+   "note": "B#21 用户指定",
+   "rows": "b",
+   "src": "B",
+   "text": "使前线 1 个友方单位撤退，将其完全修复。本回合此单位能再次行动。"
+  },
+  "take_initiative": {
+   "cost": 2,
+   "kind": "",
+   "mode": "direct",
+   "name": "先发制人",
+   "note": "B#50(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "抽 1 张牌。将“先发制人”加入敌方手牌，使其所有数值 +1。"
+  },
+  "take_liberty": {
+   "cost": 4,
+   "kind": "",
+   "mode": "direct",
+   "name": "池鱼笼鸟",
+   "note": "A#106",
+   "rows": "",
+   "src": "A",
+   "text": "双方将所有手牌洗入卡组，抽 4 张牌。"
+  },
+  "tamanskaya": {
+   "cost": 1,
+   "kind": "",
+   "mode": "direct",
+   "name": "塔曼斯卡亚！",
+   "note": "A#16",
+   "rows": "",
+   "src": "A",
+   "text": "完全修复所有友方陆军。"
+  },
+  "tank_maneuver": {
+   "cost": 2,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "坦克机动",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "使 1 个友方坦克获得 +2+1。将 1 张“空中支援”加入手中。"
+  },
+  "target_acquired": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "目标锁定",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "消灭 1 个本回合被攻击的单位。"
+  },
+  "task_force_44": {
+   "cost": 2,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "第 44 特混舰队",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "预报。对 1 个单位造成 2 点伤害。若从手中最左侧使用，改为造成 3 点伤害。"
+  },
+  "the_alliance": {
+   "cost": 5,
+   "kind": "",
+   "mode": "direct",
+   "name": "同盟国",
+   "note": "A#124",
+   "rows": "",
+   "src": "A",
+   "text": "使所有友方非美国单位获得 +2+2。"
+  },
+  "the_anzac_spirit": {
+   "cost": 8,
+   "kind": "",
+   "mode": "direct",
+   "name": "澳新军团精神",
+   "note": "B#196(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "对所有敌方目标造成 2 点伤害。抽 2 张牌。额外获得 2 个指挥点槽。"
+  },
+  "the_big_three": {
+   "cost": 5,
+   "kind": "",
+   "mode": "direct",
+   "name": "三巨头",
+   "note": "B#159(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "使所有友方单位每有 1 个不同国家的友方单位，获得一次 +1+1。"
+  },
+  "the_commonwealth": {
+   "cost": 12,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "英联邦",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "若友方总部防御力不小于 30，对 1 个总部造成 20 点伤害。抽 4 张牌。"
+  },
+  "the_dagger_strikes": {
+   "cost": 3,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "单刀直入",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "压制 1 个单位，若其具有唯一最高的攻击力，将其消灭。"
+  },
+  "the_desert_rats": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "沙漠之鼠",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "对 1 个敌方单位造成 1 点伤害，将其压制。"
+  },
+  "the_double_sunrise": {
+   "cost": 2,
+   "kind": "",
+   "mode": "direct",
+   "name": "双日出航线",
+   "note": "B#53(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "随机使场上和手中的 1 个友方单位获得 +2+1。"
+  },
+  "the_empire_strikes": {
+   "cost": 4,
+   "kind": "",
+   "mode": "direct",
+   "name": "帝国进击",
+   "note": "B#135(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "对所有敌方目标造成等同于友方轰炸机数 +1 的伤害。"
+  },
+  "the_great_expanse": {
+   "cost": 4,
+   "kind": "",
+   "mode": "direct",
+   "name": "阔土",
+   "note": "B#155(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "使友方指挥点槽数与敌方相等。每获得 1 个指挥点槽，使所有友方单位获得一次 +1 攻击力。"
+  },
+  "the_hammer": {
+   "cost": 3,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "铁锤",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "对 1 个陆军造成 6 点伤害。"
+  },
+  "the_land_girls": {
+   "cost": 2,
+   "kind": "",
+   "mode": "direct",
+   "name": "土地女孩",
+   "note": "A#36",
+   "rows": "",
+   "src": "A",
+   "text": "抽 2 张牌。"
+  },
+  "the_merchant_navy": {
+   "cost": 2,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "商船队",
+   "note": "反制卡:这一版不做",
+   "rows": "",
+   "src": "其余",
+   "text": "敌方单位攻击时，使其撤退。"
+  },
+  "the_mighty_fall": {
+   "cost": 3,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "巨人陨落",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "消灭 1 个老兵单位。"
+  },
+  "the_peoples_army": {
+   "cost": 6,
+   "kind": "",
+   "mode": "direct",
+   "name": "人民军",
+   "note": "A#136",
+   "rows": "",
+   "src": "A",
+   "text": "将数张“轻步兵”加入手牌和支援阵线，直到已满。使其获得闪击。"
+  },
+  "the_tide_turns": {
+   "cost": 3,
+   "kind": "",
+   "mode": "direct",
+   "name": "潮起潮落",
+   "note": "A#79",
+   "rows": "",
+   "src": "A",
+   "text": "将所有手牌洗入卡组，抽取等量卡牌。对所有单位造成等同于洗入的海军牌数的伤害。"
+  },
+  "the_war_machine": {
+   "cost": 2,
+   "kind": "",
+   "mode": "direct",
+   "name": "战争机器",
+   "note": "B#62(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "额外获得 1 个指挥点槽。"
+  },
+  "the_white_death": {
+   "cost": 4,
+   "kind": "",
+   "mode": "direct",
+   "name": "白色死神",
+   "note": "B#147(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "抑制所有敌方单位。将 1 个具有闪击的“游击队员”加入支援阵线。"
+  },
+  "through_the_breach": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "乘虚而入",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "对 1 个单位造成 1 点伤害。若其在支援阵线，改为造成 2 点伤害。"
+  },
+  "through_the_ice": {
+   "cost": 2,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "步履薄冰",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "对 1 个单位和其他同名单位造成 2 点伤害。"
+  },
+  "thunderstorm": {
+   "cost": 2,
+   "kind": "",
+   "mode": "direct",
+   "name": "雷暴",
+   "note": "B#92(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "造成 3 点伤害，随机分配至所有敌方目标。"
+  },
+  "timely_supplies": {
+   "cost": 2,
+   "kind": "",
+   "mode": "direct",
+   "name": "及时补给",
+   "note": "B#52(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "抽 1 张牌，使其具有 -2 花费，直到回合结束。"
+  },
+  "tip_of_the_spear": {
+   "cost": 4,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "矛尖",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "消灭 1 个花费不大于 3 的单位。可以指向隐蔽单位。"
+  },
+  "to_the_last_man": {
+   "cost": 10,
+   "kind": "",
+   "mode": "direct",
+   "name": "至死方休",
+   "note": "A#162",
+   "rows": "",
+   "src": "A",
+   "text": "消灭所有单位。"
+  },
+  "tora_tora_tora": {
+   "cost": 2,
+   "kind": "",
+   "mode": "direct",
+   "name": "虎！虎！虎！",
+   "note": "B#79(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "对所有敌方目标造成 1 点伤害。"
+  },
+  "torpedo_attack": {
+   "cost": 3,
+   "kind": "1",
+   "mode": "target",
+   "name": "鱼雷攻击",
+   "note": "B#125 用户指定",
+   "rows": "a",
+   "src": "B",
+   "text": "消灭前线 1 个敌方单位。"
+  },
+  "torrential_rain": {
+   "cost": 4,
+   "kind": "",
+   "mode": "direct",
+   "name": "骤雨",
+   "note": "A#114",
+   "rows": "",
+   "src": "A",
+   "text": "使所有友方步兵和总部获得 +3 防御力，使其他友方单位获得 +2 防御力。"
+  },
+  "tractor_factories": {
+   "cost": 8,
+   "kind": "",
+   "mode": "direct",
+   "name": "拖拉机厂",
+   "note": "A#150",
+   "rows": "",
+   "src": "A",
+   "text": "将 2 个“T-34 1942”加入支援阵线。"
+  },
+  "tropical_storm": {
+   "cost": 4,
+   "kind": "",
+   "mode": "direct",
+   "name": "热带风暴",
+   "note": "A#108",
+   "rows": "",
+   "src": "A",
+   "text": "双方将所有手牌洗入卡组，抽取等同于最大洗入数量的卡牌。"
+  },
+  "turmoil": {
+   "cost": 2,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "动乱",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "对 1 个单位造成 2 点伤害。若其已受伤，改为造成 4 点伤害。"
+  },
+  "turning_point": {
+   "cost": 2,
+   "kind": "",
+   "mode": "direct",
+   "name": "转折点",
+   "note": "A#62",
+   "rows": "",
+   "src": "A",
+   "text": "本回合，使所有友方 T-34 的行动花费为 0，其攻击造成的溢出伤害转移到敌方总部。"
+  },
+  "type_xxi_uboat": {
+   "cost": 0,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "XXI 级 U 型潜艇",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "消灭 1 个单位，敌方随机弃 2 张牌。"
+  },
+  "u16": {
+   "cost": 2,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "U-16",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "使 1 个单位撤退。若卡组顶是海军牌，抽 1 张牌。"
+  },
+  "u375": {
+   "cost": 2,
+   "kind": "",
+   "mode": "direct",
+   "name": "U-375",
+   "note": "B#45(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "敌方随机弃掉 1 张花费不大于 5 的手牌。"
+  },
+  "u48": {
+   "cost": 3,
+   "kind": "",
+   "mode": "direct",
+   "name": "U-48",
+   "note": "A#69",
+   "rows": "",
+   "src": "A",
+   "text": "下个敌方回合中，敌方无法部署单位。"
+  },
+  "ultra": {
+   "cost": 3,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "ULTRA",
+   "note": "反制卡:这一版不做",
+   "rows": "",
+   "src": "其余",
+   "text": "敌方使用指令时，将其反制，抽 1 张牌。"
+  },
+  "uncle_sam": {
+   "cost": 4,
+   "kind": "",
+   "mode": "direct",
+   "name": "山姆大叔",
+   "note": "B#133(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "随机复制手牌中的 1 张单位。"
+  },
+  "under_fire": {
+   "cost": 3,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "枪林弹雨",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "对 1 个敌方单位和其相邻目标造成 1 点伤害。压制受到此伤害的单位。"
+  },
+  "underground_state": {
+   "cost": 4,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "地下国",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "使 1 个敌方单位撤退。将 1 个“军团”加入支援阵线。"
+  },
+  "unexpected_resistance": {
+   "cost": 0,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "意外反抗",
+   "note": "反制卡:这一版不做",
+   "rows": "",
+   "src": "其余",
+   "text": "单位移至前线时，将其压制。若其具有闪击，改为将其消灭。"
+  },
+  "united_we_stand": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "团结则存",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "对 1 个单位造成 2 点伤害。若将其消灭，双方额外获得 1 个指挥点槽。"
+  },
+  "unity_is_strength": {
+   "cost": 2,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "团结就是力量",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "每有 1 个友方步兵，使 1 个友方步兵获得一次 +1+1。"
+  },
+  "upgrade": {
+   "cost": 2,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "改装",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "消灭 1 个友方坦克，随机将 1 个花费高 3 点的相同国家坦克加入同一阵线。"
+  },
+  "uprising": {
+   "cost": 5,
+   "kind": "",
+   "mode": "direct",
+   "name": "起义",
+   "note": "A#130",
+   "rows": "",
+   "src": "A",
+   "text": "对所有单位造成等同于本局对战此前被消灭的波兰单位数的伤害。"
+  },
+  "ura": {
+   "cost": 3,
+   "kind": "",
+   "mode": "direct",
+   "name": "呜啦！",
+   "note": "A#74",
+   "rows": "",
+   "src": "A",
+   "text": "本回合，使所有友方苏联单位具有 +3 攻击力，溢出的伤害会转移到敌方总部。"
+  },
+  "ural_factories": {
+   "cost": 2,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "乌拉尔工厂",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "消灭 1 个友方单位。随机将 1 个花费高 1 点的相同国家单位加入同一阵线。"
+  },
+  "uranprojekt": {
+   "cost": 12,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "铀工程",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "消灭所有敌方单位。每消灭 1 个单位，获得 1 个指挥点。"
+  },
+  "urban_fighting": {
+   "cost": 4,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "巷战",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "使 1 个单位的行动花费为 4。消灭其相邻受伤单位。"
+  },
+  "us_military_research": {
+   "cost": 3,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "美国军事研发",
+   "note": "抉择:要二选一,多一步操作",
+   "rows": "",
+   "src": "其余",
+   "text": "抉择：将 1 张“深水炸弹” 或 1 张“扩展美国研发”加入手牌。"
+  },
+  "us_weather_bureau": {
+   "cost": 2,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "美国气象局",
+   "note": "抉择:要二选一,多一步操作",
+   "rows": "",
+   "src": "其余",
+   "text": "抉择：预报 或 抽 1 张牌。"
+  },
+  "usace": {
+   "cost": 0,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "陆军工程兵团",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "使 1 个坦克或步兵获得 +1+1。"
+  },
+  "uss_archerfish": {
+   "cost": 5,
+   "kind": "",
+   "mode": "direct",
+   "name": "USS 射水鱼号",
+   "note": "B#158(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "随机消灭 1 个敌方单位。若卡组顶是海军牌，重复一次。"
+  },
+  "uss_fitch": {
+   "cost": 3,
+   "kind": "",
+   "mode": "direct",
+   "name": "USS 菲奇号",
+   "note": "A#70",
+   "rows": "",
+   "src": "A",
+   "text": "使所有友方单位获得 +1+1。若卡组顶是海军牌，改为获得 +2+2。"
+  },
+  "uss_missouri": {
+   "cost": 3,
+   "kind": "1",
+   "mode": "target",
+   "name": "USS 密苏里号",
+   "note": "B#97 用户指定",
+   "rows": "a",
+   "src": "B",
+   "text": "消灭前线 1 个单位。使相邻单位撤退。"
+  },
+  "uss_the_sullivans": {
+   "cost": 2,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "USS 沙利文兄弟号",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "使 1 个单位和卡组顶的单位获得 +1+1。抽 1 张牌。"
+  },
+  "uss_yorktown": {
+   "cost": 5,
+   "kind": "",
+   "mode": "direct",
+   "name": "USS 约克城号",
+   "note": "A#116",
+   "rows": "",
+   "src": "A",
+   "text": "将 4 个“F2A 水牛”加入战场，若可能，加入前线。"
+  },
+  "v1_flying_bomb": {
+   "cost": 0,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "V-1 飞行炸弹",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "消灭 1 个花费不大于 3 的单位。"
+  },
+  "vanguard": {
+   "cost": 2,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "先峰",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "使 1 个友方山地单位获得闪击，且：“本单位造成伤害时，使友方总部获得同等防御力。”"
+  },
+  "veteran_pilots": {
+   "cost": 1,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "资深飞行员",
+   "note": "抉择:要二选一,多一步操作",
+   "rows": "",
+   "src": "其余",
+   "text": "抉择：使 1 个苏联空军获得 +1+2 或 在本回合具有免疫。"
+  },
+  "vicious_salvo": {
+   "cost": 3,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "激烈齐射",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "对 1 个单位造成 3 点伤害。抑制其相邻单位。"
+  },
+  "victory_banners": {
+   "cost": 7,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "胜利旗帜",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "指向 1 个单位。将其所有者的所有单位转换为此单位。"
+  },
+  "victory_garden": {
+   "cost": 3,
+   "kind": "",
+   "mode": "direct",
+   "name": "胜利花园",
+   "note": "A#83",
+   "rows": "",
+   "src": "A",
+   "text": "使卡组中的所有美国单位获得：“亡计：使卡组顶的单位获得 +1+1。”"
+  },
+  "victory_march": {
+   "cost": 5,
+   "kind": "",
+   "mode": "direct",
+   "name": "胜利进军",
+   "note": "A#129",
+   "rows": "",
+   "src": "A",
+   "text": "使所有友方单位的行动花费为 0。使友方总部获得等同于降低的行动花费总和的防御力。"
+  },
+  "vive_la_resistance": {
+   "cost": 2,
+   "kind": "",
+   "mode": "direct",
+   "name": "抵抗万岁！",
+   "note": "B#63(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "将 2 张“抵抗”加入敌方卡组。抽 1 张牌。"
+  },
+  "volunteer_corps": {
+   "cost": 1,
+   "kind": "1",
+   "mode": "target",
+   "name": "国民义勇队",
+   "note": "B#12 用户指定",
+   "rows": "",
+   "src": "B",
+   "text": "移除 1 个单位，直到回合结束。"
+  },
+  "vystrel_course": {
+   "cost": 2,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "高级步兵战术进修",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "指向 1 个友方坦克或步兵。下个友方回合开始时，使其获得 +3+3。"
+  },
+  "war_bonds": {
+   "cost": 5,
+   "kind": "",
+   "mode": "direct",
+   "name": "战争债券",
+   "note": "B#167(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "额外获得 2 个指挥点槽。下个友方回合开始时，额外抽 1 张牌。"
+  },
+  "war_production": {
+   "cost": 0,
+   "kind": "",
+   "mode": "direct",
+   "name": "战时生产",
+   "note": "A#3",
+   "rows": "",
+   "src": "A",
+   "text": "获得 2 个指挥点。弃掉所有非单位。"
+  },
+  "wave_after_wave": {
+   "cost": 6,
+   "kind": "",
+   "mode": "direct",
+   "name": "高潮迭起",
+   "note": "A#144",
+   "rows": "",
+   "src": "A",
+   "text": "对所有敌方单位造成 2 点伤害。若是本回合使用的第二张指令，改为造成 4 点伤害。"
+  },
+  "way_of_subjects": {
+   "cost": 2,
+   "kind": "",
+   "mode": "direct",
+   "name": "臣民之道",
+   "note": "A#59",
+   "rows": "",
+   "src": "A",
+   "text": "使卡组中的所有日本牌获得协力，且：“使用时，使友方总部获得 +1 防御力。”"
+  },
+  "we_can_do_it": {
+   "cost": 5,
+   "kind": "",
+   "mode": "direct",
+   "name": "我们能做到！",
+   "note": "B#166(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "所有友方单位和总部获得 +3 防御力，抽 1 张牌。"
+  },
+  "western_allies": {
+   "cost": 6,
+   "kind": "",
+   "mode": "direct",
+   "name": "西方盟友",
+   "note": "B#186(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "将卡组顶的 1 张非法国单位加入支援阵线。"
+  },
+  "winter_offensive": {
+   "cost": 7,
+   "kind": "",
+   "mode": "direct",
+   "name": "冬季攻势",
+   "note": "B#188(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "对所有目标造成 4 点伤害。"
+  },
+  "winter_warfare": {
+   "cost": 1,
+   "kind": "",
+   "mode": "direct",
+   "name": "冬季战争",
+   "note": "B#10(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "对所有目标造成 1 点伤害。"
+  },
+  "wolfpack": {
+   "cost": 4,
+   "kind": "6",
+   "mode": "target",
+   "name": "狼群战术",
+   "note": "B#146 用户指定",
+   "rows": "",
+   "src": "B",
+   "text": "将 1 个单位返回手牌。敌方随机弃 1 张牌。"
+  },
+  "women_at_work": {
+   "cost": 2,
+   "kind": "X",
+   "mode": "blacklist",
+   "name": "半边天",
+   "note": "B#51 用户指定:仅美国单位",
+   "rows": "",
+   "src": "B",
+   "text": "选择手中 1 张美国单位。使其失去等同于其行动花费的花费。"
+  },
+  "workers_unite": {
+   "cost": 2,
+   "kind": "",
+   "mode": "direct",
+   "name": "无产者，联合起来！",
+   "note": "B#66(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "弃掉所有“轻步兵”。每弃 1 张，获得 1 个指挥点并抽 1 张牌。"
+  },
+  "yank": {
+   "cost": 7,
+   "kind": "",
+   "mode": "direct",
+   "name": "洋基周刊",
+   "note": "B#193(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "使友方总部获得：“每回合，友方首次开发时，再开发 1 张“惩戒”。”"
+  },
+  "your_courage": {
+   "cost": 3,
+   "kind": "",
+   "mode": "direct",
+   "name": "你的勇气",
+   "note": "A#71",
+   "rows": "",
+   "src": "A",
+   "text": "使手中的协力牌获得 -1 花费。使手中、卡组和场上的所有友方协力单位获得 +1+1。"
+  },
+  "z_special_unit": {
+   "cost": 3,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "Z 队",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "对 1 个单位造成 5 点伤害。若从手中最左侧使用，使友方总部获得 +5 防御力。"
+  },
+  "zamo_uprising": {
+   "cost": 2,
+   "kind": "",
+   "mode": "unsupported",
+   "name": "扎莫希奇起义",
+   "note": "判为需要目标,但还没给它规格",
+   "rows": "",
+   "src": "其余",
+   "text": "使 1 个单位撤退。"
+  },
+  "zhukov": {
+   "cost": 1,
+   "kind": "",
+   "mode": "direct",
+   "name": "朱可夫",
+   "note": "B#25(未特别指定)",
+   "rows": "",
+   "src": "B",
+   "text": "抽 1 张苏联步兵，使其部署时获得 +1+1 和闪击。"
+  }
+ },
+ "note": "指令卡怎么打。生成自 dev/order_plan.py;规格来自用户 2026-09-20。",
+ "row_kind": {
+  "a": "仅前线敌方单位",
+  "b": "仅前线友方单位",
+  "c": "仅敌方支援阵线",
+  "d": "仅我方支援阵线"
+ },
+ "target_kind": {
+  "1": "指定敌方单位(打不了总部)",
+  "2": "敌方单位或总部",
+  "3": "指定敌方总部",
+  "4": "我方单位",
+  "5": "选择一张手牌",
+  "6": "随意阵营单位",
+  "7": "三选一",
+  "X": "黑名单(不打出)"
+ }
+}
