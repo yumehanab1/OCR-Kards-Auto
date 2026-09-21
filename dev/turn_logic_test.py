@@ -140,7 +140,14 @@ import hand_scanner_v2  # noqa: E402
 # ★★ 2026-09-12:"前线那一行是谁的"是攻击规则的一部分(步兵/坦克只打得到敌方前线)。
 #   真判据要抓真实帧(黑线位置),离线测不了 -> 用 state["frontline_owner"] 脚本化。
 #   None = 读不出来 -> 引擎必须 fail-closed。
-def fake_frontline_owner(frame=None, hwnd=None, debug=False):
+# ★★★ 2026-09-21:签名补上 `field=None`(**只加参数,判据与用例逻辑一字未动**)。
+#   为什么必须补:`order_target.pick()` 是按**真函数的签名**调的 ——
+#   `frontline_line.read_frontline_owner(frame=frame, field=field)`(见
+#   `order_target.py` 第 ④ 段)。这个替身少一个形参,于是**只要有一个用例喂进
+#   target 卡、走到"要读前线归属"那一步**,这里就会
+#   `TypeError: fake_frontline_owner() got an unexpected keyword argument 'field'`
+#   —— 报出来的是替身的签名问题,和被测逻辑一点关系都没有,最费时间的错法。
+def fake_frontline_owner(frame=None, hwnd=None, debug=False, field=None):
     # ★ 2026-09-13:`state["frontline_owner_seq"]` 给出**逐次不同**的读数
     #   (测"展示卡盖住前线 -> 读成 empty -> 重读 -> enemy"那条路)。
     seq = state.get("frontline_owner_seq")

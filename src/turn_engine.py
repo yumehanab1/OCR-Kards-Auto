@@ -4,7 +4,9 @@ turn_engine.py - full automated turn handler (M3, integrated).
 When main_loop classifies the screen as in_game, this engine runs a turn:
   1. Wait for OUR turn (end_turn button template present & clickable).
   2. Read our Kredits and scan the hand ONCE (hover-diff), caching the result.
-  3. Deploy affordable units (cheap first), skipping orders/counters.
+  3. Deploy affordable units (cheap first); orders are played through
+     `orders.playable()` - `direct` ones are dragged below the midline, `target`
+     ones are dragged onto the target card itself (see `order_target.py`).
      Each card position is attempted at most once per turn.
   4. Click end turn.
   5. Return control; wait for opponent turn then next round.
@@ -32,7 +34,9 @@ unreadable, learns a price cap from refused drags.
 
 Heuristics (v1, safe):
   - deployable types: infantry, tank, fighter, bomber, artillery
-  - skip: order, counter (targeting too risky / auto triggers)
+  - orders: only what `orders.playable()` allows (direct + target kind 1~6);
+    `choice` / blacklist / unsupported and target kind 7 / two-step cards are
+    never dragged; counters (`countermeasure`) are never dragged either
   - never re-attempt a card position that already failed this turn
 """
 
@@ -46,6 +50,7 @@ from actions import click, park_cursor
 from attack import Attacker, FrontMover
 from deploy import drag_deploy, deploy_candidates
 import orders                     # 指令卡"能不能打"的唯一来源(见 orders.playable)
+import order_target               # target 指令"该往哪个坐标拖"的唯一来源(见那个模块)
 import deploy as deploy_mod
 from hand_scanner_v2 import HandScannerV2, diff_bbox
 from hand_memory import HandMemory
@@ -954,6 +959,69 @@ class TurnEngine:
             return n
         return None
 
+    def _hand_xs(self, exclude_x=None):
+        """
+        手牌各张的 x(从左到右)—— **target 指令里 kind 5「选择一张手牌」要用**。
+
+        为什么要三个来源(都不用额外截屏/悬停,全是现成的识别结果):
+          ① `self.cards` 的 `x` —— 本轮扫描真的悬停到、并且认出来的那张牌
+             (探针打在哪张牌上,那个 x 就在那张牌上);
+          ② `scanner.last_probe_seen` 里**弹出过面板**的 x —— 弹出面板 = 那个 x 底下
+             确实有卡(没面板的探针底下是空气或缝隙,拖过去等于拖到空处);
+          ③ 校准表(`config/hand_layout.json`)里**张数对得上**那条布局的 `probes`
+             —— 它是"每张牌一个悬停点"的标定结果,扫描器自己就是用它铺探针的。
+        三者都只是"候选位置",去重排序后交给 `order_target.pick()` 挑(挑哪张的规则
+        在那个模块里,不在这儿 —— 判据只允许一处)。
+
+        ★ `exclude_x` = **正在拖出去的那张牌自己的 x**:把它排掉,因为"拖到自己身上"
+          不是"选择一张手牌"。
+        ★ 惰性扫描只探到"第一张出得起的牌"就停,所以 ① ② 可能很少 —— 这很正常;
+          凑不出 x 时 `pick()` 会 fail-closed(不打这张),而不是硬猜一个位置。
+        """
+        out = []
+        for c in (self.cards or []):
+            try:
+                out.append({"x": int(c["x"]), "type": c.get("type"), "i": c.get("i")})
+            except Exception:
+                pass
+        try:
+            for s in (getattr(self.scanner, "last_probe_seen", None) or []):
+                if s.get("panel"):
+                    out.append({"x": int(s["x"]), "type": s.get("type"),
+                                "i": s.get("i")})
+        except Exception:
+            pass
+        # ③ 校准表:按扫描器这次匹配到的张数取那一条布局的悬停点
+        try:
+            n = getattr(self.scanner, "last_hand_count", None)
+            if isinstance(n, int) and n > 0:
+                layouts = self.scanner._load_layouts() or {}
+                for v in layouts.values():
+                    probes = list(v.get("probes") or [])
+                    if v.get("count") == n and len(probes) == n:
+                        out.extend({"x": int(p), "type": None, "i": None}
+                                   for p in probes)
+                        break
+        except Exception:
+            pass
+        if exclude_x is not None:
+            try:
+                ex = int(exclude_x)
+                out = [d for d in out if d["x"] != ex]
+            except Exception:
+                pass
+        # 同一个 x 只留一条,而且**优先留带 `type` 的那条** ——
+        # ★★ 2026-09-21:这就是这次改动的全部目的。kind 5「选择一张手牌」里有几张
+        #   (势不可挡 / 金属废料 / 特别任务)要求选一张**单位**,`order_target` 只能靠
+        #   `type` 才认得出哪张是单位;不给 type,它就只能 fail-closed —— 那 9 张会
+        #   **一张都打不出去**。三个来源里 ① ② 天然带 type,③(校准表)只有坐标。
+        by_x = {}
+        for d in sorted(out, key=lambda d: d["x"]):
+            old = by_x.get(d["x"])
+            if old is None or (not old.get("type") and d.get("type")):
+                by_x[d["x"]] = d
+        return [by_x[k] for k in sorted(by_x)]
+
     def _resync_kredits_after_actions(self):
         """
         ★★★ 2026-09-13:行动阶段之后**按画面重新对一次账**(见调用处的长注释)。
@@ -1177,10 +1245,14 @@ class TurnEngine:
                 if line_full and not is_order_c:
                     continue
                 # ★★★ 2026-09-20:**指令卡**。用户把 674 张指令/反制的打法逐张给了出来,
-                #   落在 `config/order_plays.json`;第一版只放行 `direct`(拖到中线以下
-                #   就打出,和放单位同一个手势 —— 用户原话"拖出路径可以直接复用
-                #   下单位时的路径")。target/choice 要第二步操作、blacklist 用户明确
-                #   要求别带,都由 `orders.playable()` 挡在外面。
+                #   落在 `config/order_plays.json`。两版下来的放行范围:
+                #     第一版:`direct`(286 张,拖到中线以下就打出,和放单位同一个手势
+                #       —— 用户原话"拖出路径可以直接复用下单位时的路径");
+                #     第二版:+ `target` 里 kind 1~6 且不带 follow 的(落点 = **目标卡
+                #       中心**,由 `order_target.pick()` 现算,见下面那一段)。
+                #   `choice`/`blacklist`/`unsupported`、target 里的 kind 7(三选一)
+                #   与两步卡,全部由 `orders.playable()` 挡在外面(**判据只有那一处**,
+                #   这里不另写名单)。
                 if orders.playable(ctype, c.get("name")):
                     if self._budget(cost):
                         target = c
@@ -1222,6 +1294,56 @@ class TurnEngine:
             name = target.get("name") or target.get("type") or "未知牌"
             cost = target.get("cost")
             before = self._field(park=True)
+
+            # ---- 战场读一次:**两种落点都要用它** ----
+            #   · 单位 / direct 指令:算"我方那一行的空槽位";
+            #   · target 指令:算"目标卡的中心坐标"(见下面那一段)。
+            #   ★ 所以它从原来的位置(扣账之后)挪到了扣账之前,内容一字未改。
+            field_row = None
+            if before is not None and before.get("frame") is not None:
+                try:
+                    field_row = board.read_field(before["frame"],
+                                                 templates=self.templates)
+                except Exception as e:
+                    self.log(f"[turn] 读我方那一行出错({type(e).__name__}: {e})"
+                             f" -> 用兜底落点")
+
+            # ★★★ 2026-09-20(第二版):**target 指令**(表里 211 张,kind 1~6 才放行)。
+            #   用户确认的手势是"需要选目标的要**拖到那张卡/总部上**" —— 也就是说
+            #   落点不是空槽位,而是**目标卡的中心**,和部署单位共用同一套拖拽。
+            #   ★ 判据与坐标**全部**来自 `order_target.pick()`(那个模块只回答"往哪拖",
+            #     可离线单测);这里只做两件事:① 判不出目标就不拖;② 记账。
+            is_target_order = orders.is_target(name)
+            target_drop = None
+            if is_target_order:
+                got = order_target.pick(
+                    name, field_row,
+                    frame=(before or {}).get("frame"),
+                    hand_xs=self._hand_xs(exclude_x=target["x"]),
+                    hand_y=getattr(self.scanner, "y", None),
+                    debug=self.debug, log=self.log)
+                if got is None:
+                    # ★ fail-closed:判不出目标就**不打**,并且如实写日志。
+                    #   `pick()` 已经用一行 `[order_target] ...不打(判不出目标)—— 原因`
+                    #   说清了**为什么**(判据在那个模块里,这里不重复判);
+                    #   这一行补的是"这一拖的后果"。
+                    self.attempted_x.add(target["x"])
+                    self.failed_x.add(target["x"])
+                    self.log(f"[turn] ⚠️ target 指令「{name}」(cost {cost},"
+                             f"手牌x={target['x']})**不打** -> 本回合不再试它,"
+                             f"继续看下一张(**没有真拖出去,费用不扣**)")
+                    if self.lazy_scan:
+                        # ★ 惰性模式必须清缓存:不清的话下一轮 think() 会拿这份
+                        #   "已经作废的候选"直接走过场 -> 出牌阶段就此结束,
+                        #   手里别的牌这一回合全都不出了(实测 CASE 28/29 那条路)。
+                        self.cards = []
+                        self._scanned_full_this_turn = False
+                    return "order_no_target"
+                target_drop = (got["x"], got["y"])
+                # ★ 一行说清:这是 target 指令 / 目标是什么 / 为什么挑它 / 用哪个坐标
+                self.log(f"[turn] target 指令「{name}」(cost {cost}) 手牌x={target['x']}"
+                         f" -> 目标{got['what']}({got['x']},{got['y']}) | {got['why']}")
+
             # ★ 不管后面判成成功还是失败,这一笔费用都要从本回合预算里扣掉:
             #   被拒绝的牌虽然没花掉费用,但它已经浪费了一次拖拽,继续按"费用
             #   还是满的"去决策就会一直拖(用户实测:没费用了还在部署)。
@@ -1236,59 +1358,65 @@ class TurnEngine:
             if target.get("unknown"):
                 self.unknown_tried += 1
 
-            # ---- 落点:空槽位候选(不再是随机点)----
-            #   用户实测"拖到已有卡的位置上松手 = 牌回手",而游戏不会自动吸附,
-            #   所以落点必须是空位;空在哪要从画面现算(行带会漂移)。
-            field_row = None
-            if before is not None and before.get("frame") is not None:
-                try:
-                    field_row = board.read_field(before["frame"],
-                                                 templates=self.templates)
-                except Exception as e:
-                    self.log(f"[turn] 读我方那一行出错({type(e).__name__}: {e})"
-                             f" -> 用兜底落点")
-            cands = deploy_candidates(field_row, debug=self.debug)
-            # ★★ 2026-09-12 新增**诊断**:把"落点参考的是哪一行"写清楚。
-            #   为什么需要:实机一局 6 次部署的落点 y **全是 400**(= `DROP_Y_LIMIT`
-            #   的下限),而 `deploy_candidates` 的 y = `our_row(field)["cy"]` 夹到
-            #   [400,620] —— 所以 y=400 意味着它当时把**一个 cy≤400 的行**当成了我方
-            #   (很可能是前线那一行),然后被夹成一个"看起来合法"的落点。
-            #   这条日志就是为了让"读错行"**当场可见**,而不是藏在夹取里。
-            #   ★ 观测代码包 try:诊断失败只丢一行日志(§7 第 57 条)。
-            try:
-                _orow = deploy_mod.our_row(field_row)
-                _rows_txt = "; ".join(
-                    f"cy{round(r['cy'])}/{r.get('side')} n{len(r['boxes'])}"
-                    for r in ((field_row or {}).get("rows") or []))
-                self.log(f"[turn] 落点参考行: "
-                         + (f"cy={round(_orow['cy'])} side={_orow.get('side')}"
-                            if _orow else "**读不到我方那一行**(会用兜底常数)")
-                         + f" | 行结构[{_rows_txt}] | 候选{cands[:2]}")
-            except Exception:
-                pass
+            # ---- 落点 ----
+            #   · target 指令:上面算出来的**目标卡中心**(不走空槽位);
+            #   · 单位 / direct 指令:空槽位候选(不再是随机点)——
+            #     用户实测"拖到已有卡的位置上松手 = 牌回手",而游戏不会自动吸附,
+            #     所以落点必须是空位;空在哪要从画面现算(行带会漂移)。
             is_order = (target.get("type") == "order")
-            if is_order and not cands:
-                # ★★ 指令**不占槽位**:支援线满了(4 个单位)时 `deploy_candidates`
-                #    会把所有候选都过滤掉、返回空列表 —— 但指令照样能打。
-                #    退到"我方那一行上的固定落点"(兜底常数)。
-                cands = [deploy_mod.fallback_drop()]
-                self.log(f"[turn] 算不出空槽位(支援线满?)-> 指令按兜底落点 "
-                         f"({cands[0][0]},{cands[0][1]}) 打")
-            if not cands:
-                # 单位在这儿没候选 = 没地方放 -> 别拖(§候选[] 还照样拖是旧账)
-                self.log("[turn] ⚠️ 一个可用落点都算不出来 -> 这一拖跳过(不白拖)")
-                return "no_targets"
-            if not field_row or not field_row.get("rows"):
-                self.log("[turn] ⚠️ 读不到我方那一行 -> 落点用兜底常数"
-                         f"(y={cands[0][1]}),这一拖可能丢错行")
-            tries = cands[:max(1, deploy_mod.MAX_SLOT_TRIES)]
+            # ★ 指令(含 target)**都不占槽位**:成/败只看费用对账,不看战场卡数
+            #   (见 `_judge_deploy` 的 is_order 分支 —— 拿卡数判指令会把打成功的
+            #    指令记成"被拒绝",还会把它塞进 failed_x)。
+            is_order_like = bool(is_order or is_target_order)
+            if is_target_order:
+                # ★ target 指令**只试一次**:换一个目标重拖没有任何证据支持
+                #   (下面那条"换个空槽位再试"是为"砸在已有卡上 -> 回手"写的,
+                #    指令不占槽位,压根没有"砸在卡上"这回事)。
+                tries = [target_drop]
+            else:
+                cands = deploy_candidates(field_row, debug=self.debug)
+                # ★★ 2026-09-12 新增**诊断**:把"落点参考的是哪一行"写清楚。
+                #   为什么需要:实机一局 6 次部署的落点 y **全是 400**(= `DROP_Y_LIMIT`
+                #   的下限),而 `deploy_candidates` 的 y = `our_row(field)["cy"]` 夹到
+                #   [400,620] —— 所以 y=400 意味着它当时把**一个 cy≤400 的行**当成了我方
+                #   (很可能是前线那一行),然后被夹成一个"看起来合法"的落点。
+                #   这条日志就是为了让"读错行"**当场可见**,而不是藏在夹取里。
+                #   ★ 观测代码包 try:诊断失败只丢一行日志(§7 第 57 条)。
+                try:
+                    _orow = deploy_mod.our_row(field_row)
+                    _rows_txt = "; ".join(
+                        f"cy{round(r['cy'])}/{r.get('side')} n{len(r['boxes'])}"
+                        for r in ((field_row or {}).get("rows") or []))
+                    self.log(f"[turn] 落点参考行: "
+                             + (f"cy={round(_orow['cy'])} side={_orow.get('side')}"
+                                if _orow else "**读不到我方那一行**(会用兜底常数)")
+                             + f" | 行结构[{_rows_txt}] | 候选{cands[:2]}")
+                except Exception:
+                    pass
+                if is_order and not cands:
+                    # ★★ 指令**不占槽位**:支援线满了(4 个单位)时 `deploy_candidates`
+                    #    会把所有候选都过滤掉、返回空列表 —— 但指令照样能打。
+                    #    退到"我方那一行上的固定落点"(兜底常数)。
+                    cands = [deploy_mod.fallback_drop()]
+                    self.log(f"[turn] 算不出空槽位(支援线满?)-> 指令按兜底落点 "
+                             f"({cands[0][0]},{cands[0][1]}) 打")
+                if not cands:
+                    # 单位在这儿没候选 = 没地方放 -> 别拖(§候选[] 还照样拖是旧账)
+                    self.log("[turn] ⚠️ 一个可用落点都算不出来 -> 这一拖跳过(不白拖)")
+                    return "no_targets"
+                if not field_row or not field_row.get("rows"):
+                    self.log("[turn] ⚠️ 读不到我方那一行 -> 落点用兜底常数"
+                             f"(y={cands[0][1]}),这一拖可能丢错行")
+                tries = cands[:max(1, deploy_mod.MAX_SLOT_TRIES)]
 
             ok = False
             note = ""
             after = before
             for attempt, (dx, dy) in enumerate(tries, 1):
-                verb = "playing  " if is_order else "deploying"
-                self.log(f"[turn] {verb} {name} ({target.get('type')}, "
+                verb = "playing  " if is_order_like else "deploying"
+                # target 指令那一行要能一眼看出来(落点 = 目标卡中心,不是空槽位)
+                kind_txt = "target 指令" if is_target_order else target.get("type")
+                self.log(f"[turn] {verb} {name} ({kind_txt}, "
                          f"cost {cost}) 手牌x={target['x']} -> 落点#{attempt}"
                          f"({dx},{dy})(本回合剩余预算 {self.kredits_left})"
                          f" | {self._ident_text(target)}")
@@ -1302,7 +1430,8 @@ class TurnEngine:
                 before_attempt, after = after, self._field(park=True)
                 self.field_now = after
                 ok, note, refused_measured = self._judge_deploy(
-                    before_attempt or before, after, target, cost, is_order=is_order)
+                    before_attempt or before, after, target, cost,
+                    is_order=is_order_like)
                 if ok:
                     break
                 # 失败 -> 换一个空槽位再试一次。**但只在真的有理由怀疑"砸在卡上"时**:
@@ -1337,7 +1466,7 @@ class TurnEngine:
             if ok:
                 self.deployed_this_turn += 1
                 self.afford.note_deploy_ok(cost)
-                what = "指令打出" if is_order else "部署成功"
+                what = "指令打出" if is_order_like else "部署成功"
                 self.log(f"[turn] {name} {what} "
                          f"(本回合 {self.deployed_this_turn} 个;{note})")
                 # ★★★ 手牌记忆:确认出掉的是**第几张** -> 从记忆里删掉(次序左移)。
@@ -1349,7 +1478,7 @@ class TurnEngine:
                 self.afford.note_deploy_failed(cost)
                 # 阵线满是最常见的拒绝原因,单独提示(用户指出的头号问题)
                 reason = "支援阵线已满" if self._support_line_full() else "费用/规则不允许"
-                what = "指令没打出去" if is_order else "**部署被拒绝**"
+                what = "指令没打出去" if is_order_like else "**部署被拒绝**"
                 self.log(f"[turn] {name} (cost {cost}) {what}({note})"
                          f" -> 推断原因:{reason};"
                          f"可负担上限:{self.afford.describe()}")

@@ -2,12 +2,17 @@
 """
 orders_test.py - 指令卡支持的**离线**用例(不需要游戏、不需要窗口)。
 
-只考三件事(其余是实机的事):
+只考这几件事(其余是实机的事):
   ① `config/order_plays.json` 载得进来,而且**张数/分档和文档对得上**
      (表坏了或没随包发,引擎会"悄悄不打指令" —— 这正是这个项目栽过三次的形状);
   ② `orders.playable()` 的**真值表** —— 放行单位 + 「可直接打出」的指令,
      其它(需要目标 / 抉择 / 黑名单 / 反制 / 类型未知)**一律不放行**(fail-closed);
-  ③ scanner 和 turn_engine **问的是同一个函数**(判据只有一处)。
+  ③ scanner 和 turn_engine **问的是同一个函数**(判据只有一处);
+  ③.5 ★★ 2026-09-21 用户决定「kind5进黑名单」:`KIND5_AS_BLACKLIST` 那条策略层
+     (`is_blacklisted()` 为真 -> 引擎会给"别带这张"的提示;`playable()` 不放行;
+     A/B 翻 False 时退回旧行为);
+  ③.6 `status()` 那行启动日志的**每个数字都和逐卡现算一致**(账要平 —— 别出现
+     "需要目标 N 个但其中若干实际不打"这种对不上的账)。
 
 用法:
   .venv\\Scripts\\python.exe dev\\orders_test.py
@@ -90,6 +95,77 @@ for ctype, name, want, _why in CASES:
 C("on-scanner 的放行集合里没有任何黑名单卡",
   not any(orders.is_blacklisted(n) and hs.is_playable("order", n)
           for n in (orders._CARDS or {})))
+
+print()
+print("=" * 86)
+print("③.5 ★★ kind 5「选择一张手牌」归黑名单(用户 2026-09-21「kind5进黑名单」)")
+print("=" * 86)
+# ★ 依据:用户 2026-09-21 的决定。为什么不改 config/order_plays.json ——
+#   那个文件是 dev/order_plan.py 从规格文档生成的,手改会被下次重新生成冲掉;
+#   所以策略层放在 orders.py(`KIND5_AS_BLACKLIST`)。
+_k5 = [nm for nm, r in (orders._CARDS or {}).items()
+       if r["mode"] == orders.MODE_TARGET and (r.get("kind") or "") == "5"]
+print(f"  表里 kind 5 = {len(_k5)} 个卡名:{_k5}")
+C("开关默认开着", orders.KIND5_AS_BLACKLIST is True)
+C(f"kind 5 全部 {len(_k5)} 个:is_blacklisted() 为真(引擎的'别带这张'提示靠它)",
+  _k5 and all(orders.is_blacklisted(n) for n in _k5),
+  str([n for n in _k5 if not orders.is_blacklisted(n)]))
+C("kind 5 全部:playable() 不放行",
+  not any(orders.playable("order", n) for n in _k5),
+  str([n for n in _k5 if orders.playable("order", n)]))
+C("target_refuse_reason() 说得出原因,而且点名是黑名单那条决定",
+  all("黑名单" in orders.target_refuse_reason(n) for n in _k5),
+  orders.target_refuse_reason(_k5[0]) if _k5 else "")
+C("非 kind 5 的 target(kind 1/2/3/4/6)不许被误判成黑名单",
+  not any(orders.is_blacklisted(n) for n, r in (orders._CARDS or {}).items()
+          if r["mode"] == orders.MODE_TARGET and (r.get("kind") or "") != "5"),
+  "")
+C("真正表里的黑名单卡照旧是黑名单(这条判据没被改坏)",
+  any(orders.is_blacklisted(n) for n, r in (orders._CARDS or {}).items()
+      if r["mode"] == orders.MODE_BLACKLIST))
+# ★ A/B:翻 False -> 退回旧行为(kind 5 回到「需要目标」那一档)
+try:
+    orders.KIND5_AS_BLACKLIST = False
+    C("KIND5_AS_BLACKLIST=False:kind 5 不再是黑名单",
+      not any(orders.is_blacklisted(n) for n in _k5), "")
+    _one = [n for n in _k5 if not (orders.rec_of(n).get("follow") or "").strip()]
+    C("  不带 follow 的那几张又放行了(回到 2026-09-21 之前)",
+      _one and all(orders.playable("order", n) for n in _one),
+      f"放行 {len(_one)} 张")
+    C("  target_kinds_ok() 里也把 5 加回来了(判据只有一处)",
+      "5" in orders.target_kinds_ok(), str(orders.target_kinds_ok()))
+    C("  status() 跟着变(不再把 kind 5 算进黑名单)",
+      "+ kind 5" not in orders.status(), orders.status()[:70] + "…")
+finally:
+    orders.KIND5_AS_BLACKLIST = True
+C("还原之后 kind 5 又是黑名单", all(orders.is_blacklisted(n) for n in _k5), "")
+
+print()
+print("=" * 86)
+print("③.6 status() 那行日志:每个数字都要和**逐卡现算**的结果一致(账要平)")
+print("=" * 86)
+# ★ 这里只数 `orders` 现成的判定(`_target_gate()` / `is_blacklisted()`),不复制一份
+#   逻辑 —— 判据只有一处,用例负责"对账"。
+_st = orders.status()
+print("  " + _st)
+_tgt = [r for r in (orders._CARDS or {}).values() if r["mode"] == orders.MODE_TARGET]
+_ok_n = sum(1 for r in _tgt if orders._target_gate(r)[0])
+_bl_n = sum(1 for n in (orders._CARDS or {}) if orders.is_blacklisted(n))
+_tbl_bl = sum(1 for r in (orders._CARDS or {}).values() if r["mode"] == orders.MODE_BLACKLIST)
+_dir_n = sum(1 for r in (orders._CARDS or {}).values() if r["mode"] == orders.MODE_DIRECT)
+_k5_n = len(_k5)
+C(f"「需要目标 {len(_tgt)} 个卡名」对得上", f"需要目标 {len(_tgt)} 个卡名" in _st, _st)
+C(f"「其中可打 {_ok_n} 个」= `_target_gate()` 逐卡现算", f"其中可打 {_ok_n} 个" in _st, _st)
+C(f"「可直接打出 {_dir_n} 个卡名」对得上", f"可直接打出 {_dir_n} 个卡名" in _st, _st)
+C(f"「黑名单 {_bl_n} 个卡名(表里 {_tbl_bl} + kind 5 {_k5_n})」对得上",
+  f"黑名单 {_bl_n} 个卡名" in _st and f"表里 {_tbl_bl} + kind 5 {_k5_n}" in _st, _st)
+C("账真的平:可打 + 不可打 = 表里 target 总数",
+  _ok_n + sum(1 for r in _tgt if not orders._target_gate(r)[0]) == len(_tgt),
+  f"{_ok_n} + {len(_tgt) - _ok_n} = {len(_tgt)}")
+C("旧口径「需要目标(kind 1~6)」不许再出现(kind 5 已经不在那一档)",
+  "kind 1~6" not in _st, _st)
+C("黑名单数 >= 表里的黑名单数(kind 5 只会让它变多,不会变少)",
+  _bl_n >= _tbl_bl, f"{_bl_n} vs {_tbl_bl}")
 
 print()
 print("=" * 86)
