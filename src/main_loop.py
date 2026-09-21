@@ -67,6 +67,42 @@ COOLDOWN_AFTER_CLICK = 2.5
 BLANK_TOLERANCE = 6          # consecutive blank frames before we pause acting
 QUEUE_TIMEOUT_MIN = 12       # queueing longer than this -> click cancel
 
+# ---- 2026-09-21(M3/M5)结算页:判据从"点了几次"改成"画面变了没有" ----
+#: 尾部页最多"快"点几次 —— 用尽后**不是放弃**,而是转成慢速退避重试(见
+#  `tick_dismiss` 里那段长注释)。
+DISMISS_MAX_FAST = 12
+#: 两次快点的最小间隔(原来的硬编码值,提出来是为了让慢速重试能复用同一道闸)。
+DISMISS_FAST_GAP = 1.8
+#: 慢速重试的退避:第 n 次慢点的间隔 = SLOW_BASE + n*SLOW_STEP,封顶 SLOW_CAP。
+#: 为什么"逐次拉长"而不是固定间隔:未知奖励页可能只是**网络慢/动画长**,
+#:  固定 1.8s 一直重试会把"抢物理鼠标"这件事做上几百次;拉长之后每秒的动作数
+#:  随停留时间**下降**,既不会把屏幕点满,又能一直保持"还在试"这个事实可见。
+DISMISS_SLOW_BASE = 3.0
+DISMISS_SLOW_STEP = 2.0
+DISMISS_SLOW_CAP = 15.0
+#: 帧差判据(照抄开发树 `C:\Users\31291\Desktop\kards-auto\src\main_loop.py`
+#  第 766~789 行那段"卡在认不出的画面上"里的现成写法,判据一字未改):
+#  逐像素取三通道最大差 > 25 的像素**占比**;`< 0.001` 就算"这一下点下去画面没动"。
+#  为什么用"占比 < 0.001"而不是"最大差 == 0":实机画面里总有抗锯齿/动画噪点,
+#  逐像素全等是不存在的 —— 见开发树那处注释(它当时也是照实测定的阈值)。
+DISMISS_DIFF_THRESHOLD = 25
+DISMISS_DIFF_MIN = 0.001
+#: 连续几次"画面没动"就停手。
+DISMISS_STUCK_LIMIT = 3
+#: 点完到回读一帧之间的等待(让游戏有机会切画面)。
+DISMISS_FRAME_SETTLE = 0.6
+#: 开发树那段"停手"注释的判据要点,这里照抄下来(免得移植后判据只剩一个数字):
+#  ★ **别急着说"客户端卡死"** —— 连点几次画面不动,更可能的情况是
+#    **点的地方本来就不响应**(结算页这一屏没有真按钮,谁也不知道哪一块灵);
+#    所以这里只写"停手 + 把事实打进日志",**不写"客户端死了"这种结论**。
+DISMISS_STUCK_NOTE = (
+    "⚠️ 连点 3 次画面几乎没变(dd<0.001)-> 停手不再点。"
+    "**别急着说'客户端卡死'**(开发树那次就误判过):先拿一个本来该有反应的东西"
+    "试试(右上角齿轮菜单)—— 它也不动才是客户端的问题;它动了,说明"
+    "**是这一屏点的位置本来就不响应**(用户说过'除了中心哪都能跳',"
+    "那更可能是这局画面根本没走到结算页)。"
+)
+
 #: `deck_select` 界面上"选对局模式"的那几只按钮 —— **按顺序试**。
 #  ★★ 2026-09-13 深夜(用户指出):以前这里**只认对战模式**那一只
 #    (`casual_mode_btn`),而用户开的是**训练模式** —— 按钮长得不一样,
@@ -125,6 +161,17 @@ class Controller:
         self.dismiss = False
         self.dismiss_tries = 0
         self.dismiss_last = 0.0
+        # ★ 2026-09-21(M3):"点了没生效"要用**画面变了没有**来判,不再靠次数猜。
+        #   `_dismiss_frame` = 上一次点击后的那一帧(灰度、缩小到 1/4),点完再回读
+        #   一帧跟它比;`_dismiss_stuck` = 连续几次"画面几乎没变"。
+        #   ★ 为什么不存整帧:整帧是 1280x720x3 的实时画面(2.7MB),而这个项目
+        #     栽过"把实时画面留在状态里"的坑(内存 + 序列化);灰度小图只够做
+        #     差分,做不了别的,正好。这个字段**只在本类内部用**。
+        self._dismiss_frame = None
+        self._dismiss_stuck = 0
+        # ★ 2026-09-21:"提前停手、改走慢速"那条 ⚠️ 只许打一次(这个分支每次 tick
+        #   都会被走到,不加这个开关就是每 tick 一条,日志会被刷掉)。
+        self._dismiss_slow_said = False
 
     # ---- capture & classify ----
     def grab_frame(self):
@@ -362,34 +409,79 @@ class Controller:
     #       "某个位置在某些界面上无效" —— 只点一个点、无效就一直无效
     #       (`dismiss_tries` 到 12 次就放弃)。所以围着这个新位置留几个**同样不居中**
     #       的备选(上下 ±50、再往左 60),轮着点。
-    DISMISS_X_RATIO = 0.75      # 左 -> 右 的 3/4 处(1280 -> 960)
-    DISMISS_Y_RATIO = 0.50      # 竖直居中(720 -> 360)
+    # ★★★ 2026-09-21(用户当场给的新口径,替换掉"左起 3/4"那套):
+    #   用户原话:**"没有(继续按钮),除了点中心点哪都能跳过,建议点左上右上左下右下"**。
+    #   ⇒ ① 这一屏**没有真按钮**,所以"给它录个模板用 click_template 点"这条路**不成立**
+    #        (`main_loop.py` 第 79~80 行那条"不要瞎填位置去点击"的规矩,在这里没有可点的目标);
+    #     ② 候选点改成**四个角**,顺序就是用户说的 左上 -> 右上 -> 左下 -> 右下。
+    #   ★ 为什么之前那套(960,360)/(960,410)/(960,310)/(900,360)要换掉:它四个点全都挤在
+    #     屏幕中右部,一旦"这个位置在这种界面上无效"就是四个点一起无效(代码注释里
+    #     自己写过这句实测结论)。四个角分布最开,而且"除了中心哪都能跳"这条已由用户确认,
+    #     所以越远离中心越安全。
+    #   ★ 留边距(`_INSET`)不是为了避开按钮,是为了**别贴到客户区最边上**:
+    #     窗口有一半在屏外时 `SetCursorPos` 会把坐标静默夹回(`actions.py` 里的老坑),
+    #     贴边点会点到窗口边框/HUD 上。
+    DISMISS_INSET = 0.12        # 距边 12%(1280x720 -> 154 / 86)
 
     @classmethod
     def dismiss_points(cls, frame_w: int = 1280, frame_h: int = 720):
-        """结算页/尾巴页的候选点击点(客户区坐标;**首选 = 左起 3/4 + 竖直居中**)。"""
-        x = int(frame_w * cls.DISMISS_X_RATIO)
-        y = int(frame_h * cls.DISMISS_Y_RATIO)
-        return ((x, y), (x, y + 50), (x, y - 50), (x - 60, y))
+        """
+        结算页/尾巴页的候选点击点(客户区坐标)—— **四个角**,左上开始。
+
+        坐标 = 按 `DISMISS_INSET` 内缩后的四个角;顺序 = 左上 / 右上 / 左下 / 右下
+        (用户 2026-09-21 指定的顺序)。判据与来由见上面那段注释。
+        """
+        ix = int(frame_w * cls.DISMISS_INSET)
+        iy = int(frame_h * cls.DISMISS_INSET)
+        left, right = ix, frame_w - ix
+        top, bottom = iy, frame_h - iy
+        return ((left, top), (right, top), (left, bottom), (right, bottom))
 
     def click_center(self):
         """
         点一下尾巴页把它跳过(位置轮换,见 `dismiss_points` 的实测说明)。
 
-        ★ 名字保留(调用点太多),但**它现在点的不是中心** ——
-          用户两次实测都说"点中心不生效",v0.1.6 起首选是 **左起 3/4、竖直居中**。
+        ★ 名字保留(调用点太多),但**它现在点的是四个角,离屏幕中心最远** ——
+          用户两次实测"点中心不生效",2026-09-21 又确认"除了中心哪都能跳过,
+          建议点左上右上左下右下"。
         """
-        frame_w, frame_h = 1280, 720
+        # ★★★ 2026-09-21(M7)坐标别再用写死的 1280x720 基准:
+        #   真实依据取自**这一帧自己的尺寸**(`frame.shape`)。
+        #   为什么必须改:`main()` 虽然每次启动都试着 `set_window_client_size(1280,720)`,
+        #   但**这一屏恰恰是最容易不是 1280x720 的地方** —— PC_STATE 里记着实测:
+        #   "上一局结束后窗口变成 1024x576"。按 1280 算出来的四个角,(153,86) 与
+        #   (1127,634) 在 1024x576 上分别落在 x=15% / x=110%(**右侧两个点直接跑到
+        #   客户区外面**),`SetCursorPos` 会把越界坐标**静默夹回** -> 两个"右上/右下"
+        #   其实是同一个位置,而日志照样说"跳过点击 #2 #4"。
+        #   `frame_w=1280` 只作**兜底**:抓不到帧时保持老行为,不改变任何既有判据
+        #   (这条兜底也是 A/B 回退路径:把 `grab_frame` 换成 `lambda: None`
+        #    就退回"永远按 1280x720 算")。
+        frame = self.grab_frame()
+        if frame is not None and getattr(frame, "shape", None) and len(frame.shape) >= 2:
+            frame_h, frame_w = int(frame.shape[0]), int(frame.shape[1])
+        else:
+            frame_w, frame_h = 1280, 720
         pts = self.dismiss_points(frame_w, frame_h)
-        px, py = pts[self.dismiss_tries % len(pts)]
+        # ★★★ 2026-09-21 修 off-by-one(复核者查出来的):`tick_dismiss` 是
+        #   **先 `dismiss_tries += 1` 再点** 的,所以第一次真正点出去时 tries 已经是 1,
+        #   老写法 `pts[tries % 4]` 取到的是**索引 1 = (960,410)** ——
+        #   用户明确指定的首选 "(960,360)" 要等到第 5 次才轮到,日志还把它写成"#2"。
+        #   现在按 `tries - 1` 取,首选就是第一下。
+        px, py = pts[(max(self.dismiss_tries, 1) - 1) % len(pts)]
         cx_client = px + random.randint(-25, 25)
         cy_client = min(frame_h - 20, max(20, py + random.randint(-15, 15)))
-        log(f"[dismiss] -> 跳过点击 #{self.dismiss_tries + 1} "
-            f"client({cx_client},{cy_client})(★点中心不生效,首选左起 3/4、竖直居中)")
+        log(f"[dismiss] -> 跳过点击 #{max(self.dismiss_tries, 1)} "
+            f"client({cx_client},{cy_client})/{frame_w}x{frame_h}"
+            f"(★点中心不生效;首选左上角,轮换 左上→右上→左下→右下)")
         if not self.dry:
             try:
                 cx, cy = self.client_to_screen(cx_client, cy_client)
-                click(cx, cy)
+                # ★ 2026-09-21:接住返回值 —— 老代码把它丢了,于是"鼠标被系统挡住、
+                #   根本没按下"时这里一个字都不写,日志却照样说"跳过点击 #N"
+                #   (`actions.click` 那条路自己是有记账的,只是没人读)。
+                if click(cx, cy) is False:
+                    log("[dismiss] ⚠️ 这一下没点成(鼠标被系统挡住?坐标越界?)—— "
+                        "下一轮还会再试")
             except Exception as e:
                 log(f"[dismiss] click failed: {e}")
         self.last_click = time.time()
@@ -412,26 +504,205 @@ class Controller:
             log(f"[dismiss] back on '{state}', dismissal complete")
             self.dismiss = False
             self.dismiss_tries = 0
+            # ★ 2026-09-21:帧差状态和"已宣布改走慢速"的开关一起复位 —— 下一个
+            #   结算页要用**全新**的基准帧(否则会拿上一局的画面当基准,第一下
+            #   就报"没变"),告警也要能再响一次。
+            self._dismiss_frame = None
+            self._dismiss_stuck = 0
+            self._dismiss_slow_said = False
             return False
 
-        # Still on victory/defeat itself: not clicked through yet, wait.
+        # Still on victory/defeat itself: 刚点完先给它一点时间切画面。
+        # ★★★ 2026-09-21 **修死锁**(这是用户报的"卡在结算页出不来"的完整机理):
+        #   老代码这一段**只睡不点、也不增 `dismiss_tries`** —— 于是只要画面一直判成
+        #   victory/defeat,`dismiss_tries >= 12` 那个上限**永远不会触发**;
+        #   而主循环在 dismiss 期间走的是 `continue`,**绕过**了 max_rounds 的退出检查
+        #   ⇒ 引擎永久卡在结算页,而且**不会自己停**(唯一例外是那一 tick 恰好够 max_rounds)。
+        #   为什么它容易被踩到:victory/defeat 的模板其实是"胜利/失败"**横幅文字**
+        #   (`victory_btn` 中心 = 642,459)—— 正是用户两次实测说"点中心不生效"的那一块;
+        #   点上去没反应 -> 状态还是 victory -> 老代码就永远在那里睡。
+        #   现在:点完等 1.2s 还没切走,就**落进下面的轮换点击**
+        #   (于是自动获得 12 次上限与计数,不会再无限等)。
         if state in ("victory", "defeat"):
-            time.sleep(1.0)
-            return True
+            # 判据用现成的 `dismiss_last`(click_center 每点一次就刷新它),
+            # 不再另开一个计数变量 —— 少一个状态就少一处能写错的地方。
+            if time.time() - self.dismiss_last < 1.2:
+                time.sleep(0.4)
+                return True
+            log(f"[dismiss] 点完 {time.time() - self.dismiss_last:.1f}s 还停在 {state} "
+                "-> 当成'那一下没生效',按候选点继续点")
+            # 落到下面:走带上限的轮换点击
 
         # Unknown tail screen (level-up / quest) -> arbitrary click to dismiss.
-        if self.dismiss_tries >= 12:
-            log("[dismiss] too many attempts, giving up until screen changes")
-            self.dismiss = False
-            self.dismiss_tries = 0
-            return False
+        # ★★★ 2026-09-21(M3 的**落地处**)"点了没生效"必须在**行为**上看得见 ——
+        #   只多打一行日志、鼠标照旧盲点 12 次,那等于没做。所以这里加一道闸:
+        #   一旦连续 3 次"画面几乎没变"(`_dismiss_stuck`,判据在
+        #   `_dismiss_note_frame` 里,从开发树移植),**快速点击这一段就不再动手**。
+        #   ★ 停的是**快的那一段**,不是全部:下面 M5 那条慢速重试还在(每慢一次
+        #     仍会点一下,而且日志里看得见),所以不是"什么都不做"。
+        #   ★ 恢复条件同样重要:画面真的变了(`_dismiss_note_frame` 会把
+        #     `_dismiss_stuck` 归零)或状态切回已知画面(方法开头那段),
+        #     点击就立刻回到正常节奏 —— 它只是"别再无脑重复同一件事",不是"关掉"。
+        #   ★ 为什么这条闸只放在**快**的那一段:慢速段的间隔本来就拉到 3~15s,
+        #     "每次都抢物理鼠标"这个代价已经被 M5 的退避处理掉了。
+        fast_ok = self._dismiss_stuck < DISMISS_STUCK_LIMIT
 
-        if time.time() - self.dismiss_last > 1.8:
+        # ★★★ 2026-09-21(M5)**12 次用尽之后不许"什么都不做"**。
+        #   老代码是 `dismiss = False; dismiss_tries = 0; return False` ——
+        #   于是主循环立刻回去跑常规 handler:状态还是认不出的奖励页/结算页,
+        #   `state -> None` -> 走 "unknown screen" 那条分支 **sleep(2)**,
+        #   一 tick 一 tick 地空转到天荒地老,**日志里一个字都没有**。
+        #   用户反馈过的那类"界面卡住不动、也没有任何提示",正是这个形状。
+        #   ⇒ 现在改成:**保留 dismiss=True + 退避重试**(间隔逐次拉长,见
+        #     `_dismiss_retry_gap`),并且**至少打一条 ⚠️** 说明"不是放弃了,
+        #     是改成慢速重试"。这样屏幕上多多少少还有人在点,日志里也看得见。
+        #   ★ 这里**不再**重置 `dismiss_tries`:快/慢两段的计数放在同一个变量上,
+        #     于是"已经试了多少次"只可能有一个真值(判据只有一处),
+        #     而且点击落点 `pts[(tries-1) % 4]` 会继续往下轮换。
+        #   ⚠️ 卡死风险对照:慢速重试**不是**死循环 —— 退出条件有三条:
+        #     ① 画面切回任何一个已知状态(方法开头那段);② `--max-rounds` 达标
+        #     (主循环里,2026-09-21 M6 已经把退出检查挪到 `continue` 之前);
+        #     ③ 有人去关掉程序。**这里故意不自动退出**:排队/对手回合/加载都
+        #     可能长时间没反应,见到"久"就退会误伤正常对局(PC_STATE §7 那条
+        #     "不要自动退出"的规矩)。
+        #
+        # ★★ 2026-09-21 **M3 与 M5 的接缝(写用例时才量出来的)**:
+        #   M3 判定"点了没生效"之后会停掉**快**的那一段,而慢速那一段最早也要
+        #   `dismiss_tries` 走满 `DISMISS_MAX_FAST`(12)才启动 —— 两段一叠加就
+        #   会出现一个**谁都不点**的缝:快速段被 M3 停了、计数停在 4,于是永远
+        #   到不了 12,慢速段永远不启动 ⇒ 屏幕上再没人点,`dismiss` 却一直是 True
+        #   (主循环那边以为"还在跳过"),这正好是 M3/M5 想要避免的那种"什么都不做"。
+        #   ⇒ 判据改成:**只要快速段被 M3 停了,就立刻改走慢速(退避)那一段** ——
+        #     不必等计数满 12。理由很直:计数只是"试了几次"的记账,而 M3 已经
+        #     给出了更强的结论("这几次点下去画面没动"),没有理由再空等 8 次。
+        #   ★ 顺带保住"至少会再点一下":画面真的变了的话,慢速那一下的回读就会
+        #     把 `_dismiss_stuck` 归零 -> 快点立刻恢复(见 `_dismiss_note_frame`)。
+        slow_mode = self.dismiss_tries >= DISMISS_MAX_FAST or not fast_ok
+        if slow_mode:
+            gap = self._dismiss_retry_gap()
+            if self.dismiss_tries == DISMISS_MAX_FAST:
+                log(f"[dismiss] ⚠️ 快速跳过已经试满 {DISMISS_MAX_FAST} 次、画面还是没切走"
+                    f" -> **放弃快速跳过,改成慢速重试**(间隔从 {gap:.0f}s 起"
+                    f"逐次拉长、封顶 {DISMISS_SLOW_CAP:.0f}s)。"
+                    f"这不是放弃:每慢速一次还会点一下,日志里看得见;"
+                    f"画面一旦切回已知状态就立刻恢复。")
+            elif not fast_ok and self.dismiss_tries < DISMISS_MAX_FAST \
+                    and not self._dismiss_slow_said:
+                # ★ M3 提前触发的情形(还没试满 12 次):也要明说"改成慢速重试",
+                #   否则日志里只有一条"停手不再点",读起来像**彻底放弃了**。
+                #   `_dismiss_slow_said` 保证**只打一条**(这个分支会被反复走到)。
+                self._dismiss_slow_said = True
+                log(f"[dismiss] ⚠️ 连点 {self.dismiss_tries} 次画面都没变 -> "
+                    f"**快速点击提前停手,改成慢速重试**(每 {gap:.0f}s 再试一下,"
+                    f"逐次拉长、封顶 {DISMISS_SLOW_CAP:.0f}s)。这不是放弃;"
+                    f"画面一变就立刻恢复成正常节奏。")
+            elif self.dismiss_tries >= DISMISS_MAX_FAST \
+                    and (self.dismiss_tries - DISMISS_MAX_FAST) % 10 == 0:
+                # 慢速阶段不刷屏:每 10 次报一下"还在试"。
+                log(f"[dismiss] 慢速重试中:已试 {self.dismiss_tries} 次,"
+                    f"当前间隔 {gap:.0f}s(画面仍未切走)")
+            if time.time() - self.dismiss_last > gap:
+                self.dismiss_tries += 1
+                self.click_center()
+                self._dismiss_note_frame()
+            else:
+                time.sleep(0.4)
+            return True
+
+        if time.time() - self.dismiss_last > DISMISS_FAST_GAP:
             self.dismiss_tries += 1
             self.click_center()
+            # ★ 2026-09-21(M3):点完**回读一帧**,和上一帧比(判据见
+            #   `_dismiss_note_frame`)。放在 `click_center` **之后**是有意的:
+            #   要比的是"点下去的**效果**",所以基准帧必须是**上一次点击之后**
+            #   那一帧。
+            self._dismiss_note_frame()
         else:
             time.sleep(0.4)
         return True
+
+    def _dismiss_retry_gap(self) -> float:
+        """
+        慢速重试的当前间隔(秒)—— 逐次拉长、封顶(2026-09-21 M5)。
+
+        `dismiss_tries` 已经超过 `DISMISS_MAX_FAST` 时:
+        `DISMISS_SLOW_BASE + (tries - MAX)*STEP`,不超过 `SLOW_CAP`。
+        为什么"越试越慢":见 `DISMISS_SLOW_BASE` 上面的注释(少抢鼠标、
+        又让"还在试"这件事一直留在日志里)。这个函数在测试里也被直接调用,
+        所以它**不碰鼠标、不改状态**,只读 `dismiss_tries`。
+        """
+        n = max(self.dismiss_tries - DISMISS_MAX_FAST, 0)
+        return min(DISMISS_SLOW_BASE + n * DISMISS_SLOW_STEP, DISMISS_SLOW_CAP)
+
+    def _dismiss_note_frame(self) -> None:
+        """
+        记下"这一下点完之后画面变了没有"(2026-09-21 M3)。
+
+        ★★★ 判据是从**开发树**移植的:`C:\\Users\\31291\\Desktop\\kards-auto\\
+          src\\main_loop.py` 第 766~789 行(`_stuck_ticks`/`_stuck_dead` 那一段,
+          搜 `连点 3 次画面一点都没变`)。
+        ★ 为什么可以移植、为什么现在才移:那棵树是本项目的**旧版/手机端那棵**,
+          用户 2026-09-21 已明确决定**不再同步它** —— 但那段代码是**实机判据**
+          (2026-09-19 现场:游戏进程 107% CPU 空转、点『结束回合』画面 0.00% 变化),
+          判据本身跟"哪棵树"无关,所以照抄判据、**把这棵树的代码写过来**,
+          而不是去动那棵树。移植时**判据一字未改**:仍然是"三通道逐像素最大差
+          > 25 的像素占比 < 0.001"算"画面没动",仍然是**连续 3 次**才停手。
+        ★ 收益(这是 M3 的全部意义):结算页原来**盲点 12 次**(每一次都要抢物理
+          鼠标、还可能点到别的东西上),现在一旦"点了没生效"就**当场停手**,
+          而且把这件事**变成日志里看得见的事实** —— 否则"卡在结算页"永远只能靠猜。
+        ★ 注意它**只负责观察**:停手之后走的是 M5 那条慢速重试,**没有**把
+          `dismiss` 置回 False —— 一置 False 主循环就会回去空转(那正是要修的病)。
+        """
+        try:
+            # ★ 先等一小会儿再回读:点下去到画面真的切走之间有个过程,立刻回读
+            #   多半拿到的是**还没变的同一帧**,那会把"正常但慢"误判成"没生效"。
+            #   (`DISMISS_FRAME_SETTLE`,可调;A/B 回退:改成 0 就退回"点完立刻读")
+            time.sleep(DISMISS_FRAME_SETTLE)
+            after = self.grab_frame()
+            if after is None:
+                return
+            # 灰度 + 缩到 1/4:差分只需要"变没变",不需要细节;小图也让
+            # 这个字段的内存占用可以忽略(见 __init__ 里的说明)。
+            if not hasattr(after, "shape") or len(after.shape) < 2:
+                return
+            small = after
+            if small.shape[0] > 360 or small.shape[1] > 640:
+                small = cv2.resize(small, (small.shape[1] // 4, small.shape[0] // 4))
+            if small.ndim == 3:
+                small = cv2.cvtColor(small, cv2.COLOR_BGR2GRAY)
+            prev = self._dismiss_frame
+            self._dismiss_frame = small
+            if prev is None or prev.shape != small.shape:
+                # 第一次点(或画面尺寸变了):没有可比的上一次,不算"没动"。
+                # ★ 尺寸变了这一条是 2026-09-21 M7 带出来的:窗口尺寸一改,
+                #   旧帧和新帧不同形状,直接相减会抛异常(而且也不是"没变")。
+                return
+            # ★★ 这里**只用 cv2、不用 numpy** —— 本模块从头到尾没有
+            #   `import numpy`,第一版照抄开发树写成 `np.abs(...)` 的结果是
+            #   **每次都抛 NameError**,被下面的 except 吞掉:判据表面上"跑过了",
+            #   实际上一次都没生效(`_stuck_dead` 永远是 0、告警永远不响)。
+            #   ⇒ 这正是本项目反复栽的那个形状:**判据在边界外悄悄失效、而且不报错**。
+            #   `cv2.absdiff` 对 uint8 做饱和差分(不会像裸减那样回绕),
+            #   再和常量比 -> 得到和开发树 `np.abs(...)>25` **同一个掩码**。
+            diff = cv2.absdiff(small, prev)
+            dd = float((diff > DISMISS_DIFF_THRESHOLD).mean())
+            if dd < DISMISS_DIFF_MIN:
+                self._dismiss_stuck += 1
+            else:
+                self._dismiss_stuck = 0
+            if self._dismiss_stuck == DISMISS_STUCK_LIMIT:
+                log(f"[dismiss] " + DISMISS_STUCK_NOTE
+                    + f"(已试 {self.dismiss_tries} 次;帧差 dd={dd:.5f}"
+                      f"<{DISMISS_DIFF_MIN})")
+        except Exception as e:                # noqa: BLE001
+            # ★ 观察代码绝不许弄崩主循环:这条规矩这个项目已经栽过(见
+            #   `handle_in_game` 里"诊断代码绝不许弄崩主循环"那段)。
+            # ★★ 但**"不崩"不等于"可以不做声"**:这套判据第一版就写错过一次
+            #   (`np` 没 import),异常被这里吞掉,判据一次都没生效 —— 表面上
+            #   "日志里没报错",实际上告警永远不会响。所以失败也要留痕,而且
+            #   带异常类型(下一份日志就能定位)。
+            log(f"[dismiss] ⚠️ 帧差判据这次没算成(跳过点击照旧,但"
+                f"『点了没生效』这个告警这次是瞎的):{type(e).__name__}: {e}")
 
     # ---- per-round dispatch ----
     def handle_state(self, state: str):
@@ -514,6 +785,15 @@ class Controller:
                     time.sleep(0.8)
                     if self.max_ticks and ticks > self.max_ticks:
                         break
+                    # ★★★ 2026-09-21(M6)**退出检查必须在 continue 之前**。
+                    #   老代码把 `max_rounds` 那段放在循环末尾,而 dismiss 期间的
+                    #   `continue` **绕过**了它 —— 只要人卡在结算页/未知奖励页,
+                    #   `--max-rounds` 就永远不生效(和"死锁"叠加时,引擎既出不来
+                    #   也不会自己停,只能去任务管理器杀进程)。
+                    #   判据放在**这里**而不是循环末尾一处:两条路径都要过这道闸。
+                    #   方法里的 `_max_rounds_hit()` 只读状态 + 打日志,**不点鼠标**。
+                    if self._max_rounds_hit():
+                        break
                     continue
 
             if state:
@@ -522,11 +802,25 @@ class Controller:
                 # unknown screen: wait, log only on change
                 time.sleep(2)
 
-            if self.max_rounds and self.round_count >= self.max_rounds:
-                log("max_rounds reached, stopping")
+            if self._max_rounds_hit():
                 break
             time.sleep(0.8)
         return 0
+
+    def _max_rounds_hit(self) -> bool:
+        """
+        `--max-rounds` 该不该停?(2026-09-21 M6)
+
+        判据只有这一处 —— 主循环里有**两条**路径会走到"这一 tick 结束了"
+        (dismiss 期间的 `continue` 和正常路径),两条都必须过这道闸。
+        老写法把这段判据写在循环末尾,**dismiss 那条 `continue` 绕过了它**。
+        ★ 数的是"打完一整局"(`finish_round` 里 +1),不是回合数 ——
+          帮助文本已经写明(见 `--max-rounds` 的 help)。
+        """
+        if self.max_rounds and self.round_count >= self.max_rounds:
+            log("max_rounds reached, stopping")
+            return True
+        return False
 
 
 def main() -> int:
@@ -534,7 +828,12 @@ def main() -> int:
     ap = argparse.ArgumentParser(description="KARDS grind main loop (M2)")
     ap.add_argument("--proc", default="kards")
     ap.add_argument("--dry-run", action="store_true", help="log decisions, never click")
-    ap.add_argument("--max-rounds", type=int, default=0, help="stop after N finished rounds")
+    ap.add_argument("--max-rounds", type=int, default=0,
+                    help="stop after N finished **matches** —— 一局打完(出现胜/负结算)"
+                         "才 +1,**不是回合数**;一局没结算完就永远不会停(0 = 不停)"
+                         "。★ 2026-09-20 实机踩过:另一台机器把它读成'跑 1 轮',"
+                         "跑了 5 个回合没停就记成疑点了 —— 行为本来就是对的,是这句"
+                         "帮助文本有歧义(见 docs/ORDER_CARDS_REAL_TEST.md §6)")
     ap.add_argument("--max-ticks", type=int, default=0, help="test: stop after N loop ticks")
     ap.add_argument("--end-turn", action="store_true",
                     help="M2: auto-click end turn inside a match")
