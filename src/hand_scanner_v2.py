@@ -112,6 +112,81 @@ SUSPECT_GAP = 60          # 跳过段离选中边缘多近才算"量短了"(≈�
 #     装饰在 60px 内,改去信了右边缘 —— 而那一帧的右边缘恰好也量短了)。
 FAN_X_MIN = 340           # 扇形左边缘不可能小于这个值(实测 1~9 张是 357~570)
 
+# ★★★ 2026-09-21(用户实机日志之后):**"张数分不清"就别分 —— 探针取并集 + 两端各补一格**。
+#
+# 为什么上面那条 `LAYOUT_TRUST_RIGHT_IF_LEFT_SUSPECT` 只救了一半:
+#   表里 7/8/9 三条条目的边缘**彼此几乎一样**(左 368/357/358,右 915/925/915),
+#   而容差是 22 —— 三条**都能过闸**;连"命中率"也分不出来(每根探针都落在某张牌的
+#   热区里,选错的条目照样接近 100% 命中,见第 62~63 行"单靠边缘区分不了")。
+#   ⇒ "挑哪条"这一步**本质上还是在猜**;一旦猜小一档,就重演第 96~99 行那个后果
+#     (探针按「5 张」的间距铺 -> 只落在第 2/4/6/8 张上,最左那张整局没被识别过)。
+#
+# 实机证据(2026-09-20 另一台机器那一局,复核见 `docs/ORDER_CARDS_REAL_TEST.md`):
+#   23:41:34 `布局「7 张」(表内左 368,量到 L433/R919;选中那条残差 L65/R4;
+#             7 探针;容差内还有 [9, 8])` —— 量到的左边缘 433 比 7/8 两条都偏右
+#             65~76px(最左那张牌被卡纹切碎),选中 7 张、探针铺在 405..821;
+#   23:42:06 同一副牌又变成 `布局「5 张」(量到 L414/R812;容差内还有 [])`。
+#   ⇒ **同一局里引擎对"几张"给过 5 / 7 / 8 三个答案。**
+#
+# 判据(窄而明确):**容差内不止一条候选**时按"并集"铺探针 —— 不管真实张数是 7 还是 8,
+#   每张牌至少有一根探针落在它身上;再按选中那条的间距往两端各补一格,
+#   兜住"边缘量短、最边那张整张没被覆盖"。
+# ★ A/B:`LAYOUT_PROBE_UNION = False` 一键退回"只用选中那条的探针"(老行为)。
+# ★ 代价:多几根探针(每根 ~0.6s 固定等待),**只在有歧义时才付**(唯一候选时不加)。
+LAYOUT_PROBE_UNION = True
+LAYOUT_PROBE_UNION_DEDUP_PX = 15   # 两根探针近于这个距离就合成一根
+LAYOUT_PROBE_EXTRA_ENDS = True     # 两端各往外补一格(按选中那条的间距)
+LAYOUT_PROBE_X_MAX = 1000          # 再往右就是右侧那块鹰徽面板/按钮,不探
+
+# ★★★ 2026-09-21(同一天,继续上一段):**张数本身也要读准,不能继续拿 `cands[0]["count"]` 猜**。
+#
+# 上一段只解决了"别把牌漏掉"(并集 + 两端补探),`self.last_hand_count` 仍然是
+# "选中那条布局表条目说的张数" —— 也就是**那个已经被证明会猜错的量**。它的下游是
+# `turn_engine._memory_note_scan` -> `hand_memory.note_scan(probed, count)`:
+# 张数一错,记忆当场失效,而且**每一次扫描都再错一次**(实机日志里成串的
+# `[记忆] 失效:张数对不上(记忆 7 张,现在读到 5 张)`)。
+#
+# 判据(**窄而明确**,不引入任何新的不确定量):既然 `probes` 里**下标 >= 0 的一定是
+# 选中那条自己的探针**(`_probes_for` 只给并集/两端补出来的发 -1),那么:
+#   实读张数 = 选中那条的 count + "**落在它『够得着』的范围之外、且真读到牌**的位置的个数"
+#              (上限 `LAYOUT_COUNT_MAX_BUMP`)
+#   其中"够得着" = `[base[0] - MAX_SAME_SPAN, base[-1] + MAX_SAME_SPAN]` ——
+#   选中那条自己的探针铺在 base[0]..base[-1],再往两边各让一个热区半宽。
+#
+# 为什么门槛要**同时**满足"出界"和"出界超过一个 `MAX_SAME_SPAN`"(两条都是踩出来的):
+#   · 只看"落在两端之外":实测同一根探针本来就能读到**相邻卡**的一块
+#     (`MAX_SAME_SPAN` 就是为这条标定的),所以"刚出界一点点"完全可能是选中那条
+#     **本来就该探到**的那张牌 —— 23:41:34 那帧(7 张,选对了)左端 x405 只出界 7px,
+#     照"出界即多"会数成 8 > 真值 7,**比不改更坏**。
+#   · 只看"离最近那根探针远不远":并集铺的是两套间距,某根 -1 针本来就会落在两条带的
+#     交界处 —— 23:43:17 那帧(9 张)x777 离最近那根 base 针 744 有 36px,照"离得远就算多"
+#     会数成 10 > 真值 9。落在带子里面的命中,不管离某根针多远,都在它覆盖到的那几张牌上。
+#
+# ★ 实机四帧都核算过(几何全部来自 `config/hand_layout.json` + 日志里量到的 L/R,
+#   离线可复现:见 `dev/hand_count_test.py` 第 ⑥ 段):
+#   23:41:34 选中 7、真值 7 -> 一格不动 ✓(对照组)
+#   23:41:58 选中 5、真值 8 -> 6(只补回一格,**仍少 2**,见下面那条"够不着")
+#   23:43:17 选中 8、真值 9 -> 9 ✓(右端补出来的 x890 真的落在第 9 张上)
+#   23:43:10 选中 8、真值 9 -> 9 ✓
+#   ★ 四帧里没有一帧被改成"大于真值" —— 这是最硬的一条:猜多比不改更坏(会把记忆带偏)。
+#
+# ★ 判据只用**两处**已有的量,没有新标定值:`MAX_SAME_SPAN`(热区半宽,见第 51~58 行)
+#   和布局表自己的 `probes`。
+#
+# ★ 已知够不着、也**不假装够得着**:补出来的探针只往外伸**一格**,所以当 `cands[0]`
+#   比真值小 2 张以上时,外面那一格只能证明"至少还多一张",补不回全部 ——
+#   23:41:58 那帧就是实例(表里当 5 张用、真值 8 张,而且它的第一根探针 x455 已经
+#   落在第 2 张牌上,第 1 张整张没被覆盖)。再往外属于**没探过**的地方,
+#   按项目纪律不许猜(宁可按最小值报,不许猜多)。
+# ★ 另一头(**只准加、不准减**)的理由:不加时误差最多就是"真值 - base",不会更坏;
+#   而"减"要拿"某一根探针没弹面板"当"那里没牌" —— 面板不弹的已知原因一大把
+#   (牌缝、卡纹切碎、悬停没稳定、`diff_bbox` 阈值),没有一条能证明"没牌"。fail-closed。
+LAYOUT_COUNT_FROM_PROBES = True
+#: 最多往上提几档。取 2 = "并集探针最多能看到 base 覆盖之外的**两个**位置":
+#: 两端补探各一个;再加上 `LAYOUT_PROBE_UNION` 里更大的那条候选自己的探针。
+#: 一次只提一档是**有意的保守**:同一个位置可能被两根 -1 探针先后探到,不许当成两张牌。
+LAYOUT_COUNT_MAX_BUMP = 2
+
 # ★★★ 2026-09-13(第十个会话):**手牌记忆**(用户提的第三个优化)。
 #   把上一轮/上一回合"探到过的牌"按【从左到右的次序】记住,下一轮**跳过**那些
 #   已知"出不起 / 不是单位"的探针 —— 省下的是悬停(0.5s)+ 识别(1.4s)/个。
@@ -317,6 +392,12 @@ class HandScannerV2:
         #   和"每个探针到底读到了什么"。日志里以前只有结论,判错和判对长得一样。
         self.last_layout = None
         self.last_probe_seen = []
+        # ★★★ 2026-09-21:最近一次"张数按实读修正"那行日志(没有修正就是 None)。
+        #   为什么要单独存一份:修正行写进 `last_reason` 之后**立刻会被**后面那句
+        #   `惰性扫描:布局「N 张」…全扫完` 覆盖,不留一份就等于没写(见
+        #   `_count_correction_from_walk` 里的说明)。同一时刻也已经打到控制台、
+        #   由 main_loop 落进日志文件。
+        self.last_count_fix = None
         # ★★★ 2026-09-13 深夜:这一次量到的左边缘是不是**量短了**(漏掉最左那张牌)。
         #   由 `measure_edges` 每次刷新(判据见 LAYOUT_TRUST_RIGHT_IF_LEFT_SUSPECT)。
         self.last_left_suspect = False
@@ -726,9 +807,34 @@ class HandScannerV2:
                 key=lambda v: abs(v["right_edge"] - right))
             if by_right:
                 via_right = True
-                cands = by_right
+                # ★★★ 2026-09-21:**两边各闸放行的候选取并集,不是替换**。
+                #   实机证据(2026-09-20 那一局 23:42:06 那帧):左边缘基本准
+                #   (量到 L414,表里 5 张是 421,差 7),而**右边缘短了 113px**
+                #   (量到 R812,真值约 925)。老代码一进这条分支就 `cands = by_right`,
+                #   右闸把 8 张那条(R 925,差 113)在**过闸那一步**就扔了 ——
+                #   于是"左边缘差 59px"的错误条目靠"右边缘差得少"胜出。
+                #   这和第 711~715 行注释里记的那次事故**是同一个形状**:
+                #   "量短的边缘会把正确答案在过闸那一步就丢掉,另一条边缘只差 1px 也救不回来"。
+                #   ⇒ 谁都不许在"过闸"这一步被另一个坏测量杀掉;要淘汰也是后面排序的事。
+                #   ★ 这一改还顺带解释了实机日志里一处对不上的地方:23:42:06 那行写着
+                #     `容差内还有 [9, 8]`,而现行代码在 L414 下**只放得进 5 张**
+                #     (复核者按逐字重放复现不出那格) —— 取并集之后,9/8 张本来就会在候选里。
+                #   排序仍以**右边缘残差**为主(这条分支的本意就是"信右边缘"),
+                #   并列时**张数多的优先**(与 `dev/hand_layout_pick_ab.py` 里那条更强的规则对齐)。
+                seen_ids = {id(v) for v in cands}
+                merged = list(cands) + [v for v in by_right if id(v) not in seen_ids]
+                cands = sorted(
+                    merged,
+                    key=lambda v: (abs((v.get("right_edge") or 0) - right)
+                                   if v.get("right_edge") else 999,
+                                   -(v.get("count") or 0)))
         if cands:
             # 顺手记下"这次匹配到的手牌是几张"给引擎用(见 last_hand_count)
+            # ★★★ 2026-09-21:这里**不再是最终值** —— 它只是"选中那条布局表说的张数"。
+            #   真正的实读张数由 `_count_correction_from_walk` 在**整条探针走完**之后
+            #   按"有没有 -1 探针读到牌"改上去(判据与实机复核见常量区
+            #   `LAYOUT_COUNT_FROM_PROBES`)。为什么不能在这里就定死:此刻**一根探针都还没走**,
+            #   没有任何"实读"证据,只能先按表里的值占位。
             self.last_hand_count = cands[0].get("count")
         # ★★ 2026-09-13(第十个会话):把"这次到底用了哪条布局、有几个候选"
         #   记下来给引擎写日志。为什么必须写出来:
@@ -753,6 +859,9 @@ class HandScannerV2:
             "count": (cands[0].get("count") if cands else None),
             "left_edge": (cands[0].get("left_edge") if cands else None),
             "n_probes": (len(cands[0].get("probes") or []) if cands else 0),
+            # ★ 2026-09-21:并集探针启用后,**实走**的根数(见 `_probes_for`)——
+            #   上面那个 `n_probes` 是"选中那条条目自己的"根数,两者不一样时必须都写出来。
+            "n_probes_actual": None,
             "n_cands": len(cands),
             "cand_counts": [v.get("count") for v in cands],
             "measured_edge": int(edge) if edge is not None else None,
@@ -820,13 +929,29 @@ class HandScannerV2:
                               f"预算 {budget} 内没有可部署的牌", debug)
                     return found, None
                 self._memory_broken = False
+            # ★★★ 2026-09-21:走**并集探针**(见 `LAYOUT_PROBE_UNION`)。
+            #   这条路以前只取 `cands[0]`、**且从不验证**(第 736 行自己的注释就写着
+            #   "从不验证"),正是"探针只落在第 2/4/6/8 张上"那类事故的来源。
+            #   ★ 顺手把"实走几根"记进 `last_layout` —— 日志里那句"7 探针"是**选中那条
+            #     条目自己的**根数,走了并集之后它就不再是全貌了,不写清就是让日志说谎。
+            probes_use = self._probes_for(cands, debug=debug)
+            if self.last_layout:
+                self.last_layout["n_probes_actual"] = len(probes_use)
             res, cost = self._probe_layout_until(
                 cands[0], budget, exclude=(exclude or set()) | {c["x"] for c in found},
-                max_cards=max_cards, debug=debug)
+                max_cards=max_cards, debug=debug, probes=probes_use)
             if res:
                 found.extend(res)
                 return found, cost
-        self._why(f"惰性扫描:布局「{cands[0]['count']} 张」"
+        # ★★ 2026-09-21:这一行是引擎那行日志里**最后**关于张数的话(`| 原因: …`),
+        #   而修正在它**之前**就跑完了 —— 不改它,日志里报的就还是**表里那个错的**张数,
+        #   而真正交给 `hand_memory` 的实读值在日志里一个字都看不到。
+        #   所以张数按实读值报,并把"表里说几张"一起写出来(判据和结论写在一起)。
+        table_n = cands[0]["count"]
+        read_n = self.last_hand_count
+        n_text = (f"布局「{read_n} 张」" if read_n in (None, table_n)
+                  else f"布局「实读 {read_n} 张」(表里写 {table_n} 张)")
+        self._why(f"惰性扫描:{n_text}"
                   f"{len(cands[0].get('probes', []))} 个探针全扫完,"
                   f"预算 {budgets} 内没有可部署的牌", debug)
         return found, None
@@ -1082,8 +1207,57 @@ class HandScannerV2:
                     return True
         return False
 
+    def _probes_for(self, cands, base_entry=None, debug=False):
+        """
+        这一轮**实际要走的探针序列** —— 见常量区 `LAYOUT_PROBE_UNION` 那段的实机证据。
+
+        返回 `[(次序下标, x)]`:
+          · 选中那条(`base_entry`,默认 `cands[0]`)的探针 **保留下标** ——
+            手牌记忆是按"从左到右第几张"对齐的(`hand_memory.py`:扇形一平移 x 就变,
+            只有次序稳),下标一乱记忆就废;
+          · 并集进来的、以及两端补出来的,一律给下标 **-1** ——
+            `hand_memory.plan()` 只认下标 >= 0,所以这些探针**永远不会被跳过**。
+            这正是我们要的:补它们就是为了亲眼看一眼。
+        """
+        if not cands and base_entry is None:
+            return []
+        base = list((base_entry if base_entry is not None else cands[0]).get("probes") or [])
+        seq = [(i, int(x)) for i, x in enumerate(base)]
+        if LAYOUT_PROBE_UNION:
+            for v in cands:
+                if v is base_entry or (base_entry is None and v is cands[0]):
+                    continue
+                seq += [(-1, int(x)) for x in (v.get("probes") or [])]
+        if LAYOUT_PROBE_EXTRA_ENDS and len(base) >= 2:
+            pitch = (base[-1] - base[0]) / (len(base) - 1)
+            # ★ 两端补针**按需**补,不无条件补:每根探针要付 ~0.6s 固定等待,
+            #   而无条件在两端各补一根 = 每回合白花 1.2s。
+            #   触发条件(两条都是"有据可依"的信号):
+            #     · 候选不止一条(张数本身就有歧义)-> 两端都补;
+            #     · 或检测器自己说这条边缘**旁边有被跳过的窄段**
+            #       (`_edge_looks_short`:那个边缘多半是"第 2 张"的,整张牌被漏掉)
+            #       -> 只补那一边。
+            ambiguous = len(cands) > 1
+            if ambiguous or getattr(self, "last_left_suspect", False):
+                seq.append((-1, int(round(base[0] - pitch))))
+            if ambiguous or getattr(self, "last_right_suspect", False):
+                seq.append((-1, int(round(base[-1] + pitch))))
+        # 去重:同一位置附近只留一根(优先留下标 >= 0 的,记忆才能照老样子跳它)
+        seq.sort(key=lambda t: (t[1], t[0] < 0))
+        out = []
+        for i, x in seq:
+            if x < FAN_X_MIN or x > LAYOUT_PROBE_X_MAX:
+                continue                  # 扇形之外(固定装饰 / 右侧面板),别去探
+            if out and abs(x - out[-1][1]) <= LAYOUT_PROBE_UNION_DEDUP_PX:
+                continue
+            out.append((i, x))
+        if debug and len(out) != len(base):
+            print(f"    探针并集:选中「{len(base)} 根」-> 实走 {len(out)} 根 "
+                  f"{[x for _i, x in out]}")
+        return out
+
     def _probe_layout_until(self, entry, budget, exclude=None, max_cards=10,
-                            debug=False):
+                            debug=False, probes=None):
         """
         按布局表从左到右悬停,**一旦找到一张"费用 <= budget 的可部署单位"就停**。
 
@@ -1091,10 +1265,13 @@ class HandScannerV2:
         exclude: 已经找过的探针位置(上一轮找到的那张,不要重复)。
         """
         exclude = exclude or set()
-        all_probes = entry.get("probes", [])
+        # ★★★ 2026-09-21:调用方可以传 `probes`(并集探针,见 `_probes_for`);
+        #   不传就还是"只用选中这条布局自己的探针"(老行为,A/B 用)。
+        all_probes = (probes if probes is not None
+                      else [(i, p) for i, p in enumerate(entry.get("probes", []))])
         # ★ 2026-09-13:连**下标**一起带着走 —— 手牌记忆要按"从左到右第几张"对齐
         #   (扇形一平移 x 就变了,只有次序是稳的,见 hand_memory.py)。
-        probes = [(i, p) for i, p in enumerate(all_probes) if p not in exclude]
+        probes = [(i, p) for i, p in all_probes if p not in exclude]
         last_box = None
         last_px = None
         # ★★ 诊断(2026-09-13 第十个会话):逐个探针记下"读到了什么"。
@@ -1163,7 +1340,97 @@ class HandScannerV2:
                     "panel": hover[by:by + bh, bx:bx + bw].copy()}
             if playable:
                 return [card], cost
+        # ★★★ 2026-09-21:**只有走到这里**("整条探针从头到尾一根不落")才动张数。
+        #   上面那个 `return [card], cost` 是"找到第一张能出的牌就收手" —— 那时手里
+        #   还有没探过的位置,`seen` 里没有它们的记录,**拿它去推张数就是拿没探过的地方猜**
+        #   (项目纪律:拿不准就 fail-closed)。所以修正动作挂在这个出口上,提前收手那条路
+        #   一律保持 `find_playable` 给的占位值不变。
+        # ★ 每次重设原因之前先把上一轮的修正行清掉 —— 否则"这一次没修"时,
+        #   上一次修正的日志还挂在那儿,读日志的人会以为张数又被改过。
+        self.last_count_fix = None
+        self._count_correction_from_walk(entry, debug=debug, seen=seen)
         return [], None
+
+    def _count_correction_from_walk(self, entry, debug=False, seen=None):
+        """
+        **整条探针走完之后**,按"实读到了什么"修正手牌张数(判据与实机复核见常量区
+        `LAYOUT_COUNT_FROM_PROBES`) —— 调用点只有一处,就是 `_probe_layout_until` 的收尾出口。
+
+        为什么只能在这里做:那之前所有"张数"都只是**布局表条目**说的数(一个已经被
+        实机证明会猜错的量),而**唯一**能证伪它的证据是"补出来的探针真的读到了牌"。
+
+        `seen`:本次探针逐个读到的记录(和 `_probe_layout_until` 的 `probes=` 一个套路 ——
+                调用方可以传进来,不传就用 `self.last_probe_seen`)。
+
+        返回 `(是否改了, 原值, 新值)`;没改就返回 `(False, None, None)`。
+        """
+        if not LAYOUT_COUNT_FROM_PROBES:
+            return False, None, None
+        was = self.last_hand_count
+        # 拿不到表里的张数(布局对不上 -> None)就无从修起:没有基准,加多少都是猜。
+        if not isinstance(was, int) or was <= 0:
+            return False, None, None
+        base_probes = list(entry.get("probes") or [])
+        if len(base_probes) < 2:
+            # 一根探针算不出间距(也就没有"覆盖范围"可言)——1 张/2 张这种手牌本来也不会错,
+            # 不必为它引入一条没有几何依据的规则。
+            return False, None, None
+        if seen is None:
+            seen = self.last_probe_seen
+        hits = [s for s in (seen or [])
+                if s.get("panel") and isinstance(s.get("x"), int)]
+        if not hits:
+            return False, None, None
+        # ★ 什么算"在选中那条的覆盖范围之外":**落在这条布局的探针带以外**,
+        #   而且超出的距离**超过一个 `MAX_SAME_SPAN`**(即"它的探针再偏也够不到那儿")。
+        #   带子 = `[base[0] - span, base[-1] + span]`。
+        #
+        #   为什么两条都要:
+        #   · 光看"离最近那根探针远不远"会**误判**:表里相邻候选取并集之后,实走探针是
+        #     两套间距叠在一起的,某根 -1 针本来就会落在**两条带交界**处(实测 23:43:17
+        #     那帧的 x777 离最近那根 base 针 744 有 36px,按"离得远就算多"会数出 10 > 真值 9)。
+        #     落在带子**里面**的命中,不管离某根针多远,都在这条布局本来就覆盖到的那几张牌上。
+        #   · 光看"落在两端之外"也会**误判**:实测同一根探针能读到相邻卡的一块
+        #     (`MAX_SAME_SPAN` 就是为这条标定的),所以"刚出界一点点"完全可能是它本来就该
+        #     探到的那张牌(23:41:34 那帧左端 x405 出界只有 7px,照"出界即多"会数成 8 > 真值 7)。
+        #   ⇒ 两条一起用:出界 **且** 出界超过一个热区半宽,才谈得上"它覆盖不到"。
+        span = MAX_SAME_SPAN
+        left_reach = base_probes[0] - span
+        right_reach = base_probes[-1] + span
+        outside = sorted(s["x"] for s in hits
+                         if s["x"] < left_reach or s["x"] > right_reach)
+        if not outside:
+            return False, None, None
+        # ★ 先把挨在一起的合成**一个位置**:同一个位置被两根 -1 探针先后探到是常事
+        #   (`_probes_for` 的去重只合成 15px 以内的,而并集补出来的针间距可能更大),
+        #   不合成就会把**同一张牌**数成两张 —— 那是"猜多",比不改更坏。
+        #   合并门槛也用 `MAX_SAME_SPAN`:同一个热区里的两根针本来就该算一处。
+        spots = []
+        for x in outside:
+            if spots and x - spots[-1][-1] <= span:
+                spots[-1].append(x)
+            else:
+                spots.append([x])
+        # 上限 = "补出来的探针**最多**能看到几个 base 覆盖之外的位置"(见常量区说明)。
+        bump = min(len(spots), LAYOUT_COUNT_MAX_BUMP)
+        now = was + bump
+        self.last_hand_count = now
+        pitch = (base_probes[-1] - base_probes[0]) / float(len(base_probes) - 1)
+        # ★ 修正必须留痕(而且要能一眼看出"凭什么"):原以为几张 -> 实读几张、依据是
+        #   哪几根并集探针读到了牌、出了选中那条"够得着"的范围多远。
+        #   ★★ 为什么还要**单独存一份** `last_count_fix` 并**直接打到控制台**:
+        #     `_why()` 写的是 `last_reason`,而它**马上就会被后面那句
+        #     `惰性扫描:布局「N 张」…全扫完` 覆盖掉**(实测:不单独留一份的话,
+        #     日志里只剩结论、看不到"张数为什么变了" —— 这正是这条要求要防的事)。
+        #     控制台那份由 main_loop 落到日志文件里,和 `[记忆] …` 那些行同一个去处。
+        self.last_count_fix = self._why(
+            f"张数按实读修正:原以为 {was} 张 -> 实读到 {now} 张"
+            f"(依据:选中那条的探针铺在 x{base_probes[0]}..x{base_probes[-1]}"
+            f"(卡距 {pitch:.0f}px),够得着的范围只到 x{left_reach}..x{right_reach};"
+            f"而并集/两端补出来的探针在 x{[s[0] if len(s) == 1 else s for s in spots]} "
+            f"处读到了牌 —— 那已经出了它的范围 -> 至少还多 {bump} 张)", debug)
+        print(f"    [张数] {self.last_count_fix}")
+        return True, was, now
 
     def _load_layouts(self):
         """载入校准好的手牌布局表(config/hand_layout.json)。"""
@@ -1197,7 +1464,7 @@ class HandScannerV2:
                 and abs(box[3] - last_box[3]) <= 10)
         return bool(near and abs(x - last_x) <= MAX_SAME_SPAN)
 
-    def _probe_layout(self, entry, max_cards=10, debug=False):
+    def _probe_layout(self, entry, max_cards=10, debug=False, probes=None):
         """
         按给定布局表悬停,返回 (results, hits, aborted)。
         aborted=True 表示用户中途操作鼠标,我们让路了。
@@ -1207,7 +1474,7 @@ class HandScannerV2:
         所以**面板没换就复用上一次的识别结果**(判据 `_same_card`)。
         这是把"每张卡 6 秒"降到 ~2 秒的关键。
         """
-        probes = entry.get("probes", [])
+        probes = entry.get("probes", []) if probes is None else probes
         results = []
         hits = 0
         t_start = time.time()
@@ -1364,6 +1631,32 @@ class HandScannerV2:
             print(f"    采用「{entry['count']} 张」布局(命中率 {rate:.0%}),"
                   f"识别出 {len(results)} 张")
         self.last_hand_count = entry.get("count")
+        # ★★★ 2026-09-21:命中率挑出来的"最好那条"**也不保证张数对** —— 7/8/9 三条
+        #   边缘几乎一样(见 `LAYOUT_PROBE_UNION`),选错的条目照样能 100% 命中。
+        #   所以候选不止一条时,把并集里**没走到的位置**补探一遍、结果并进来:
+        #   代价是几根探针(~0.6s/根),换来"整手牌一张不漏"。
+        if LAYOUT_PROBE_UNION and len(cands) > 1:
+            base_probes = list(entry.get("probes", []))
+            extra = [x for _i, x in self._probes_for(cands, base_entry=entry)
+                     if not any(abs(x - p) <= LAYOUT_PROBE_UNION_DEDUP_PX
+                                for p in base_probes)]
+            if extra:
+                if debug:
+                    print(f"    并集补探 {len(extra)} 根: {extra}")
+                more, _h2, aborted2 = self._probe_layout(
+                    entry, max_cards=max_cards, debug=debug, probes=extra)
+                if aborted2:
+                    self._why("用户在操作鼠标 -> 中止直扫,让路(本次扫描作废)",
+                              debug)
+                    return []
+                for r in more:
+                    if any(abs(r["x"] - s["x"]) <= LAYOUT_PROBE_UNION_DEDUP_PX
+                           for s in results):
+                        continue
+                    results.append(r)
+                results.sort(key=lambda r: r["x"])
+                if debug:
+                    print(f"    补探后共识别 {len(results)} 张")
         if not results:
             self._why(f"布局「{entry['count']} 张」命中率 {rate:.0%} 但"
                       f"一张也没识别出来(面板都在,识别全失败)", debug)

@@ -113,8 +113,15 @@ print("=" * 82)
 print("③ 对照组:边缘在容差内 -> **不许**走兜底,要用表里那条")
 print("=" * 82)
 sc, calls = make_scanner()
-sc._probe_layout_until = lambda entry, budget, exclude=None, max_cards=10, debug=False: (
-    [{"x": entry["probes"][0], "name": "表牌", "type": "infantry", "cost": 1}], 1)
+def _fake_probe_until(entry, budget, exclude=None, max_cards=10, debug=False,
+                      probes=None):
+    """打桩:不管探针怎么算,都直接交回"表里第一条探针那张牌"。
+    ★ 2026-09-21:签名跟着 `_probe_layout_until` 加了 `probes=`(并集探针)一起改,
+      否则惰性路一传 `probes=` 就 TypeError —— 打桩和真函数签名必须同步。"""
+    return ([{"x": entry["probes"][0], "name": "表牌", "type": "infantry", "cost": 1}], 1)
+
+
+sc._probe_layout_until = _fake_probe_until
 try:
     cards, cost = sc.find_playable([5], edge=572, right=1200)   # 与 570 差 2px
     crashed = None
