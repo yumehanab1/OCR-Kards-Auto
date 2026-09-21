@@ -1614,6 +1614,411 @@
    "hash": "a504b084a504e48066826788cfc091c2d566db948b198b15a92acb80c64048b0",
    "name": "SBD 3 无畏",
    "type": "bomber"
+  },
+  {
+   "hash": "74f43f80ff60fe70fe54ff70ff81fd00bf289e20f9c0fb00f900ff007d80fd12",
+   "name": "炮艇任务",
+   "type": "order"
+  },
+  {
+   "hash": "6b4affeaf7f3f7c3bfd3fff3fffccfc699bad9f2fd9e75a8fddcfdccfde97bb3",
+   "name": "炮艇任务",
+   "type": "order"
+  },
+  {
+   "hash": "77e6cfce918ac186ef86e716fd34fd74bdeefd84f988fde8f7acfdcdecc7eb99",
+   "name": "为了自由",
+   "type": "order"
+  },
+  {
+   "hash": "f1515d447e28f869fa6cfc28fb90cfc691bad9e2fd96f588fd9cf5c8f5a47668",
+   "name": "炮艇任务",
+   "type": "order"
+  },
+  {
+   "hash": "a544ed00fda0e1a0e924eda0ee40ef5081c0d1609b008f28992a8384b4a4d923",
+   "name": "B-25 米切尔",
+   "type": "bomber"
+  },
+  {
+   "hash": "8d714ffd7e79fef57fffffff7ffb3de78fdec1fafdafed9efdcc7fdc5feaebec",
+   "name": "炮艇任务",
+   "type": "order"
+  },
+  {
+   "hash": "fbfacfc6b18a998e5b86f516fd36fd7ced6efdc4fda8ffe8f9e8fde8edc2ea9a",
+   "name": "为了自由",
+   "type": "order"
+  },
+  {
+   "hash": "f8a9fea4dda0fda2ffa1ffa4ffc0d9f894e0d4f0f6c0a2c4d2d0e2c4f554f250",
+   "name": "B-25 米切尔",
+   "type": "bomber"
+  },
+  {
+   "hash": "ffeacfc6958ad98a59865d96fd37bd7cf96efdc4fdbcffec7df0bfc8dec4ae42",
+   "name": "为了自由",
+   "type": "order"
+  },
+  {
+   "hash": "fe749e76a4f486c0cf96ff96ff75ff75fe45fe65dee57fc2ae86dafedaf29fd2",
+   "name": "战略轰炸",
+   "type": "order"
+  },
+  {
+   "hash": "17c51b00fcb0fd60f9a0fd90fcc0fb003340be00ff64fb60fa607a403f51bf59",
+   "name": "战略轰炸",
+   "type": "order"
+  },
+  {
+   "hash": "6d62b780fd90fd50f990fd80fce09f002c800c003b6208e0fe10ef807fc0770c",
+   "name": "M8 榴弹炮",
+   "type": "artillery"
+  },
+  {
+   "hash": "be83b600fb60fac0f350fb20fb00be007900180036c811c0fd40fe007ea07eb0",
+   "name": "M8 榴弹炮",
+   "type": "artillery"
+  },
+  {
+   "hash": "7b89bc00fb00f700f380fb00ee009f48afc0ad88f188f1c8fd48bd48fc41b851",
+   "name": "我们能做到！",
+   "type": "order"
+  },
+  {
+   "hash": "1fff3eff77ffb7f6dfdedd8ecf1e959c97b2bd5b79af758cd9dcc5e899def8bc",
+   "name": "战略轰炸",
+   "type": "order"
+  },
+  {
+   "hash": "af600f807f607f407f50ff607ee07e009d2089809ee089a0bc907f201e80de6c",
+   "name": "M8 榴弹炮",
+   "type": "artillery"
+  },
+  {
+   "hash": "45eda99c3bc75ad5bbd57fe6bfe7be759c75a6c67f997779766d966527e2e696",
+   "name": "战略轰炸",
+   "type": "order"
+  },
+  {
+   "hash": "fffeffecfff4ffd4ff5ef7d2cff699d6c1dafd5ef538fd36f5ae7dec9ee9baf9",
+   "name": "我们能做到！",
+   "type": "order"
+  },
+  {
+   "hash": "d72afeeafff4ff34fff6fb74ff7ccfca99dccfcefd55ffdcfb96fbe4ffceffce",
+   "name": "陆军工程兵团",
+   "type": "order"
+  },
+  {
+   "hash": "94b4f751ffd0fc91fe90da91ebe0cf7499e6f262f79cf7acbf84fdb0fd305e3e",
+   "name": "战争债券",
+   "type": "order"
+  },
+  {
+   "hash": "74d03f60ffe0fff0ffb0ff70ffc0ff003f20be20fb80f380f920ff083cc0bec0",
+   "name": "我们能做到！",
+   "type": "order"
+  },
+  {
+   "hash": "b6527dc9ff3eff3aff6affcafef0df50be609f30ef2aff68f630ffe1ff387f31",
+   "name": "陆军工程兵团",
+   "type": "order"
+  },
+  {
+   "hash": "ff6dfea9fee9ffc9ffe071b4cfea91e4d862f99cfdaafd8cd5e4f7b47d34be38",
+   "name": "战争债券",
+   "type": "order"
+  },
+  {
+   "hash": "7ffcfffd7ff97fddbfdfbfd75ffecff695dafd9afd1d6d3f7daebdae25e9e6d1",
+   "name": "我们能做到！",
+   "type": "order"
+  },
+  {
+   "hash": "75cb3fbdffebffd5ffd9fff9ffb9dfd19798979cff8bf7abff5dfff07fdebf9c",
+   "name": "陆军工程兵团",
+   "type": "order"
+  },
+  {
+   "hash": "7bb4cfa99deac1e45d72fce6edbcdffeddacfbc4fba4b9f0fba4bf30fd34fb38",
+   "name": "战争债券",
+   "type": "order"
+  },
+  {
+   "hash": "7de07f80ff60ff60fd60ff40ff40bc003b00b910f9c0f9c0f900fe107d90798c",
+   "name": "陆军工程兵团",
+   "type": "order"
+  },
+  {
+   "hash": "faa0f6c0fde0fdc0fb40fc40ff409f00aec09b40f580fc80fcc0fd00fbb8fb8c",
+   "name": "战争债券",
+   "type": "order"
+  },
+  {
+   "hash": "64c2de90f582f580f5c0f400ac80c5a691e490cadf96dc95fc86f6d0e772ee20",
+   "name": "战争机器",
+   "type": "order"
+  },
+  {
+   "hash": "64c2de90fc82f580f5c0f400ac80c5a691e490cadf96de95fc86f6d0e732ee20",
+   "name": "战争机器",
+   "type": "order"
+  },
+  {
+   "hash": "57cacf4eb3cd939a4392fb24fa2dd3357231f28c520653a0fd80b8443c463898",
+   "name": "战争机器",
+   "type": "order"
+  },
+  {
+   "hash": "64c0da90f5c0f580f5c0f500fd0095e297c590dadf85dd95fdccf6d0ef64ee48",
+   "name": "战争机器",
+   "type": "order"
+  },
+  {
+   "hash": "98c0d8e0ded0dc907a205300e7c0c7c0c162db128b068b2a932acb80bc4038b0",
+   "name": "兰开斯特 Mk I",
+   "type": "bomber"
+  },
+  {
+   "hash": "64c2de90f720d620d728d620ac8085f099e098f296ca83c290d294c4e720ee38",
+   "name": "兰开斯特 Mk I",
+   "type": "bomber"
+  },
+  {
+   "hash": "64c0de90f720d620d738d620ac809de099e098f296ca83c294d296c4e760ee38",
+   "name": "兰开斯特 Mk I",
+   "type": "bomber"
+  },
+  {
+   "hash": "28409ce09ae0d6d0dcc07a0053c0cfc0d1c2cd729b168f0a932ad380bcc038b0",
+   "name": "兰开斯特 Mk I",
+   "type": "bomber"
+  },
+  {
+   "hash": "31c62184abe52d84de88ddc08f3091b0db503c4ab032adaef9a4fd90fc10cd33",
+   "name": "大西洋护航队",
+   "type": "order"
+  },
+  {
+   "hash": "69d2cfc2b70b8f4a4736e652e42ec43a941ea476c52af1a0f580f448e18e5582",
+   "name": "第 506 空降步兵团",
+   "type": "infantry"
+  },
+  {
+   "hash": "ecc0dc20911013104b901910fd002fc04bc64be0f8a8f04af932fb82fc706c4c",
+   "name": "大西洋护航队",
+   "type": "order"
+  },
+  {
+   "hash": "6690de88d8c558c655a55e84ee8027d02db82578de2afa1efe86bce0be9c3633",
+   "name": "大西洋护航队",
+   "type": "order"
+  },
+  {
+   "hash": "6dc0dc20999051105b105510fd00cde0dbc0c08cf922f11efd2cf9c0fd682c44",
+   "name": "第 506 空降步兵团",
+   "type": "infantry"
+  },
+  {
+   "hash": "62a0df88fee0fac0f2e0fa80ef10074c27b805960bce0d8321aa3182fe943699",
+   "name": "第 142 步兵团",
+   "type": "infantry"
+  },
+  {
+   "hash": "e780d920f180f500f580f500fc406f800b620b184330130a632a2b02fd506c64",
+   "name": "第 142 步兵团",
+   "type": "infantry"
+  },
+  {
+   "hash": "ebc4cfc685038b485b36bc523c2ebc3abc5efd6aedaaeda0fda4fc1cfc1ccd27",
+   "name": "第 506 空降步兵团",
+   "type": "infantry"
+  },
+  {
+   "hash": "c6c0cfc8b1469302833283528f5ac93ad332778cb584c5a4f580f470e04c549c",
+   "name": "沙漠之鼠",
+   "type": "order"
+  },
+  {
+   "hash": "b501f480c400d5009480d500e6204e804f994b2d07ad63287718fb11f4c1b0b8",
+   "name": "沙漠之鼠",
+   "type": "order"
+  },
+  {
+   "hash": "51e0cfc8998edb12033a83568dcad13ec3715f8c768477a47fa4f764bb173293",
+   "name": "沙漠之鼠",
+   "type": "order"
+  },
+  {
+   "hash": "5f384fc4bf4c7e48be547f48ff90bfb8febafe33fc33fc9cfc50bf7a1fe4edca",
+   "name": "第 5 步兵旅",
+   "type": "infantry"
+  },
+  {
+   "hash": "6b62db10d638d4b0d698d630b888d1a893a680ce80c298d294d2f6c4ff48b76e",
+   "name": "第 5 步兵旅",
+   "type": "infantry"
+  },
+  {
+   "hash": "c6d0cfc0954e0f2e039e838ec722e362c382732a52aa59a0fd80bc90dcdcd4cc",
+   "name": "第 5 步兵旅",
+   "type": "infantry"
+  },
+  {
+   "hash": "d7cce7e08980d1c0c562d9529b168fca8b2a952a9b88d3a0bfe4e5c4eee1ce92",
+   "name": "兰开斯特 B.III",
+   "type": "bomber"
+  },
+  {
+   "hash": "6a5e86eb17fe7fb21fb2bbbaebf5ebfea7fc8fcea5e181a5b9c479d439e43ecc",
+   "name": "第一响应",
+   "type": "countermeasure"
+  },
+  {
+   "hash": "d1fca5fc8dda8fc685f8a5e389a581a55154b9eca9d479f87dee39e4b6c41ecc",
+   "name": "第一响应",
+   "type": "countermeasure"
+  },
+  {
+   "hash": "53eccfc6914ed95c830c8bac95a499147526f58e75aa0390f5903c343c945ccc",
+   "name": "最光辉的时刻",
+   "type": "order"
+  },
+  {
+   "hash": "65143c00e640c646d764c640a681b4e451ec908cb1c45084dd4caec0ad502e5c",
+   "name": "最光辉的时刻",
+   "type": "order"
+  },
+  {
+   "hash": "35c4bc00f9c0f942f146dd48dd98df10bd881d488d288f288da88cc8fa80a5a0",
+   "name": "乍得行进团",
+   "type": "infantry"
+  },
+  {
+   "hash": "1fe7bfe77ff3ffb3efb3f783afcace62c722e632c756d74ab6c23fc41ed51e69",
+   "name": "第一响应",
+   "type": "countermeasure"
+  },
+  {
+   "hash": "7ee23fe27fe2ffb3dfbbdfab5fcb1ee38f8296328d32af4af6427fe43ef436e9",
+   "name": "第一响应",
+   "type": "countermeasure"
+  },
+  {
+   "hash": "962ad3e8ff8defcdefade9cdfde6cdcc93488308930df344fb147bd0ff59f7b2",
+   "name": "最光辉的时刻",
+   "type": "order"
+  },
+  {
+   "hash": "f644f662f602da82da82b8807c803480340eb206b201f4097806f804fd0cf186",
+   "name": "最光辉的时刻",
+   "type": "order"
+  },
+  {
+   "hash": "b2424f00f8e0fca1f8a3fca4eecc8f2a366c9e688d848d84fd60ff00fd20ba50",
+   "name": "瓦伦丁 Mk II",
+   "type": "tank"
+  },
+  {
+   "hash": "5bc0e5b0e5a8a5a8e5b0e7b0c7f0c51cc11e9919b330b12af1aa79a8fa32b633",
+   "name": "剑鱼 Mk I",
+   "type": "bomber"
+  },
+  {
+   "hash": "9d13ae00ee98e6d8fa98eed0e698bc102d981c999b104a10e9946e08f8c1d4b0",
+   "name": "瓦伦丁 Mk II",
+   "type": "tank"
+  },
+  {
+   "hash": "fe9bffb9ff35ffb1bf30ffb09ee05ed006f08eddd69d8eb9c6a187b0fe74fa4c",
+   "name": "乍得行进团",
+   "type": "infantry"
+  },
+  {
+   "hash": "fbaa8fea89cc09d903a18f398d398339dfd97faabff0aff0b1e957effd097cd6",
+   "name": "第 4 旅",
+   "type": "infantry"
+  },
+  {
+   "hash": "79c8efd89d5aa572d3740b6c8fcc9d1c8358d32af32a2184fd90a618b32e5830",
+   "name": "P-40 小鹰",
+   "type": "fighter"
+  },
+  {
+   "hash": "75aacf2295ccadca83a28b329d3a83389752c4d8c72a0de2f580fcc08ce0e4c8",
+   "name": "第 4 旅",
+   "type": "infantry"
+  },
+  {
+   "hash": "3aa8fd70f94cf91cf958fa0cfbcc8f348d308336c1328b4ac3aac3b0ed96ea14",
+   "name": "乍得行进团",
+   "type": "infantry"
+  },
+  {
+   "hash": "68c0dc00e462e5323d10f520fe20c6a093e081c490809ca6fd1afeccff60d464",
+   "name": "哈奇开斯 H35",
+   "type": "tank"
+  },
+  {
+   "hash": "9ef69fecffa8ff6bffcbfff8fff8cfd09a511e5182dbd3dbcfa9c779fbb5ff70",
+   "name": "乍得行进团",
+   "type": "infantry"
+  },
+  {
+   "hash": "d5a4b510cd206931e938ad08fa20cb408f8003c4c340e14ef52af98cf4c0b0e4",
+   "name": "哈奇开斯 H35",
+   "type": "tank"
+  },
+  {
+   "hash": "5fcd0f841b823d22fc01bca2fd0371807340fb48fb52bd017f013f021e869f46",
+   "name": "第 5 步兵旅",
+   "type": "infantry"
+  },
+  {
+   "hash": "62c0fa00f182f542f420f580ff20dee0a6a09de0f548d540e660f640fa64f0e2",
+   "name": "迪勒计划",
+   "type": "order"
+  },
+  {
+   "hash": "ee6cffa1eb12eb92eac6eb90ffe237dc2cd422f8feaaffacfecebeccfeccfe19",
+   "name": "迪勒计划",
+   "type": "order"
+  },
+  {
+   "hash": "6d5c87fb3fff7ffc3ffefffddffe7ffecfbc95bc6cdd7d49bdacfdde3dd93ef9",
+   "name": "迪勒计划",
+   "type": "order"
+  },
+  {
+   "hash": "ed60ff40fe60fe40fe50ff40ff819e01ae881c808c48db80fe00fd80fed8f81a",
+   "name": "哈奇开斯 H35",
+   "type": "tank"
+  },
+  {
+   "hash": "7b2c7e28fc29fcecfc28fe308b3887bc83bcbeddfe48fb6cf9deb79cdd149933",
+   "name": "迪勒计划",
+   "type": "order"
+  },
+  {
+   "hash": "fd20f9a0f1a0f3a4e9a0e5c0edc4cfdcc118d51e9130e908e9aab5807456e89d",
+   "name": "剑鱼 Mk I",
+   "type": "bomber"
+  },
+  {
+   "hash": "6cd2f6d0e3d6c2d2e2d2fa9cfe6277e067aa59b445ac45c839aaeb94fe9c6a50",
+   "name": "P-40 小鹰",
+   "type": "fighter"
+  },
+  {
+   "hash": "bdace780f587f394f4b4f8a1fdc4cff0911cdd0e99327fa8f5aaa780feaab48b",
+   "name": "剑鱼 Mk I",
+   "type": "bomber"
+  },
+  {
+   "hash": "fdfac7f491d8d5e0c5f2d951999e8fca8daa85aac9e859f0fdecffe7ffe7fee7",
+   "name": "兰开斯特 B.III",
+   "type": "bomber"
   }
  ]
 }

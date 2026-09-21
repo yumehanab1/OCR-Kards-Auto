@@ -45,6 +45,22 @@ if hasattr(sys.stderr, "reconfigure"):
 
 import cv_io  # noqa: E402,F401  (开关:让 cv2 认中文路径,见 cv_io.py)
 from actions import click  # noqa: E402
+# ★★★ 2026-09-21 深夜(实机抓到的**按下前就存在**的 bug):
+#   `click_template()` 的失败分支里写了
+#       `_why = actions_mod.take_input_error() or "原因读不出"`
+#   而 `actions_mod` 这个名字**只在 `main()` 函数体里** import 过
+#   (`import actions as actions_mod`,见本文件末尾)。
+#   `click_template` 是 Controller 的方法,作用域里根本没有这个名字 ——
+#   于是**只要有一次点击失败**,这一行就抛 `NameError`,异常一路冒到
+#   `main()` 的兜底 except -> **整个引擎当场退出**。
+#   实机判据(2026-09-21 21:29:31,run#9):
+#       [deck_select] -> click casual_mode_btn at screen(-703,962) match=1.000
+#       💥 未捕获异常 … NameError: name 'actions_mod' is not defined
+#   讽刺的是:v0.1.6 专门做了"点击失败要软着陆、不许把引擎带走"(§7 那条),
+#   结果**软着陆的那一行自己先崩** —— 等于那条修复只覆盖了"click() 返回 False"
+#   之前的路径,没覆盖"要报原因"这一步。
+#   ⇒ 在模块顶层 import 一次(函数里那次保留,免得动到别处的写法)。
+import actions as actions_mod  # noqa: E402
 from turn_engine import END_TURN_MIN_SCORE, TurnEngine  # noqa: E402
 from ui_state import classify, load_meta, load_states, load_templates, match_one  # noqa: E402
 from win import (  # noqa: E402
@@ -66,6 +82,75 @@ LOG = os.path.join(PROJECT_ROOT, "logs", "main_loop.log")
 COOLDOWN_AFTER_CLICK = 2.5
 BLANK_TOLERANCE = 6          # consecutive blank frames before we pause acting
 QUEUE_TIMEOUT_MIN = 12       # queueing longer than this -> click cancel
+
+# ---- 2026-09-21 深夜(用户提议)**打完一局之后的"补点窗口"** ----
+#  ★★ 为什么还要这个东西 —— 上面那套 `dismiss` 有一个盖不住的洞:
+#    `dismiss` **全项目只有一处置 True**(`finish_round()`),而它只在
+#    `handle_victory()` / `handle_defeat()` 里被调。可是打完一局真正停住的那一屏
+#    **既不是 victory 也不是 defeat**(实测状态是 `None`,一个模板都没命中)——
+#    于是 `handle_victory` 根本没跑 ⇒ `dismiss` 永远是 False ⇒ 主循环落到
+#    `else: time.sleep(2)`(未知画面那条分支**只会睡、不会点**)⇒ 永久空转、一下不点。
+#    实机两次复现(2026-09-21):成就弹窗「歼灭」20/30 空转 90+ 秒、
+#    段位弹窗「7」+进度条 空转 150+ 秒,`跳过点击` / `-> click` 都是 **0 次**。
+#  ★ 用户的提议(2026-09-21):*"识别到对局结束就每秒点一次持续十秒"* ——
+#    它绕开了整套 dismiss 判据:**不依赖状态识别、不依赖帧差、不怕未知画面**,
+#    只要"这一局结束了"这个事实成立就照点 10 下。这正是上面那个洞要的解药。
+#: ★ 点哪儿 —— **用户 2026-09-21 指定"安全点可以复用主页面的开始位置"**。
+#:  也就是说:结算/弹窗那一屏上,点**主界面「开始」按钮所在的那块位置**是安全的
+#:  (那儿在结算页上没有真按钮,所以点下去最多是"没反应",不会误触发别的功能)。
+#:
+#:  坐标怎么来的(不是拍的):
+#:    · `config\templates.json` 里 `casual_mode_btn.region` = (1165,547,105,33)
+#:      -> 中心 **(1217,563)**;
+#:    · 我又拿现成的**真实主界面帧**在客户区 1280x720 上跑了一次
+#:      `match_one`(score=1.000),实测 region=(1165,542,105,33)
+#:      -> 中心 **(1217,558)**。
+#:    两者差 5px(模板匹配的正常偏差),取 **558**(实测值)。
+#:  ★ 为什么不用原来那四个角:用户明确说了复用开始位置;而且四角在实测里
+#:    **连续 3 次画面不动**(见 `DISMISS_STUCK_NOTE`),说明那几处对这一屏不生效。
+#:  ★ 抖动 ±25/±15 与 `click_center` 一致 —— 固定一个像素点容易正好落在
+#:    "没反应的那一格"上,抖动留出余量(但不越界,见下面的 min/max 夹取)。
+POST_MATCH_POINT = (1217, 558)
+#: 抖动幅度(客户区像素),与结算页那套保持一致。
+POST_MATCH_JITTER_X = 25
+POST_MATCH_JITTER_Y = 15
+#: 总开关(A/B 回退:False = 完全退回老行为,一行都不点)。
+POST_MATCH_CLICKS = True
+#: 点几下 / 间隔多久 —— 用户指定"每秒一次、持续十秒"。
+POST_MATCH_CLICK_N = 10
+POST_MATCH_CLICK_GAP = 1.0
+#: ★ 点哪儿 = **复用结算页那四个角**(`dismiss_points`,左上→右上→左下→右下轮换)。
+#:  用户说"安全点我后续给你",所以这一版**先用已经过实测的四个角**,
+#:  等他给了具体坐标,改这一个函数就够了(别在别处再写死坐标)。
+#: 为什么轮换而不是固定一个点:四个角都离屏幕中心最远(用户两次实测"点中心不生效"),
+#:  轮换能容忍"某一个角在某些页面上不响应"。
+#: ★ 与 `dismiss` 的关系:补点窗口跑完就**交回**给主循环 ——
+#:  如果画面已经变回已知状态,`dismiss` 那套会照常收工;没变就一 tick 一 tick 继续
+#:  (那时 `dismiss` 若为 True,由它接手后续的重试)。
+#:
+#: ★★ 补充(2026-09-21 深夜,当场想到的一个洞):上面那套只在
+#:   `finish_round()` 之后才开窗口。可是**引擎启动时画面就已经停在弹窗上**时,
+#:   `finish_round()` 根本没跑过 ⇒ 窗口是 0 ⇒ 还是"只睡不点"。
+#:   ⇒ 再加一条兜底:一个已知状态都认不出、连续 `UNKNOWN_CLICK_AFTER` 秒都是
+#:     `None` -> 也开一次补点窗口。
+#:
+#: ★★★ 2026-09-21 深夜**实机把它否掉了,判据收紧**(用户原话:
+#:   *"他现在每回合都要点十下"*)—— 第一版只按 `UNKNOWN_CLICK_AFTER=10s` 触发,
+#:   结果**对手回合**也在触发:对手回合引擎本来就不动手,画面很容易
+#:   `state -> None` 超过 10 秒。实测一局里在 22:54:37 / 22:55:19 连开两次,
+#:   全是**对局中途**,白点 20 下。
+#:   ⇒ 收紧成:**只有"这一局已经见过 victory/defeat"之后,才允许兜底触发**
+#:     (`_saw_round_result`,在 `finish_round()` 里置 True)。
+#:     理由:`finish_round()` 就是"这一局结束了"的**唯一权威判据** ——
+#:     对局中途无论认不出多久,都不该走这条路。
+#:   ★ 这样"启动时画面就停在弹窗上"那种情形还盖得住吗?**盖得住**:
+#:     那种情形下引擎会一直在那一屏空转(我们实测 90~150 秒),而
+#:     `--max-rounds` 没达标时它会一直转下去;此时 `_saw_round_result` 是 False,
+#:     所以**兜底不触发** —— 这正是我们要的:不动手,但也不乱点。
+#:     (真想让"冷启动就卡在弹窗上"也自动跳,得另给一条更可靠的判据,
+#:      不能靠"认不出多久"这一个量 —— 见 §一③ 的记录。)
+UNKNOWN_CLICK_AFTER = 10.0
+
 
 # ---- 2026-09-21(M3/M5)结算页:判据从"点了几次"改成"画面变了没有" ----
 #: 尾部页最多"快"点几次 —— 用尽后**不是放弃**,而是转成慢速退避重试(见
@@ -172,6 +257,20 @@ class Controller:
         # ★ 2026-09-21:"提前停手、改走慢速"那条 ⚠️ 只许打一次(这个分支每次 tick
         #   都会被走到,不加这个开关就是每 tick 一条,日志会被刷掉)。
         self._dismiss_slow_said = False
+        # ★★ 2026-09-21 深夜:"打完一局之后的补点窗口"(见 POST_MATCH_CLICKS 那段)。
+        #   `_post_clicks_left` = 还剩几下要补;`_post_click_last` = 上一下的时间。
+        #   为什么不用"结束时刻 + 10 秒"算区间:主循环一个 tick 里可能睡好几段,
+        #   用"剩余次数"记账更稳,而且日志里能直接看出"还差几下"。
+        self._post_clicks_left = 0
+        self._post_click_last = 0.0
+        self._post_clicks_done = 0
+        # ★ 未知画面连续持续了多久(用于上面那条兜底)。
+        #   一旦认出任何已知状态就归零 —— 加载/过场造成的短暂 None 不该触发。
+        self._unknown_since = None
+        # ★★★ 2026-09-21 深夜:`finish_round()` 跑过没有 —— **"这一局结束了"的
+        #   唯一权威判据**。上一条兜底必须靠它把关,否则"对手回合"也会被误判成
+        #   "对局结束"(实机:一局里白点 20 下,用户报"每回合都要点十下")。
+        self._saw_round_result = False
 
     # ---- capture & classify ----
     def grab_frame(self):
@@ -394,7 +493,77 @@ class Controller:
         # level-up / quest-complete screens follow; dismiss with any-click.
         self.dismiss = True
         self.dismiss_tries = 0
+        # ★★ 2026-09-21 深夜(用户提议):**开一个 10 下的补点窗口**。
+        #   为什么不靠 `dismiss` 就够:见 `POST_MATCH_CLICKS` 那段 ——
+        #   打完一局真正停住的那一屏不是 victory/defeat(状态是 None),
+        #   而 `dismiss` 的置起在前一行、`tick_dismiss` 又只在 `self.dismiss` 为真时跑,
+        #   一旦那一屏让 `handle_victory` 没被调到,就再也没有任何点击。
+        #   这个窗口**不依赖状态识别**,所以盖得住它。
+        self._post_clicks_left = POST_MATCH_CLICK_N if POST_MATCH_CLICKS else 0
+        self._post_clicks_done = 0
+        self._post_click_last = 0.0     # 0 = 下一 tick 立刻点第一下
+        # ★ 标记"这一局已经结束过" —— 下面那条兜底要靠它把关(见常量区的说明)。
+        self._saw_round_result = True
+        if self._post_clicks_left:
+            log(f"[post_match] 对局结束 -> 开 {POST_MATCH_CLICK_N} 下补点窗口"
+                f"(每 {POST_MATCH_CLICK_GAP:.1f}s 一下,四个角逐次轮换)"
+                f" —— 不依赖状态识别,认不出的结算/弹窗也照点(见 POST_MATCH_CLICKS)")
         time.sleep(2.5)
+
+    def _post_match_clicking(self) -> bool:
+        """
+        打完一局之后的补点窗口:每秒点一下、点够 `POST_MATCH_CLICK_N` 下。
+
+        返回 True = 补点还没做完(主循环这一 tick 不要干别的,继续让它点)。
+        返回 False = 做完了(或没开),主循环照常走。
+
+        ★ 为什么它必须存在:`dismiss` 只在 `finish_round()` 里置 True,
+          而打完一局真正停住的那一屏状态是 `None`(不是 victory/defeat),
+          于是主循环落到"未知画面 -> 只睡不点"那条分支,永久空转。
+          实机两次复现(成就弹窗 90+ 秒 / 段位弹窗 150+ 秒,点击 0 次)。
+
+        ★ 点的位置:**主页面的「开始」按钮那一块**(`POST_MATCH_POINT`)——
+          用户 2026-09-21 指定的安全点。固定在同一个位置 + 抖动,
+          **不再用那四个角**(实测那几处连点 3 次画面都不动,对这一屏不生效)。
+          以后要换点,只改 `POST_MATCH_POINT` 一处。
+        """
+        if self._post_clicks_left <= 0:
+            return False
+        now = time.time()
+        if now - self._post_click_last < POST_MATCH_CLICK_GAP:
+            time.sleep(0.2)
+            return True
+        frame = self.grab_frame()
+        if frame is not None and getattr(frame, "shape", None) and len(frame.shape) >= 2:
+            fh, fw = int(frame.shape[0]), int(frame.shape[1])
+        else:
+            fw, fh = 1280, 720
+        # ★ 固定点 + 抖动(夹在客户区内,别越界 —— 越界会被 SetCursorPos 静默夹回,
+        #   那会让"右上/右下"变成同一个点,日志却照样说点过了;见 click_center 那段)。
+        bx, by = POST_MATCH_POINT
+        if bx > fw or by > fh:            # 兜底:窗口变小了(实测出现过 1024x576)
+            bx, by = int(fw * 0.95), int(fh * 0.78)
+        cx = min(fw - 10, max(10, bx + random.randint(-POST_MATCH_JITTER_X,
+                                                     POST_MATCH_JITTER_X)))
+        cy = min(fh - 10, max(10, by + random.randint(-POST_MATCH_JITTER_Y,
+                                                     POST_MATCH_JITTER_Y)))
+        self._post_clicks_left -= 1
+        self._post_clicks_done += 1
+        n_done = self._post_clicks_done
+        log(f"[post_match] 补点 {n_done}/{POST_MATCH_CLICK_N} "
+            f"client({cx},{cy})/{fw}x{fh}(开始按钮那块安全点;"
+            f"对局已结束,这一下不依赖状态识别)")
+        if not self.dry:
+            try:
+                sx, sy = self.client_to_screen(cx, cy)
+                click(sx, sy)
+            except Exception as e:      # 补点失败绝不许弄崩主循环(§7 第 57 条)
+                log(f"[post_match] 这一下没点成:{type(e).__name__}: {e}")
+        self._post_click_last = time.time()
+        if self._post_clicks_left == 0:
+            log(f"[post_match] {POST_MATCH_CLICK_N} 下补点用完 -> 交回主循环"
+                f"(画面若已变回已知状态,`dismiss` 那套会照常收工)")
+        return True
 
     # ---- dismiss tail screens (level-up / quest progress) ----
     #: 结算之后那些"任意点击跳过"的尾巴页 —— **点哪儿有效是实测出来的**。
@@ -730,6 +899,28 @@ class Controller:
             if self.max_ticks and ticks > self.max_ticks:
                 log(f"max_ticks reached ({self.max_ticks}), stopping")
                 break
+            # ★★ 2026-09-21 深夜:把 `--max-rounds` 的闸**挪到循环最上面**,
+            #   但加一个条件:**补点窗口没做完就先别停**。
+            #   为什么必须加这个条件:用户要的东西正是"对局结束后每秒点一次、
+            #   持续十秒",而 `finish_round()` 是在**点按钮那一下**就把
+            #   `round_count` +1 的 —— 闸在最上面的话,`--max-rounds 1`
+            #   会在**第一下补点之前**就退出,那十下一下都跑不到(实测 run#7:
+            #   5 行、2 秒退出,`[dismiss]`/`[post_match]` 一行都没有)。
+            #   所以这里的口径是:**先把补点窗口跑完,再执行 max_rounds 退出**。
+            #   ★ 循环里原来那道闸(下面 `if self._max_rounds_hit(): break`)照旧保留,
+            #     两条路径都还要过 —— 这里只是"补点没做完时不许提前停"。
+            #   ★★★ 2026-09-21 深夜(**顺序有讲究,踩过一次**):
+            #     必须先把 `_post_clicks_left <= 0` 写在**左边**。
+            #     原先写的是 `_max_rounds_hit() and self._post_clicks_left <= 0` ——
+            #     Python 的 `and` 先算左边,于是**补点期间每一 tick 都会调
+            #     `_max_rounds_hit()`**,而那个函数一判到就 log
+            #     ⇒ 实机 run#11 / run#12 各刷出 **40 多行 `max_rounds reached, stopping`**,
+            #       而引擎一下都没停(它正要跑完那十下)。
+            #     "日志说停、实际没停"是这个项目最忌讳的东西 —— 所以这不是
+            #     "少打一行"的问题,是**判据和事实不一致**。
+            #   ★ 循环里原来那道闸(下面 L1041 那处)照旧保留,两条路径都要过。
+            if self._post_clicks_left <= 0 and self._max_rounds_hit():
+                break
             frame = self.grab_frame()
             if frame is None:
                 log("KARDS window not found - waiting")
@@ -778,6 +969,53 @@ class Controller:
                 last_state_log = state
             self.current_state = state
 
+            # ★★ 2026-09-21 深夜(用户提议):**打完一局的补点窗口**。
+            #   放在 `dismiss` 之前 —— 它是"对局刚结束"这件事的直接反应,
+            #   不依赖状态识别,所以优先于需要状态/帧差判据的 `dismiss`。
+            #   ★ 它自己做完就返回 False 交回主循环,不会永久占着。
+            #   ★★ 兜底(见 `UNKNOWN_CLICK_AFTER` 那段):一个已知状态都认不出、
+            #      持续够久 -> 也开一次窗口。这一条盖的是"引擎启动时画面就已经
+            #      停在结算/弹窗上"——那种情况 `finish_round()` 从没跑过,
+            #      上面那条路永远不开窗口,于是还是"只睡不点"。
+            if state:
+                self._unknown_since = None
+            else:
+                if self._unknown_since is None:
+                    self._unknown_since = time.time()
+                elif (POST_MATCH_CLICKS and self._post_clicks_left <= 0
+                        and not self.dismiss
+                        # ★★★ 2026-09-21 深夜(**必须**):只有"这一局已经结束过"
+                        #   才允许这条兜底。否则**对手回合**也会中招 ——
+                        #   对手回合引擎不动手,画面很容易 `state -> None` 超过 10s,
+                        #   实测一局里白点了 20 下(用户报"每回合都要点十下")。
+                        and self._saw_round_result
+                        and time.time() - self._unknown_since >= UNKNOWN_CLICK_AFTER):
+                    log(f"[post_match] 认不出的画面已经持续 "
+                        f"{time.time() - self._unknown_since:.0f}s"
+                        f"(>= {UNKNOWN_CLICK_AFTER:.0f}s,且这一局已经结束过)"
+                        f"-> 按'对局已结束'处理,开 {POST_MATCH_CLICK_N} 下补点窗口"
+                        f"(不依赖状态识别;见 POST_MATCH_CLICKS)")
+                    self._post_clicks_left = POST_MATCH_CLICK_N
+                    self._post_clicks_done = 0
+                    self._post_click_last = 0.0
+                    self._unknown_since = time.time()   # 别每 tick 重复开
+
+            if self._post_match_clicking():
+                # ★ `_post_match_clicking()` 返回 True 有两种情况:
+                #   ① 补点还有剩(`_post_clicks_left > 0`)—— 我们**故意不停**,
+                #      所以这里不调 `_max_rounds_hit()`(它一判到就 log,
+                #      会在没停的时候刷出几十行"stopping";run#11 实测 40+ 行)。
+                #      让它 `continue`,下一 tick 接着点。
+                #   ② 这一 tick 刚好点完最后一下(返回 True 但剩 0)——
+                #      这时才该问"要不要停",并且**允许它 log**(确实要停了)。
+                if self.max_ticks and ticks > self.max_ticks:
+                    break
+                if self._post_clicks_left > 0:
+                    continue
+                if self._max_rounds_hit():
+                    break
+                continue
+
             # Dismiss tail screens (level-up/quest) first.
             if self.dismiss:
                 busy = self.tick_dismiss(state)
@@ -802,12 +1040,21 @@ class Controller:
                 # unknown screen: wait, log only on change
                 time.sleep(2)
 
-            if self._max_rounds_hit():
+            # ★★★ 2026-09-21 深夜(**实机抓到的第二个 bug**):这道闸也要加
+            #   `_post_clicks_left <= 0` 的条件,和循环最上面那道(L912)一致。
+            #   为什么:run#10 实测 —— `handle_state()` 里点完 `defeat_btn` ->
+            #   `finish_round()` 开了 10 下补点窗口,但**同一 tick 继续往下走**
+            #   就撞到这道闸:**窗口刚开、一下都还没点,引擎就退出了**
+            #   (22:56:08 开窗口 -> 22:56:10 `max_rounds reached, stopping`)。
+            #   用户原话:*"到了对局结束的时候他又不点"* —— 就是这一行。
+            #   ⇒ 口径统一成一句:**补点窗口没跑完,任何一道 max_rounds 闸都不许停。**
+            #   ★ 顺序同上:`_post_clicks_left <= 0` 必须在**左**(见 L912 那段)。
+            if self._post_clicks_left <= 0 and self._max_rounds_hit():
                 break
             time.sleep(0.8)
         return 0
 
-    def _max_rounds_hit(self) -> bool:
+    def _max_rounds_hit(self, do_log: bool = True) -> bool:
         """
         `--max-rounds` 该不该停?(2026-09-21 M6)
 
@@ -816,9 +1063,20 @@ class Controller:
         老写法把这段判据写在循环末尾,**dismiss 那条 `continue` 绕过了它**。
         ★ 数的是"打完一整局"(`finish_round` 里 +1),不是回合数 ——
           帮助文本已经写明(见 `--max-rounds` 的 help)。
+
+        ★★★ 2026-09-21 深夜:`do_log=False` 是**补点窗口期间**专用的。
+          为什么必须加:补点窗口那十下我们**故意不停**(要先把十下点完),可
+          `_max_rounds_hit()` 在一个 tick 里会被调 3 次(顶部闸 / 补点分支 / 末尾闸),
+          它每次都 log —— 实机 run#11 把 `max_rounds reached, stopping`
+          **打了 40 多行,而引擎一下都没停**。
+          ⇒ 那就是"日志说了一件事、引擎做了另一件事",这个项目最忌讳这个
+            (§7:"我说修好了,先问哪一帧能证明")。
+          所以:**判到但不打算停**时由调用方传 `do_log=False`,
+          "要停"这个事实只在**真的停的那一刻**说一次。
         """
         if self.max_rounds and self.round_count >= self.max_rounds:
-            log("max_rounds reached, stopping")
+            if do_log:
+                log("max_rounds reached, stopping")
             return True
         return False
 
