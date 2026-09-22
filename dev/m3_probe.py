@@ -5,7 +5,7 @@ Moves the real mouse across the hand, hovers each card, reads type icon
 (template match) + cost (OCR). Prints the hand. Does NOT deploy anything.
 
 Usage: run while it's YOUR turn with cards in hand.
-  .venv\\Scripts\\python.exe src\\m3_probe.py
+  .venv\\Scripts\\python.exe dev\\m3_probe.py
 """
 
 from __future__ import annotations

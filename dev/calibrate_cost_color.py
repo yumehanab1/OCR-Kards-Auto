@@ -19,7 +19,7 @@ calibrate_cost_color.py - 用"回合开始 / 回合结束"的对照帧,标定"�
 1. 先跑 `turn_sampler.py` 采若干回合的 start/end 帧。
 2. 跑本脚本:
    ```
-   .venv\\Scripts\\python.exe src\\calibrate_cost_color.py
+   .venv\\Scripts\\python.exe dev\\calibrate_cost_color.py
    ```
    它会:
      - 打印每个回合里"配对上的卡"在 start/end 两帧的饱和度值

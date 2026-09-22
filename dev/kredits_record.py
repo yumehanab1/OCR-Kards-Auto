@@ -5,7 +5,7 @@ kredits_record.py - 录制 Kredits 数字字形,用于建模板库(只读,不动
 直接失败),所以精确读费用只能靠模板匹配,而模板必须来自真实截图。
 
 用法(建议在你在对局里正常玩的时候后台跑):
-  .venv\\Scripts\\python.exe src\\kredits_record.py --seconds 600
+  .venv\\Scripts\\python.exe dev\\kredits_record.py --seconds 600
 
 它会每 0.5 秒抓一次左下角费用数字区,把数字字形切出来做归一化,
 字形一变就存一张新样例。打完一局后按屏幕上出现的顺序给出 序号 → 值 的对照表,

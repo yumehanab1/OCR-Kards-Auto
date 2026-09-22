@@ -12,7 +12,7 @@ scan_fast 会在布局表不可信时自动回退盲扫。回退条件有四条,
 另外验证正常路径:命中率够时就返回表里那些位置的结果,不做盲扫。
 
 用法:
-  .venv\\Scripts\\python.exe src\\scan_fast_test.py
+  .venv\\Scripts\\python.exe dev\\scan_fast_test.py
 """
 
 from __future__ import annotations
@@ -193,7 +193,7 @@ print()
 print("=" * 82)
 print("★ 惰性扫描选「哪条布局」:两个边缘都要解释得通(2026-09-13 第十个会话)")
 print("  布局表里每条都记了 left_edge 和 right_edge,而选条目以前只看左边缘。")
-print("  实测(src/edge_probe.py):扇形是**居中**的 -> 两个边缘是同一个张数的")
+print("  实测(dev/edge_probe.py):扇形是**居中**的 -> 两个边缘是同一个张数的")
 print("  两次独立测量 -> 「两边都对得上」硬得多;而容差 22 与相邻张数的间距")
 print("  (6 张 390 vs 7 张 368 = 22px)一样大,只看一边就是在重叠区里抛硬币。")
 print("=" * 82)

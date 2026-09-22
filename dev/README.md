@@ -98,6 +98,9 @@ m3_probe.py / turn_test.py / turn_planner.py / hover_probe.py / ocr_lines_debug.
 vision_ask.py            调视觉模型看图（**需要联网和 API key**，只在调试时用，生产链路不用）
 ```
 
+> 注意：`hand_calibrate.py` 和 `watch_log.py` 实际位于 `src\\`，对应入口是
+> `src\\hand_calibrate.py` 与 `src\\watch_log.py`；上面的其它脚本才位于 `dev\\`。
+
 ## 一次性脚本的处理方式
 
 带 `_probe` / `_diag` / `_timing` 后缀的大多是为某一次排查写的，能复用就留着，

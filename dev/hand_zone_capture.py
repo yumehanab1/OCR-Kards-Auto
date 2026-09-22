@@ -27,7 +27,7 @@ hand_zone_capture.py - 手动框选采集手牌布局(参考 template_capture.py
   q / ESC : 退出
 
 用法(对着真实对局跑):
-  .venv\\Scripts\\python.exe src\\hand_zone_capture.py
+  .venv\\Scripts\\python.exe dev\\hand_zone_capture.py
 """
 
 from __future__ import annotations

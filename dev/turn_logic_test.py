@@ -13,7 +13,7 @@ It monkeypatches everything that touches the real world:
   - _current_kredits     -> scripted Kredits readout (None = unreadable)
 
 Usage:
-  .venv\\Scripts\\python.exe src\\turn_logic_test.py
+  .venv\\Scripts\\python.exe dev\\turn_logic_test.py
 """
 
 from __future__ import annotations

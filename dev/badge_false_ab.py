@@ -22,8 +22,8 @@
   · **多出来的必须是 0**(守卫只做减法)。
 
 用法:
-  .venv\\Scripts\\python.exe src\\badge_false_ab.py --limit 200
-  .venv\\Scripts\\python.exe src\\badge_false_ab.py --limit 0      # 全量
+  .venv\\Scripts\\python.exe dev\\badge_false_ab.py --limit 200
+  .venv\\Scripts\\python.exe dev\\badge_false_ab.py --limit 0      # 全量
 """
 
 from __future__ import annotations

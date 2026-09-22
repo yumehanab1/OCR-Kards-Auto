@@ -16,8 +16,8 @@ Keys (focus on the image window):
   q / ESC   : quit
 
 Usage:
-  .venv\\Scripts\\python.exe src\\template_capture.py
-  .venv\\Scripts\\python.exe src\\template_capture.py --names a,b,c,d,e,f,g,h,i
+  .venv\\Scripts\\python.exe dev\\template_capture.py
+  .venv\\Scripts\\python.exe dev\\template_capture.py --names a,b,c,d,e,f,g,h,i
 """
 
 from __future__ import annotations

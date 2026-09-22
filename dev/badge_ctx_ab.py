@@ -22,8 +22,8 @@ badge_ctx_ab.py - 离线 A/B:**行带补检的"亮卡面"判据**,只看右边 v
 
 用法
 ----
-  .venv\\Scripts\\python.exe src\\badge_ctx_ab.py
-  .venv\\Scripts\\python.exe src\\badge_ctx_ab.py --dir shots\\attack_frames
+  .venv\\Scripts\\python.exe dev\\badge_ctx_ab.py
+  .venv\\Scripts\\python.exe dev\\badge_ctx_ab.py --dir shots\\attack_frames
 """
 
 from __future__ import annotations

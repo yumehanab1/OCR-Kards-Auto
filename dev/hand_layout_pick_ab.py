@@ -24,9 +24,9 @@ hand_layout_pick_ab.py - 只读 A/B:**布局条目该按哪条边缘挑**(老=�
 
 用法
 ----
-  .venv\\Scripts\\python.exe src\\hand_layout_pick_ab.py             # 扫 shots/scan_frames
-  .venv\\Scripts\\python.exe src\\hand_layout_pick_ab.py --glob "shots/**/*.png"
-  .venv\\Scripts\\python.exe src\\hand_layout_pick_ab.py --truth 0913_205627_scan.png=8
+  .venv\\Scripts\\python.exe dev\\hand_layout_pick_ab.py             # 扫 shots/scan_frames
+  .venv\\Scripts\\python.exe dev\\hand_layout_pick_ab.py --glob "shots/**/*.png"
+  .venv\\Scripts\\python.exe dev\\hand_layout_pick_ab.py --truth 0913_205627_scan.png=8
 
 ★ 只读:不碰窗口、不写任何东西(除了把对照图存到 shots/hand_edge_ab/)。
 """

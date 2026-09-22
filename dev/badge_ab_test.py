@@ -15,8 +15,8 @@ badge_ab_test.py - 离线对比两版**费用徽章检测器**(不需要游戏)�
   `shots/deploy_probe/f0*.png`。**结论只信干净帧。**
 
 用法:
-  .venv\\Scripts\\python.exe src\\badge_ab_test.py --set board
-  .venv\\Scripts\\python.exe src\\badge_ab_test.py --set deploy --shots
+  .venv\\Scripts\\python.exe dev\\badge_ab_test.py --set board
+  .venv\\Scripts\\python.exe dev\\badge_ab_test.py --set deploy --shots
 """
 
 from __future__ import annotations

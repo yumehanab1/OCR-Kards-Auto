@@ -15,10 +15,10 @@ cost_state_probe.py - 标定"这回合还能不能行动"的判据(只读)。
 
 用法:
   # 先框一次(在游戏里):
-  #   .venv\\Scripts\\python.exe src\\template_capture.py --names cost_num
-  .venv\\Scripts\\python.exe src\\cost_state_probe.py            # 用当前实时画面
-  .venv\\Scripts\\python.exe src\\cost_state_probe.py --frame shots/xxx.png
-  .venv\\Scripts\\python.exe src\\cost_state_probe.py --sweep shots/deploy_probe/*.png
+  #   .venv\\Scripts\\python.exe dev\\template_capture.py --names cost_num
+  .venv\\Scripts\\python.exe dev\\cost_state_probe.py            # 用当前实时画面
+  .venv\\Scripts\\python.exe dev\\cost_state_probe.py --frame shots/xxx.png
+  .venv\\Scripts\\python.exe dev\\cost_state_probe.py --sweep shots/deploy_probe/*.png
 """
 
 from __future__ import annotations
@@ -161,7 +161,7 @@ def main() -> int:
     if region is None:
         print("还没标定: config/templates.json 里没有 cost_num 的 region。")
         print("请先跑一次(在游戏里拖框):")
-        print("  .venv\\Scripts\\python.exe src\\template_capture.py --names cost_num")
+        print("  .venv\\Scripts\\python.exe dev\\template_capture.py --names cost_num")
         return 2
     print(f"cost_num 区域(用户框的): {region}")
     print(f"模板图: {crop.shape[1]}x{crop.shape[0]}" if crop is not None else "无模板图")

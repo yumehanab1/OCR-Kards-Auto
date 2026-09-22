@@ -9,7 +9,7 @@ Flow:
   5. Save images to shots/ for inspection.
 
 Usage:
-  .venv\\Scripts\\python.exe src\\diff_test.py
+  .venv\\Scripts\\python.exe dev\\diff_test.py
 """
 
 from __future__ import annotations

@@ -14,9 +14,9 @@ game_report.py - 一局(或最近 N 局)的**对账报表**(只读,不碰游戏�
 
 用法
 ----
-  .venv\\Scripts\\python.exe src\\game_report.py          # 最近 1 段 main_loop
-  .venv\\Scripts\\python.exe src\\game_report.py 3        # 最近 3 段(连跑几局后对账)
-  .venv\\Scripts\\python.exe src\\game_report.py --issues # 只打"值得查"的行(原文)
+  .venv\\Scripts\\python.exe dev\\game_report.py          # 最近 1 段 main_loop
+  .venv\\Scripts\\python.exe dev\\game_report.py 3        # 最近 3 段(连跑几局后对账)
+  .venv\\Scripts\\python.exe dev\\game_report.py --issues # 只打"值得查"的行(原文)
 
 ★ 段 = 一次 `main_loop start` 到下一次之前。**只读日志文件**,不动鼠标。
 """

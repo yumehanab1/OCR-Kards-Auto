@@ -8,8 +8,8 @@ badge_old_vs_new.py - 离线核对:**旧的"数字像素"绝对判据** vs **新
     (正是 §7 第 65 条那个坑)。所以要把**新增的**一个个切出来看图。
 
 用法:
-  .venv\\Scripts\\python.exe src\\badge_old_vs_new.py --set board+deploy+attack
-  .venv\\Scripts\\python.exe src\\badge_old_vs_new.py --set board --tiles
+  .venv\\Scripts\\python.exe dev\\badge_old_vs_new.py --set board+deploy+attack
+  .venv\\Scripts\\python.exe dev\\badge_old_vs_new.py --set board --tiles
 """
 
 from __future__ import annotations

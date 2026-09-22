@@ -13,7 +13,7 @@ badge_feat_probe.py - 给徽章候选量一组特征,用**已知为真的徽章*
     对每个样本量同一组特征,打印两类的分布,阈值就取在两类之间。
 
 用法:
-  .venv\\Scripts\\python.exe src\\badge_feat_probe.py --set board+deploy+attack
+  .venv\\Scripts\\python.exe dev\\badge_feat_probe.py --set board+deploy+attack
 """
 
 from __future__ import annotations

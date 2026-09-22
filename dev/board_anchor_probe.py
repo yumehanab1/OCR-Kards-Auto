@@ -17,8 +17,8 @@ board_anchor_probe.py - 离线对比两种"场上卡定位"锚点(不需要游�
   3. 徽章锚点会不会漏(什么情况下漏)?
 
 用法:
-  .venv\\Scripts\\python.exe src\\board_anchor_probe.py --set attack
-  .venv\\Scripts\\python.exe src\\board_anchor_probe.py --set board --shots
+  .venv\\Scripts\\python.exe dev\\board_anchor_probe.py --set attack
+  .venv\\Scripts\\python.exe dev\\board_anchor_probe.py --set board --shots
 """
 
 from __future__ import annotations

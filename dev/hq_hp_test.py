@@ -16,7 +16,7 @@ hq_hp_test.py - **离线真实帧回归**:总部血量盾牌读取(`src/hq_hp.py
 ★ 每条用例都做**留一验证**:先把这一帧自己贡献的模板原型从库里拿掉
   (`hq_hp.bank(exclude=原始帧名)`),否则分数全是 1.00,那种"验证"什么也证明不了。
 
-用法:  .venv\\Scripts\\python.exe src\\hq_hp_test.py
+用法:  .venv\\Scripts\\python.exe dev\\hq_hp_test.py
 """
 from __future__ import annotations
 

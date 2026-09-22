@@ -10,10 +10,10 @@ kredits_two_digit_test.py - 验证两位数费用(10-24)的读取路径。
 (拿字形自己的宽度当尺子)|26-10|=16 > 10*1.2=12 -> 第二个 "1" 合不进来。
 所以 10 和 12 一直是对的(第二个字形胖),这个 bug 躲过了所有抽查;
 "21"/"31" 落在容差边缘,同样不可靠。真值帧 18 张,见下面 REAL_FRAMES
-与 `src/kredits_numeral_ab.py`(全语料 612 帧 A/B:只有这批 "11" 变了,其余一张不变)。
+与 `dev/kredits_numeral_ab.py`(全语料 612 帧 A/B:只有这批 "11" 变了,其余一张不变)。
 
 用法:
-  .venv\\Scripts\\python.exe src\\kredits_two_digit_test.py
+  .venv\\Scripts\\python.exe dev\\kredits_two_digit_test.py
 """
 
 from __future__ import annotations

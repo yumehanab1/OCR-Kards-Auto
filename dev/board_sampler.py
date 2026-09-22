@@ -21,9 +21,9 @@ board_sampler.py - 只读采样战场帧,给 M4 战斗逻辑做标定用。
 ★ 每次截图前都查窗口可见性(被别的窗口盖住时抓到的是别人的画面)。
 
 用法:
-  .venv\\Scripts\\python.exe src\\board_sampler.py                    # 采 20 帧,每 6 秒一张
-  .venv\\Scripts\\python.exe src\\board_sampler.py --seconds 180 --interval 3
-  .venv\\Scripts\\python.exe src\\board_sampler.py --label our_turn    # 给这批帧打标签
+  .venv\\Scripts\\python.exe dev\\board_sampler.py                    # 采 20 帧,每 6 秒一张
+  .venv\\Scripts\\python.exe dev\\board_sampler.py --seconds 180 --interval 3
+  .venv\\Scripts\\python.exe dev\\board_sampler.py --label our_turn    # 给这批帧打标签
 """
 
 from __future__ import annotations

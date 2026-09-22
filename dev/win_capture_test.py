@@ -17,7 +17,7 @@
      PrintWindow 给真画面时不该白花那一次抓屏(用替身函数数调用次数)。
 
 用法:
-  .venv\\Scripts\\python.exe src\\win_capture_test.py
+  .venv\\Scripts\\python.exe dev\\win_capture_test.py
 """
 
 from __future__ import annotations

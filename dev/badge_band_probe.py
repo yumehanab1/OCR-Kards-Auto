@@ -12,8 +12,8 @@ badge_band_probe.py - 离线 A/B:"连通域版徽章检测" vs "行带补检"(�
       3. `--shots` 存标注图(蓝=连通域 绿=补检新增)。
 
 用法:
-  .venv\\Scripts\\python.exe src\\badge_band_probe.py --set board
-  .venv\\Scripts\\python.exe src\\badge_band_probe.py --set all --tiles
+  .venv\\Scripts\\python.exe dev\\badge_band_probe.py --set board
+  .venv\\Scripts\\python.exe dev\\badge_band_probe.py --set all --tiles
 """
 
 from __future__ import annotations

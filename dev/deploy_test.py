@@ -6,7 +6,7 @@ This MOVES THE MOUSE and actually PLAYS a card. Only run when you're ready
 to spend the Kredits and it's your turn.
 
 Usage:
-  .venv\\Scripts\\python.exe src\\deploy_test.py
+  .venv\\Scripts\\python.exe dev\\deploy_test.py
 """
 
 from __future__ import annotations

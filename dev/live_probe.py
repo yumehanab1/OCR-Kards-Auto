@@ -13,8 +13,8 @@ Use it to sanity-check the pipeline before a session, or to inspect what the
 bot currently sees.
 
 Usage:
-  .venv\\Scripts\\python.exe src\\live_probe.py
-  .venv\\Scripts\\python.exe src\\live_probe.py --repeat 10 --interval 1
+  .venv\\Scripts\\python.exe dev\\live_probe.py
+  .venv\\Scripts\\python.exe dev\\live_probe.py --repeat 10 --interval 1
 """
 
 from __future__ import annotations

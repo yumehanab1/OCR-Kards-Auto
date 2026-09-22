@@ -21,9 +21,9 @@ hand_timing.py - 只读:手牌识别(悬停面板 `_classify`)的**耗时拆解 
 只读:不点鼠标、不写文件、不碰游戏窗口。
 
 用法:
-  .venv\\Scripts\\python.exe src\\hand_timing.py --ab
-  .venv\\Scripts\\python.exe src\\hand_timing.py --parts
-  .venv\\Scripts\\python.exe src\\hand_timing.py --shapes
+  .venv\\Scripts\\python.exe dev\\hand_timing.py --ab
+  .venv\\Scripts\\python.exe dev\\hand_timing.py --parts
+  .venv\\Scripts\\python.exe dev\\hand_timing.py --shapes
 """
 
 from __future__ import annotations

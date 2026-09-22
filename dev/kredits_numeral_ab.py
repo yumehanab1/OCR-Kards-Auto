@@ -35,9 +35,9 @@ kredits_numeral_ab.py - 只读 A/B:两位数字形的"合并规则 + 高度护�
 
 用法
 ----
-  .venv\\Scripts\\python.exe src\\kredits_numeral_ab.py            # 全语料 A/B
-  .venv\\Scripts\\python.exe src\\kredits_numeral_ab.py --verbose  # 逐帧列出几何证据
-  .venv\\Scripts\\python.exe src\\kredits_numeral_ab.py --sheet    # 拼改前/改后对照图
+  .venv\\Scripts\\python.exe dev\\kredits_numeral_ab.py            # 全语料 A/B
+  .venv\\Scripts\\python.exe dev\\kredits_numeral_ab.py --verbose  # 逐帧列出几何证据
+  .venv\\Scripts\\python.exe dev\\kredits_numeral_ab.py --sheet    # 拼改前/改后对照图
 
 ★ 本工具**只读**(不碰窗口;只往 shots/kredits/ 里写一张对照图,且要 --sheet)。
 """

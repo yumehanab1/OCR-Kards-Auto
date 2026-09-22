@@ -6,7 +6,7 @@
 光看日志分不出来,**必须用同一个读盘器去量"动作前那一帧"和"动作后那一帧"**:
 
 ```
-.venv\\Scripts\\python.exe src\\board_frame_check.py ^
+.venv\\Scripts\\python.exe dev\\board_frame_check.py ^
     shots\\attack_frames\\0915_184233_attack.png shots\\scan_frames\\0915_184240_scan.png
 ```
 它会把每一帧的:卡框锚点 `card_boxes`、徽章锚点 `badge_boxes`(每个都带来源和
@@ -18,7 +18,7 @@ state/n/S/V)、`find_cost_badges` 的 debug 原文、行结构(cy/side/每张卡
 ★ 只用来看,**不改任何东西**(连 dump 都不写进 shots 的正式目录,只写 `_boxes_` 前缀)。
 
 用法:
-  .venv\\Scripts\\python.exe src\\board_frame_check.py <帧1.png> [帧2.png ...]
+  .venv\\Scripts\\python.exe dev\\board_frame_check.py <帧1.png> [帧2.png ...]
 """
 
 from __future__ import annotations

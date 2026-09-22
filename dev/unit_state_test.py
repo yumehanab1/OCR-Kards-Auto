@@ -15,7 +15,7 @@ unit_state_test.py - 离线验证"这回合还能不能行动"的判据(不需�
   5. 手牌区的徽章必须被排除(否则手牌的颜色会污染判据)
 
 用法:
-  .venv\\Scripts\\python.exe src\\unit_state_test.py
+  .venv\\Scripts\\python.exe dev\\unit_state_test.py
 """
 
 from __future__ import annotations

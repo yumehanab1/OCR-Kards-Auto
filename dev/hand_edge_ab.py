@@ -30,9 +30,9 @@ hand_edge_ab.py - 只读离线 A/B:**布局条目到底该按什么匹配?**
   **扫描前那一刻**存的帧(`shots/scan_frames/`,标签里带 `L…R…`)。
 
 用法:
-  .venv\\Scripts\\python.exe src\\hand_edge_ab.py                       # 默认扫 shots/attack_frames
-  .venv\\Scripts\\python.exe src\\hand_edge_ab.py --glob "shots/hand_live/base.png"
-  .venv\\Scripts\\python.exe src\\hand_edge_ab.py --montage 12          # 顺带拼一张 hand 带图
+  .venv\\Scripts\\python.exe dev\\hand_edge_ab.py                       # 默认扫 shots/attack_frames
+  .venv\\Scripts\\python.exe dev\\hand_edge_ab.py --glob "shots/hand_live/base.png"
+  .venv\\Scripts\\python.exe dev\\hand_edge_ab.py --montage 12          # 顺带拼一张 hand 带图
 """
 
 from __future__ import annotations

@@ -7,7 +7,7 @@ classify path hand_scanner_v2 uses, so we can measure and tune recognition
 quality and speed without touching KARDS.
 
 Usage:
-  .venv\\Scripts\\python.exe src\\scan_bench.py
+  .venv\\Scripts\\python.exe dev\\scan_bench.py
 """
 
 from __future__ import annotations

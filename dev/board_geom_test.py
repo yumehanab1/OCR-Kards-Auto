@@ -10,8 +10,8 @@ board_geom_test.py - 离线验证第二代战场读取(不需要游戏)。
 哪些是总部"逐帧打出来人工核对,比在实机上猜便宜得多。
 
 用法:
-  .venv\\Scripts\\python.exe src\\board_geom_test.py
-  .venv\\Scripts\\python.exe src\\board_geom_test.py --shots        # 顺带存标注图
+  .venv\\Scripts\\python.exe dev\\board_geom_test.py
+  .venv\\Scripts\\python.exe dev\\board_geom_test.py --shots        # 顺带存标注图
 """
 
 from __future__ import annotations

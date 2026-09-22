@@ -10,8 +10,8 @@
 人眼一次就能看出:**量到的 R 是不是落在最右那张牌的右边界上**。
 
 用法:
-  .venv\\Scripts\\python.exe src\\scan_frame_check.py
-  .venv\\Scripts\\python.exe src\\scan_frame_check.py --out shots/scan_frames/_check.png
+  .venv\\Scripts\\python.exe dev\\scan_frame_check.py
+  .venv\\Scripts\\python.exe dev\\scan_frame_check.py --out shots/scan_frames/_check.png
 """
 
 from __future__ import annotations

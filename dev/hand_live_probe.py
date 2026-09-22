@@ -27,9 +27,9 @@ hand_live_probe.py - 只读实机探针:把"扫描器看到了什么"逐探针�
   4. 一张把**所有探针 x + 左边缘**画在中立态上的图(`base_marked.png`)。
 
 用法:
-  .venv\\Scripts\\python.exe src\\hand_live_probe.py                 # 当前命中布局的探针
-  .venv\\Scripts\\python.exe src\\hand_live_probe.py --sweep 24      # 再补一遍粗扫(每 24px)
-  .venv\\Scripts\\python.exe src\\hand_live_probe.py --layout 390    # 指定布局条目
+  .venv\\Scripts\\python.exe dev\\hand_live_probe.py                 # 当前命中布局的探针
+  .venv\\Scripts\\python.exe dev\\hand_live_probe.py --sweep 24      # 再补一遍粗扫(每 24px)
+  .venv\\Scripts\\python.exe dev\\hand_live_probe.py --layout 390    # 指定布局条目
 """
 
 from __future__ import annotations

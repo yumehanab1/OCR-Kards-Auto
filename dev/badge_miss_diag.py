@@ -2,7 +2,7 @@
 badge_miss_diag.py - 诊断"某个徽章为什么没被 `_badges_cc` 检出"。
 
 用法:
-  .venv\\Scripts\\python.exe src\\badge_miss_diag.py --frame shots\\attack_probe\\0911_131142_after.png --x0 820 --x1 1010 --y0 420 --y1 560
+  .venv\\Scripts\\python.exe dev\\badge_miss_diag.py --frame shots\\attack_probe\\0911_131142_after.png --x0 820 --x1 1010 --y0 420 --y1 560
 
 做法:把指定区域里**每一个深色连通域**都列出来,并逐条标出它卡在哪一个
 过滤条件上(宽/高/实心度/数字像素数/上下文亮度),再打印全场检出结果对照。

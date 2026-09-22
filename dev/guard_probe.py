@@ -19,13 +19,13 @@ guard_probe.py - 只读预检:把战场帧上**每一张卡**裁出来放大存�
 
 用法:
     # 看某一帧的敌方两行(默认:第一行=enemy support,第二行=frontline)
-    .venv\\Scripts\\python.exe src\\guard_probe.py --frame shots\\attack_frames\\xxx_attack.png
+    .venv\\Scripts\\python.exe dev\\guard_probe.py --frame shots\\attack_frames\\xxx_attack.png
 
     # 把 shots/attack_frames 里最新的 N 帧都摊开
-    .venv\\Scripts\\python.exe src\\guard_probe.py --latest 6
+    .venv\\Scripts\\python.exe dev\\guard_probe.py --latest 6
 
     # 只裁某一行(--row enemy/frontline/our),或只裁指定的 x 附近
-    .venv\\Scripts\\python.exe src\\guard_probe.py --frame ... --row enemy --zoom 4
+    .venv\\Scripts\\python.exe dev\\guard_probe.py --frame ... --row enemy --zoom 4
 
 输出:`shots/guard_probe/<帧名>_<行>_<序号>.png`(单卡放大图)
       + `<帧名>_<行>_montage.png`(一行拼图,一眼看完整行)

@@ -15,7 +15,7 @@ M4 的攻击需要知道**我方单位在战场上的坐标**。但实机发现:
 
 这个脚本只读 + 只截图,不点鼠标、不出牌。请让实机 bot 自己跑,脚本在旁边
 看着日志/画面。用法:
-  .venv\\Scripts\\python.exe src\\deploy_probe.py --seconds 240
+  .venv\\Scripts\\python.exe dev\\deploy_probe.py --seconds 240
 """
 
 from __future__ import annotations

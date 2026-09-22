@@ -9,7 +9,7 @@
   ⑧ 日志区"重画"的判据(**不是行数** —— 行数会饱和在 400,见那一节的说明)。
 
 用法:
-  .venv\\Scripts\\python.exe src\\gui_test.py
+  .venv\\Scripts\\python.exe dev\\gui_test.py
 """
 
 from __future__ import annotations

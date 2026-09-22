@@ -17,9 +17,9 @@ fix_bands.py - 标定四条战线的 y 带(只读)。
 4. 打印簇中心和簇内 y 范围,给出建议的行带(取簇的中间 35px,保证不重叠)
 
 用法:
-  .venv\\Scripts\\python.exe src\\fix_bands.py                      # 用 shots/ 下的样本帧
-  .venv\\Scripts\\python.exe src\\fix_bands.py --dir shots\\turn_pairs
-  .venv\\Scripts\\python.exe src\\fix_bands.py --frame shots\\x.png
+  .venv\\Scripts\\python.exe dev\\fix_bands.py                      # 用 shots/ 下的样本帧
+  .venv\\Scripts\\python.exe dev\\fix_bands.py --dir shots\\turn_pairs
+  .venv\\Scripts\\python.exe dev\\fix_bands.py --frame shots\\x.png
 """
 
 from __future__ import annotations

@@ -7,9 +7,9 @@ attack_probe.py - 攻击的实机预检 / 单发试打(默认**只读**)。
 确认无误之后再 `--fire` 真打一发。
 
 用法:
-  .venv\\Scripts\\python.exe src\\attack_probe.py              # 只读预检
-  .venv\\Scripts\\python.exe src\\attack_probe.py --fire        # 真打一发并验证
-  .venv\\Scripts\\python.exe src\\attack_probe.py --fire --n 3  # 最多打 3 发
+  .venv\\Scripts\\python.exe dev\\attack_probe.py              # 只读预检
+  .venv\\Scripts\\python.exe dev\\attack_probe.py --fire        # 真打一发并验证
+  .venv\\Scripts\\python.exe dev\\attack_probe.py --fire --n 3  # 最多打 3 发
 
 预检会打印:
   1. 战场行(自适应行带:上=敌方 / 中=前线 / 下=我方)

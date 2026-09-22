@@ -11,8 +11,8 @@
   3. 拿两个边缘一起挑布局条目,和只按左边缘挑,差在哪几帧上。
 
 用法:
-  .venv\\Scripts\\python.exe src\\edge_probe.py --frame shots/hand_live/base.png
-  .venv\\Scripts\\python.exe src\\edge_probe.py --glob "shots/attack_frames/*.png"
+  .venv\\Scripts\\python.exe dev\\edge_probe.py --frame shots/hand_live/base.png
+  .venv\\Scripts\\python.exe dev\\edge_probe.py --glob "shots/attack_frames/*.png"
 """
 
 from __future__ import annotations

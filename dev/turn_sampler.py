@@ -18,7 +18,7 @@ turn_sampler.py - 只读采样:在每个回合的【开始】和【结束】各�
   - 所以 "分数从低变高" = 我方回合开始;"从高变低" = 我方回合结束
 
 用法:
-  .venv\\Scripts\\python.exe src\\turn_sampler.py --seconds 1800
+  .venv\\Scripts\\python.exe dev\\turn_sampler.py --seconds 1800
 输出:
   shots/turn_pairs/YYYYmmdd_HHMMSS_turnNNN_scale.png   (缩放后整帧,省空间)
   shots/turn_pairs/YYYYmmdd_HHMMSS_turnNNN_start.png

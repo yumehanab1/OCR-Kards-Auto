@@ -10,8 +10,8 @@ card_match_test.py - 离线单测:卡名匹配 / 费用兜底 / 图像指纹(不
 "OCR 读到什么 -> 判成什么",这是离线能拿到的最强证据。
 
 用法:
-  .venv\\Scripts\\python.exe src\\card_match_test.py
-  .venv\\Scripts\\python.exe src\\card_match_test.py --frames   # 只跑真实帧回归
+  .venv\\Scripts\\python.exe dev\\card_match_test.py
+  .venv\\Scripts\\python.exe dev\\card_match_test.py --frames   # 只跑真实帧回归
 """
 
 from __future__ import annotations

@@ -9,8 +9,8 @@ OCR 结果"—— 你能看到"名字不在结果里",但看不到**它为什么
 这个工具直接把画面和"每一行在哪儿"摆出来。
 
 用法:
-  .venv\\Scripts\\python.exe src\\hover_dump.py --x 492 --x 639 --x 740
-  .venv\\Scripts\\python.exe src\\hover_dump.py --layout 4      # 用布局表里的 4 张牌坐标
+  .venv\\Scripts\\python.exe dev\\hover_dump.py --x 492 --x 639 --x 740
+  .venv\\Scripts\\python.exe dev\\hover_dump.py --layout 4      # 用布局表里的 4 张牌坐标
 
 只会移动鼠标(悬停),**不点击**;结束时把光标放回安全点。
 """

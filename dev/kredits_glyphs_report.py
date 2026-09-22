@@ -10,7 +10,7 @@ kredits_glyphs_report.py - 整理录到的 Kredits 字形,生成去重报表 + �
   3. 打印 类别 -> 成员序号 的对照表,便于确定"哪张是几费"
 
 用法:
-  .venv\\Scripts\\python.exe src\\kredits_glyphs_report.py
+  .venv\\Scripts\\python.exe dev\\kredits_glyphs_report.py
 """
 
 from __future__ import annotations

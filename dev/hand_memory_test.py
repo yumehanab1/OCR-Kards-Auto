@@ -11,7 +11,7 @@ hand_memory_test.py - 离线验证"手牌记忆"的次序对齐与 fail-open(不
   · **真要出的那张必须当帧确认**(`_same_identity`:名字/类型/费用对不上就是不同)。
 
 用法:
-  .venv\\Scripts\\python.exe src\\hand_memory_test.py
+  .venv\\Scripts\\python.exe dev\\hand_memory_test.py
 """
 
 from __future__ import annotations

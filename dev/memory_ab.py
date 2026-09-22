@@ -1,8 +1,8 @@
 """memory_ab.py - 只读:把「手牌记忆开/关」两段实机日志摊开对比。
 
 用法:
-  .venv\\Scripts\\python.exe src\\memory_ab.py            # 最后两段 main_loop
-  .venv\\Scripts\\python.exe src\\memory_ab.py 3           # 最后三段
+  .venv\\Scripts\\python.exe dev\\memory_ab.py            # 最后两段 main_loop
+  .venv\\Scripts\\python.exe dev\\memory_ab.py 3           # 最后三段
 """
 
 from __future__ import annotations

@@ -19,7 +19,7 @@ mouse_vs_field_probe.py - 只读 A/B:**鼠标停在哪,会不会影响战场读�
     比较:行结构 / 我方支援线张数 / 徽章数与橙灰 / 敌方总部血量。
 
 用法:
-  .venv\\Scripts\\python.exe src\\mouse_vs_field_probe.py
+  .venv\\Scripts\\python.exe dev\\mouse_vs_field_probe.py
 """
 
 from __future__ import annotations

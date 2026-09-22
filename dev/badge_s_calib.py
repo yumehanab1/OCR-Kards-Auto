@@ -12,7 +12,7 @@ badge_s_calib.py - 标定"费用数字 橙/灰"的饱和度阈值(离线,看图�
   (§7 第 59 条:滑窗版就是"合成用例 13/13 全绿、真实帧上是灾难")。
 
 用法:
-  .venv\\Scripts\\python.exe src\\badge_s_calib.py --set all --out shots\\badge_s_calib
+  .venv\\Scripts\\python.exe dev\\badge_s_calib.py --set all --out shots\\badge_s_calib
 """
 
 from __future__ import annotations

@@ -22,7 +22,7 @@ hq_hp_probe.py - 总部血量盾牌的**取样 / 聚类 / 标定**工具(只读,
   --action montage   : 按**帧**拼图(盾牌 + 抠出来的字形),用来核对"抠对没有"
 
 用法:
-  .venv\\Scripts\\python.exe src\\hq_hp_probe.py --action cluster
+  .venv\\Scripts\\python.exe dev\\hq_hp_probe.py --action cluster
 """
 from __future__ import annotations
 

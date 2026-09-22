@@ -8,8 +8,8 @@ It moves the mouse and plays cards for real. Only run during a game you are
 OK with auto-playing (e.g. casual).
 
 Usage:
-  .venv\\Scripts\\python.exe src\\turn_test.py --seconds 180
-  .venv\\Scripts\\python.exe src\\turn_test.py --seconds 180 --no-wait
+  .venv\\Scripts\\python.exe dev\\turn_test.py --seconds 180
+  .venv\\Scripts\\python.exe dev\\turn_test.py --seconds 180 --no-wait
 
 While it runs it also samples the end-turn button area once a second into
 shots/turn_obs/ and prints its template score. That is the data needed to tell

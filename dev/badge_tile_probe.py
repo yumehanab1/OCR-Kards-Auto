@@ -10,8 +10,8 @@ badge_tile_probe.py - 把真实帧里检出的**费用徽章**切成小图拼起
     光看日志里的 S 值分不出"真的橙"和"底色是棕",必须**看图**。
 
 用法:
-  .venv\\Scripts\\python.exe src\\badge_tile_probe.py --set board
-  .venv\\Scripts\\python.exe src\\badge_tile_probe.py --set all --state orange
+  .venv\\Scripts\\python.exe dev\\badge_tile_probe.py --set board
+  .venv\\Scripts\\python.exe dev\\badge_tile_probe.py --set all --state orange
 """
 
 from __future__ import annotations

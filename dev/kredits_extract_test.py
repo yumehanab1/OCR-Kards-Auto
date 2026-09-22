@@ -6,8 +6,8 @@ kredits.isolate_numeral,打印提取到的字形尺寸/宽高比,并把结果存
 shots/kredits/extracted/,方便直接看图确认提取对不对。
 
 用法:
-  .venv\\Scripts\\python.exe src\\kredits_extract_test.py
-  .venv\\Scripts\\python.exe src\\kredits_extract_test.py --file shots/live_probe.png
+  .venv\\Scripts\\python.exe dev\\kredits_extract_test.py
+  .venv\\Scripts\\python.exe dev\\kredits_extract_test.py --file shots/live_probe.png
 """
 
 from __future__ import annotations

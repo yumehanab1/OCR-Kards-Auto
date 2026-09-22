@@ -12,7 +12,7 @@ that show the SAME card mean the cursor was still inside that card's hot zone;
 the transition x positions mark the boundaries between cards.
 
 Usage:
-  .venv\\Scripts\\python.exe src\\hover_probe.py [--x0 300] [--x1 1000] [--step 20]
+  .venv\\Scripts\\python.exe dev\\hover_probe.py [--x0 300] [--x1 1000] [--step 20]
                                         [--y 560] [--hold 0.6]
 
 Args:

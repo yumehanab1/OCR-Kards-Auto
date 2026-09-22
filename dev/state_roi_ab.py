@@ -11,7 +11,7 @@ state_roi_ab.py - 只读:状态识别 `ui_state.classify` 的 **RDI A/B**(整帧
     逐帧比 **state**(真正驱动行为的那个)和 **命中集合 matches**。
 
 用法:
-  .venv\\Scripts\\python.exe src\\state_roi_ab.py
+  .venv\\Scripts\\python.exe dev\\state_roi_ab.py
 """
 
 from __future__ import annotations

@@ -13,7 +13,7 @@ hand_edge_diag.py - **只读**诊断"手牌扇形左边缘为什么测出来是�
   ② 左边缘左边还有别的东西(装饰、别的 UI)→ 第一个 6 列run 根本不是扇形
 
 用法(需要在**对局中**、鼠标停在安全点时跑):
-  .venv\\Scripts\\python.exe src\\hand_edge_diag.py
+  .venv\\Scripts\\python.exe dev\\hand_edge_diag.py
 """
 
 from __future__ import annotations

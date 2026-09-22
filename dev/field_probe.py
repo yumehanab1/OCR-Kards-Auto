@@ -11,9 +11,9 @@ field_probe.py - **只读**探针:抓一帧(或读本地图),把"新一代战场
 否则悬停面板会被当成卡)。
 
 用法:
-  .venv\\Scripts\\python.exe src\\field_probe.py                 # 抓当前帧
-  .venv\\Scripts\\python.exe src\\field_probe.py --frame shots\\live_probe.png
-  .venv\\Scripts\\python.exe src\\field_probe.py --out shots\\x.png --raw
+  .venv\\Scripts\\python.exe dev\\field_probe.py                 # 抓当前帧
+  .venv\\Scripts\\python.exe dev\\field_probe.py --frame shots\\live_probe.png
+  .venv\\Scripts\\python.exe dev\\field_probe.py --out shots\\x.png --raw
 """
 
 from __future__ import annotations

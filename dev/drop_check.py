@@ -11,8 +11,8 @@ drop_check.py - **离线**核对"部署落点候选"落在哪里(不需要游戏
 人眼一看就知道"会不会又砸在卡上"。这是**开实机之前**唯一能做的验证。
 
 用法:
-  .venv\\Scripts\\python.exe src\\drop_check.py
-  .venv\\Scripts\\python.exe src\\drop_check.py --set deploy --limit 8
+  .venv\\Scripts\\python.exe dev\\drop_check.py
+  .venv\\Scripts\\python.exe dev\\drop_check.py --set deploy --limit 8
 """
 
 from __future__ import annotations
