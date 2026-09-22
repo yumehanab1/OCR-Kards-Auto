@@ -91,7 +91,7 @@ out = sc._probes_for(cands)
 exp_union = sorted(set(L7["probes"]) | set(L8["probes"]))
 hit = [p for p in exp_union if any(abs(p - x) <= hsv.LAYOUT_PROBE_UNION_DEDUP_PX
                                    for x in xs(out))]
-check("并集里每一根都有实走探针落在它附近(±15px)",
+check(f"并集里每一根都有实走探针落在它附近(±{hsv.LAYOUT_PROBE_UNION_DEDUP_PX}px)",
       len(hit) == len(exp_union),
       f"缺 {[p for p in exp_union if p not in hit]}  实走={xs(out)}")
 check("实走根数 > 选中那条的根数(确实多铺了)",

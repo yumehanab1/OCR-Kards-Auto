@@ -119,11 +119,12 @@ POST_MATCH_CLICKS = True
 #: 点几下 / 间隔多久 —— 用户指定"每秒一次、持续十秒"。
 POST_MATCH_CLICK_N = 10
 POST_MATCH_CLICK_GAP = 1.0
-#: ★ 点哪儿 = **复用结算页那四个角**(`dismiss_points`,左上→右上→左下→右下轮换)。
-#:  用户说"安全点我后续给你",所以这一版**先用已经过实测的四个角**,
-#:  等他给了具体坐标,改这一个函数就够了(别在别处再写死坐标)。
-#: 为什么轮换而不是固定一个点:四个角都离屏幕中心最远(用户两次实测"点中心不生效"),
-#:  轮换能容忍"某一个角在某些页面上不响应"。
+#: ★ 点哪儿 = **`POST_MATCH_POINT` 这一个固定点 + 抖动**(实走在 `_post_match_clicking`)。
+#:  这个点是用户 2026-09-21 指定的安全点(`casual_mode_btn` 那一块,
+#:  坐标来源见上面 103-113 行);以后要换点,只改这一个常量
+#:  (别在别处再写死坐标)。
+#:  ★ 不轮换:早期设想的"复用结算页那四个角、逐次轮换"已被实测否掉 ——
+#:  那几处连点 3 次画面都不动(见上面 109-110 行),对这一屏不生效。
 #: ★ 与 `dismiss` 的关系:补点窗口跑完就**交回**给主循环 ——
 #:  如果画面已经变回已知状态,`dismiss` 那套会照常收工;没变就一 tick 一 tick 继续
 #:  (那时 `dismiss` 若为 True,由它接手后续的重试)。
@@ -506,7 +507,8 @@ class Controller:
         self._saw_round_result = True
         if self._post_clicks_left:
             log(f"[post_match] 对局结束 -> 开 {POST_MATCH_CLICK_N} 下补点窗口"
-                f"(每 {POST_MATCH_CLICK_GAP:.1f}s 一下,四个角逐次轮换)"
+                f"(每 {POST_MATCH_CLICK_GAP:.1f}s 一下,共 {POST_MATCH_CLICK_N} 下:"
+                f"固定安全点 {POST_MATCH_POINT} + 抖动)"
                 f" —— 不依赖状态识别,认不出的结算/弹窗也照点(见 POST_MATCH_CLICKS)")
         time.sleep(2.5)
 
