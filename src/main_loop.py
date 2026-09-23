@@ -84,17 +84,10 @@ BLANK_TOLERANCE = 6          # consecutive blank frames before we pause acting
 QUEUE_TIMEOUT_MIN = 12       # queueing longer than this -> click cancel
 
 # ---- 2026-09-21 深夜(用户提议)**打完一局之后的"补点窗口"** ----
-#  ★★ 为什么还要这个东西 —— 上面那套 `dismiss` 有一个盖不住的洞:
-#    `dismiss` **全项目只有一处置 True**(`finish_round()`),而它只在
-#    `handle_victory()` / `handle_defeat()` 里被调。可是打完一局真正停住的那一屏
-#    **既不是 victory 也不是 defeat**(实测状态是 `None`,一个模板都没命中)——
-#    于是 `handle_victory` 根本没跑 ⇒ `dismiss` 永远是 False ⇒ 主循环落到
-#    `else: time.sleep(2)`(未知画面那条分支**只会睡、不会点**)⇒ 永久空转、一下不点。
-#    实机两次复现(2026-09-21):成就弹窗「歼灭」20/30 空转 90+ 秒、
-#    段位弹窗「7」+进度条 空转 150+ 秒,`跳过点击` / `-> click` 都是 **0 次**。
 #  ★ 用户的提议(2026-09-21):*"识别到对局结束就每秒点一次持续十秒"* ——
-#    它绕开了整套 dismiss 判据:**不依赖状态识别、不依赖帧差、不怕未知画面**,
-#    只要"这一局结束了"这个事实成立就照点 10 下。这正是上面那个洞要的解药。
+#    胜负状态识别成功并完成首次点击后,结算流程还会依次出现等级、任务和奖励页。
+#    这些尾页没有稳定模板,所以在 `finish_round()` 中开启补点窗口,每秒点一次,
+#    最多十次,直到识别到新的已知流程状态才提前结束。
 #: ★ 点哪儿 —— **用户 2026-09-21 指定"安全点可以复用主页面的开始位置"**。
 #:  也就是说:结算/弹窗那一屏上,点**主界面「开始」按钮所在的那块位置**是安全的
 #:  (那儿在结算页上没有真按钮,所以点下去最多是"没反应",不会误触发别的功能)。
@@ -129,28 +122,8 @@ POST_MATCH_CLICK_GAP = 1.0
 #:  如果画面已经变回已知状态,`dismiss` 那套会照常收工;没变就一 tick 一 tick 继续
 #:  (那时 `dismiss` 若为 True,由它接手后续的重试)。
 #:
-#: ★★ 补充(2026-09-21 深夜,当场想到的一个洞):上面那套只在
-#:   `finish_round()` 之后才开窗口。可是**引擎启动时画面就已经停在弹窗上**时,
-#:   `finish_round()` 根本没跑过 ⇒ 窗口是 0 ⇒ 还是"只睡不点"。
-#:   ⇒ 再加一条兜底:一个已知状态都认不出、连续 `UNKNOWN_CLICK_AFTER` 秒都是
-#:     `None` -> 也开一次补点窗口。
-#:
-#: ★★★ 2026-09-21 深夜**实机把它否掉了,判据收紧**(用户原话:
-#:   *"他现在每回合都要点十下"*)—— 第一版只按 `UNKNOWN_CLICK_AFTER=10s` 触发,
-#:   结果**对手回合**也在触发:对手回合引擎本来就不动手,画面很容易
-#:   `state -> None` 超过 10 秒。实测一局里在 22:54:37 / 22:55:19 连开两次,
-#:   全是**对局中途**,白点 20 下。
-#:   ⇒ 收紧成:**只有"这一局已经见过 victory/defeat"之后,才允许兜底触发**
-#:     (`_saw_round_result`,在 `finish_round()` 里置 True)。
-#:     理由:`finish_round()` 就是"这一局结束了"的**唯一权威判据** ——
-#:     对局中途无论认不出多久,都不该走这条路。
-#:   ★ 这样"启动时画面就停在弹窗上"那种情形还盖得住吗?**盖得住**:
-#:     那种情形下引擎会一直在那一屏空转(我们实测 90~150 秒),而
-#:     `--max-rounds` 没达标时它会一直转下去;此时 `_saw_round_result` 是 False,
-#:     所以**兜底不触发** —— 这正是我们要的:不动手,但也不乱点。
-#:     (真想让"冷启动就卡在弹窗上"也自动跳,得另给一条更可靠的判据,
-#:      不能靠"认不出多久"这一个量 —— 见 §一③ 的记录。)
-UNKNOWN_CLICK_AFTER = 10.0
+#: 补点窗口只允许由 `finish_round()` 开启。未知画面持续多久都不能单独
+#: 触发点击，否则对手回合的 `state=None` 会被误判成结算页。
 
 
 # ---- 2026-09-21(M3/M5)结算页:判据从"点了几次"改成"画面变了没有" ----
@@ -265,13 +238,6 @@ class Controller:
         self._post_clicks_left = 0
         self._post_click_last = 0.0
         self._post_clicks_done = 0
-        # ★ 未知画面连续持续了多久(用于上面那条兜底)。
-        #   一旦认出任何已知状态就归零 —— 加载/过场造成的短暂 None 不该触发。
-        self._unknown_since = None
-        # ★★★ 2026-09-21 深夜:`finish_round()` 跑过没有 —— **"这一局结束了"的
-        #   唯一权威判据**。上一条兜底必须靠它把关,否则"对手回合"也会被误判成
-        #   "对局结束"(实机:一局里白点 20 下,用户报"每回合都要点十下")。
-        self._saw_round_result = False
 
     # ---- capture & classify ----
     def grab_frame(self):
@@ -495,34 +461,27 @@ class Controller:
         self.dismiss = True
         self.dismiss_tries = 0
         # ★★ 2026-09-21 深夜(用户提议):**开一个 10 下的补点窗口**。
-        #   为什么不靠 `dismiss` 就够:见 `POST_MATCH_CLICKS` 那段 ——
-        #   打完一局真正停住的那一屏不是 victory/defeat(状态是 None),
-        #   而 `dismiss` 的置起在前一行、`tick_dismiss` 又只在 `self.dismiss` 为真时跑,
-        #   一旦那一屏让 `handle_victory` 没被调到,就再也没有任何点击。
-        #   这个窗口**不依赖状态识别**,所以盖得住它。
+        #   胜负状态被识别并点击后,结算页还可能依次出现等级、任务和奖励页面；
+        #   这些页面没有稳定的模板,所以用固定安全点每秒补点一次,最多十次。
         self._post_clicks_left = POST_MATCH_CLICK_N if POST_MATCH_CLICKS else 0
         self._post_clicks_done = 0
         self._post_click_last = 0.0     # 0 = 下一 tick 立刻点第一下
-        # ★ 标记"这一局已经结束过" —— 下面那条兜底要靠它把关(见常量区的说明)。
-        self._saw_round_result = True
         if self._post_clicks_left:
             log(f"[post_match] 对局结束 -> 开 {POST_MATCH_CLICK_N} 下补点窗口"
                 f"(每 {POST_MATCH_CLICK_GAP:.1f}s 一下,共 {POST_MATCH_CLICK_N} 下:"
                 f"固定安全点 {POST_MATCH_POINT} + 抖动)"
-                f" —— 不依赖状态识别,认不出的结算/弹窗也照点(见 POST_MATCH_CLICKS)")
+                f" —— 覆盖认不出的结算/弹窗尾页(见 POST_MATCH_CLICKS)")
         time.sleep(2.5)
 
-    def _post_match_clicking(self) -> bool:
+    def _post_match_clicking(self, state: str | None = None) -> bool:
         """
         打完一局之后的补点窗口:每秒点一下、点够 `POST_MATCH_CLICK_N` 下。
 
         返回 True = 补点还没做完(主循环这一 tick 不要干别的,继续让它点)。
         返回 False = 做完了(或没开),主循环照常走。
 
-        ★ 为什么它必须存在:`dismiss` 只在 `finish_round()` 里置 True,
-          而打完一局真正停住的那一屏状态是 `None`(不是 victory/defeat),
-          于是主循环落到"未知画面 -> 只睡不点"那条分支,永久空转。
-          实机两次复现(成就弹窗 90+ 秒 / 段位弹窗 150+ 秒,点击 0 次)。
+        ★ 该窗口只在识别并处理 victory/defeat 后开启,覆盖胜负、等级、任务
+          和任务奖励等结算尾页。
 
         ★ 点的位置:**主页面的「开始」按钮那一块**(`POST_MATCH_POINT`)——
           用户 2026-09-21 指定的安全点。固定在同一个位置 + 抖动,
@@ -530,6 +489,13 @@ class Controller:
           以后要换点,只改 `POST_MATCH_POINT` 一处。
         """
         if self._post_clicks_left <= 0:
+            return False
+        # 补点只针对胜负后的未知尾屏。只要已经识别到主菜单、匹配、
+        # 选牌或新对局，说明结算流程已经结束，立即取消剩余点击。
+        if state and state not in ("victory", "defeat"):
+            log(f"[post_match] 已识别到 {state} -> 结束剩余补点"
+                f"(还剩 {self._post_clicks_left} 下)")
+            self._post_clicks_left = 0
             return False
         now = time.time()
         if now - self._post_click_last < POST_MATCH_CLICK_GAP:
@@ -554,7 +520,7 @@ class Controller:
         n_done = self._post_clicks_done
         log(f"[post_match] 补点 {n_done}/{POST_MATCH_CLICK_N} "
             f"client({cx},{cy})/{fw}x{fh}(开始按钮那块安全点;"
-            f"对局已结束,这一下不依赖状态识别)")
+            f"对局已结束,结算尾页补点)")
         if not self.dry:
             try:
                 sx, sy = self.client_to_screen(cx, cy)
@@ -971,38 +937,10 @@ class Controller:
                 last_state_log = state
             self.current_state = state
 
-            # ★★ 2026-09-21 深夜(用户提议):**打完一局的补点窗口**。
-            #   放在 `dismiss` 之前 —— 它是"对局刚结束"这件事的直接反应,
-            #   不依赖状态识别,所以优先于需要状态/帧差判据的 `dismiss`。
-            #   ★ 它自己做完就返回 False 交回主循环,不会永久占着。
-            #   ★★ 兜底(见 `UNKNOWN_CLICK_AFTER` 那段):一个已知状态都认不出、
-            #      持续够久 -> 也开一次窗口。这一条盖的是"引擎启动时画面就已经
-            #      停在结算/弹窗上"——那种情况 `finish_round()` 从没跑过,
-            #      上面那条路永远不开窗口,于是还是"只睡不点"。
-            if state:
-                self._unknown_since = None
-            else:
-                if self._unknown_since is None:
-                    self._unknown_since = time.time()
-                elif (POST_MATCH_CLICKS and self._post_clicks_left <= 0
-                        and not self.dismiss
-                        # ★★★ 2026-09-21 深夜(**必须**):只有"这一局已经结束过"
-                        #   才允许这条兜底。否则**对手回合**也会中招 ——
-                        #   对手回合引擎不动手,画面很容易 `state -> None` 超过 10s,
-                        #   实测一局里白点了 20 下(用户报"每回合都要点十下")。
-                        and self._saw_round_result
-                        and time.time() - self._unknown_since >= UNKNOWN_CLICK_AFTER):
-                    log(f"[post_match] 认不出的画面已经持续 "
-                        f"{time.time() - self._unknown_since:.0f}s"
-                        f"(>= {UNKNOWN_CLICK_AFTER:.0f}s,且这一局已经结束过)"
-                        f"-> 按'对局已结束'处理,开 {POST_MATCH_CLICK_N} 下补点窗口"
-                        f"(不依赖状态识别;见 POST_MATCH_CLICKS)")
-                    self._post_clicks_left = POST_MATCH_CLICK_N
-                    self._post_clicks_done = 0
-                    self._post_click_last = 0.0
-                    self._unknown_since = time.time()   # 别每 tick 重复开
-
-            if self._post_match_clicking():
+            # ★★ 2026-09-23:补点窗口只由 victory/defeat 识别后的
+            #   `finish_round()` 开启。未知画面本身不再启动补点,避免对手回合
+            #   的 `state=None` 被误判为结算页。
+            if self._post_match_clicking(state):
                 # ★ `_post_match_clicking()` 返回 True 有两种情况:
                 #   ① 补点还有剩(`_post_clicks_left > 0`)—— 我们**故意不停**,
                 #      所以这里不调 `_max_rounds_hit()`(它一判到就 log,
