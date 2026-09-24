@@ -1075,7 +1075,7 @@ def main() -> int:
                          "才 +1,**不是回合数**;一局没结算完就永远不会停(0 = 不停)"
                          "。★ 2026-09-20 实机踩过:另一台机器把它读成'跑 1 轮',"
                          "跑了 5 个回合没停就记成疑点了 —— 行为本来就是对的,是这句"
-                         "帮助文本有歧义(见 docs/ORDER_CARDS_REAL_TEST.md §6)")
+                         "帮助文本有歧义(见本机副本 `docs/reports/` 下的实机报告 §6)")
     ap.add_argument("--max-ticks", type=int, default=0, help="test: stop after N loop ticks")
     ap.add_argument("--end-turn", action="store_true",
                     help="M2: auto-click end turn inside a match")

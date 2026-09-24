@@ -5,7 +5,7 @@ order_target.py - 「这张 target 指令现在该往哪个坐标拖」的**唯�
 ------------
 2026-09-20 用户把 674 张指令/反制的打法逐张给了出来(`config/order_plays.json`),
 其中 **211 张是 `target`(需要目标)**。而"指令怎么选目标"这件事上,用户确认的模型是
-(`docs/order_cards_review.md` 第 5~6 行原话):
+(`docs/generated/order_cards_review.md` 第 5~6 行原话):
 
     「打指令卡有两种手势(你确认的)——**不需要选目标的拖到中线以下**就打出,
      **需要选目标的要拖到那张卡/总部上**。」
