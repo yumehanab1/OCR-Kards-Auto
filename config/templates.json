@@ -156,6 +156,15 @@
         "w": 19,
         "h": 18
       }
+    },
+    "ranked_mode_btn": {
+      "path": "ui_templates/ranked_mode_btn.png",
+      "region": {
+        "x": 1054,
+        "y": 547,
+        "w": 111,
+        "h": 33
+      }
     }
   }
 }

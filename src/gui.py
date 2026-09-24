@@ -222,6 +222,8 @@ SWITCHES = [
      "hint": "部署 + 出牌 + 结束回合(不开就是只看不动)"},
     {"key": "attack", "flag": "--attack", "label": "攻击",
      "hint": "按规则表挑攻击者与目标(含守护/拦截判据)"},
+    {"key": "ranked", "flag": "--ranked", "label": "排位模式",
+     "hint": "⚠️ 可能被游戏检测并有封号风险；需要确认后才启用"},
     {"key": "fast_scan", "flag": "--fast-scan", "label": "惰性扫描",
      "hint": "找到第一张可出的牌就停(省时间)"},
     {"key": "end_turn", "flag": "--end-turn", "label": "结束回合",
@@ -822,6 +824,15 @@ function renderSwitches(list, on){
     d.innerHTML = `<input type="checkbox" id="sw_${s.key}" ${on.includes(s.key)?'checked':''}>
       <span class="txt"><span class="lbl">${s.label}</span>
       <span class="hint">${s.hint}<br>${s.flag}</span></span>`;
+    const input = d.querySelector('input');
+    if(s.key === 'ranked'){
+      input.addEventListener('change', ()=>{
+        if(input.checked && !window.confirm(
+          '警告：排位模式下的自动操作可能被游戏检测，存在封号风险。\n\n确认要启用排位模式吗？')){
+          input.checked = false;
+        }
+      });
+    }
     box.appendChild(d);
   }
 }

@@ -170,6 +170,9 @@ DISMISS_STUCK_NOTE = (
 #  ⚠️ 没录模板的名字**留在表里也没事**(代码会跳过它),但**不要瞎填位置去点击** ——
 #    这个项目最贵的错误是"乱点"。
 MODE_BTNS = ("casual_mode_btn", "training_mode_btn", "ranked_mode_btn")
+# 排位按钮在 1280x720 客户区的固定区域。排位已选中时，按钮背景变亮、
+# ``排位`` 字体变橙色；这时未选中模板不会再匹配，需要单独识别该状态。
+RANKED_MODE_ROI = (1054, 547, 111, 33)
 
 
 def log(msg: str) -> None:
@@ -186,7 +189,8 @@ def log(msg: str) -> None:
 class Controller:
     def __init__(self, proc: str, dry: bool, max_rounds: int, end_turn: bool,
                  play: bool = False, fast_scan: bool = False,
-                 attack: bool = True, lazy_scan: bool = True):
+                 attack: bool = True, lazy_scan: bool = True,
+                 ranked: bool = False):
         self.proc = proc
         self.dry = dry
         self.max_rounds = max_rounds
@@ -194,6 +198,7 @@ class Controller:
         self.play = play          # M3: hand in-game turns to TurnEngine
         self.fast_scan = fast_scan  # 用校准好的坐标表直扫
         self.attack = attack      # M4: 出完牌后让我方单位打敌方总部
+        self.ranked = ranked      # 排位模式:只允许点击 ranked_mode_btn 模板
         # ★ 惰性扫描:找到第一张出得起的牌就停,不读整手牌(默认开,见 §11)
         self.lazy_scan = lazy_scan
         self.turn_engine = None
@@ -281,6 +286,32 @@ class Controller:
     def can_act(self) -> bool:
         return (time.time() - self.last_click) > COOLDOWN_AFTER_CLICK
 
+    @staticmethod
+    def ranked_mode_selected(frame) -> bool:
+        """Return whether the ranked mode tile already has its selected style.
+
+        The selected tile uses the same orange text treatment as the existing
+        casual template.  Counting orange pixels in the small fixed ROI lets
+        us continue when the game remembers ranked mode from the previous run,
+        even though the clickable ``ranked_mode_btn`` template is the unselected
+        state captured from the supplied screenshot.
+        """
+        if frame is None or getattr(frame, "ndim", 0) < 2:
+            return False
+        x, y, w, h = RANKED_MODE_ROI
+        fh, fw = frame.shape[:2]
+        if x < 0 or y < 0 or x + w > fw or y + h > fh:
+            return False
+        roi = frame[y:y + h, x:x + w]
+        if roi.ndim != 3 or roi.shape[2] < 3:
+            return False
+        hsv = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
+        # Orange lettering is H≈15..25, saturated, and bright. The unselected
+        # tile in the supplied screenshot has zero pixels in this range.
+        orange = ((hsv[:, :, 0] >= 10) & (hsv[:, :, 0] <= 25)
+                  & (hsv[:, :, 1] >= 80) & (hsv[:, :, 2] >= 50))
+        return int(orange.sum()) >= 120
+
     # ---- state handlers ----
     def handle_main_menu(self):
         if self.can_act():
@@ -299,7 +330,22 @@ class Controller:
         if not self.can_act():
             return
         if self.deck_step == "casual":
-            for name in MODE_BTNS:
+            mode_buttons = ("ranked_mode_btn",) if self.ranked else MODE_BTNS
+            if self.ranked:
+                frame = self.grab_frame()
+                if self.ranked_mode_selected(frame):
+                    log("[deck_select] 排位按钮已是选中状态 -> 跳过重复点击")
+                    self.deck_step = "deck_ok"
+                    self._mode_miss = 0
+                    time.sleep(1.0)
+                    return
+            if self.ranked and "ranked_mode_btn" not in self.templates:
+                self._mode_miss += 1
+                if self._mode_miss in (1, 10) or self._mode_miss % 120 == 0:
+                    log("⚠️ 已启用排位模式,但缺少 ranked_mode_btn 模板;"
+                        "不会点击普通模式或 deck_ok_btn。请先截取排位按钮并录入模板")
+                return
+            for name in mode_buttons:
                 if name not in self.templates:
                     continue                    # 还没录模板的候选直接跳过
                 if self.click_template(name):
@@ -323,6 +369,8 @@ class Controller:
             #   `shots/_deck_select_training.png`,已归档到 `shots/ui_deck_select/`)
             #   上 `deck_ok_btn` 匹配 **0.931**、而 `casual_mode_btn` 只有 **0.476**
             #   —— 按钮一直在那儿,以前只是流程要求"先点模式"才够不着它。
+            if self.ranked:
+                return
             if self.click_template("deck_ok_btn"):
                 log("[deck_select] 没有模式按钮可点 -> 直接按「开始」"
                     "(对局模式是游戏自己记住的)")
@@ -1037,6 +1085,8 @@ def main() -> int:
                     help="M3f: 用校准好的手牌坐标表直扫(需先跑 hand_calibrate.py)")
     ap.add_argument("--attack", action="store_true",
                     help="M4: 开启攻击阶段(默认关;逐张定位与'上前线'还没校准,见 PROJECT_STATE §10)")
+    ap.add_argument("--ranked", action="store_true",
+                    help="排位模式(默认关;需 ranked_mode_btn 模板,存在被检测封号风险)")
     ap.add_argument("--no-lazy", action="store_true",
                     help="关掉惰性扫描(回到回合开始读整手牌;慢但信息全)")
     ap.add_argument("--full-frame-state", action="store_true",
@@ -1197,7 +1247,8 @@ def main() -> int:
 
     ctl = Controller(args.proc, args.dry_run, args.max_rounds, args.end_turn,
                      play=args.play, fast_scan=args.fast_scan,
-                     attack=args.attack, lazy_scan=not args.no_lazy)
+                     attack=args.attack, lazy_scan=not args.no_lazy,
+                     ranked=args.ranked)
     ctl.max_ticks = args.max_ticks
     try:
         return ctl.run()
