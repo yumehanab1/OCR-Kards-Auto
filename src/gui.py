@@ -38,6 +38,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -378,6 +379,61 @@ def build_argv(opts: dict) -> list[str]:
     return argv
 
 
+def options_path() -> str:
+    # 动态跟随 --root；配置属于项目目录，不属于 onefile 的临时解包目录。
+    return os.path.join(PROJECT_ROOT, "config", "gui_options.json")
+
+
+def normalize_options(opts: dict) -> dict:
+    """只保存已知开关和 0~99 局；保留 False 和 0 的含义。"""
+    if not isinstance(opts, dict):
+        raise ValueError("配置必须是对象")
+    out = {}
+    for sw in SWITCHES:
+        key = sw["key"]
+        value = opts.get(key, key in DEFAULT_ON)
+        if not isinstance(value, bool):
+            raise ValueError(f"{sw['label']} 必须为开或关")
+        out[key] = value
+    rounds = opts.get("max_rounds", 3)
+    if (type(rounds) not in (int, str)
+            or not re.fullmatch(r"[0-9]{1,2}", str(rounds))):
+        raise ValueError("跑几局必须是 0~99 的整数（0 = 一直跑）")
+    out["max_rounds"] = int(rounds)
+    return out
+
+
+def load_options() -> dict:
+    try:
+        with open(options_path(), encoding="utf-8-sig") as f:
+            return normalize_options(json.load(f))
+    except (OSError, ValueError, TypeError):
+        return normalize_options({})
+
+
+def save_options(opts: dict) -> dict:
+    """先写临时文件再替换，失败时保留上一次配置并把异常交给面板。"""
+    cleaned = normalize_options(opts)
+    path = options_path()
+    directory = os.path.dirname(path)
+    os.makedirs(directory, exist_ok=True)
+    tmp = None
+    try:
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=directory,
+                                         prefix="gui_options_", suffix=".tmp",
+                                         delete=False) as f:
+            tmp = f.name
+            json.dump(cleaned, f, ensure_ascii=False, indent=2)
+            f.write("\n")
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, path)
+    finally:
+        if tmp and os.path.exists(tmp):
+            os.unlink(tmp)
+    return cleaned
+
+
 def read_version() -> dict:
     """
     读 `config/app_version.json`。
@@ -527,6 +583,7 @@ class Api:
         self.proc: subprocess.Popen | None = None
         self.started_at: float | None = None
         self.last_opts: dict = {}
+        self.saved_options = load_options()
         self.error: str | None = None
         self._fh = None
 
@@ -552,6 +609,7 @@ class Api:
             "version": ver.get("version", "?"),
             "switches": SWITCHES,
             "default_on": sorted(DEFAULT_ON),
+            "saved_options": dict(self.saved_options),
             "error": self.error,
             "exit_code": (None if running or self.proc is None
                           else self.proc.returncode),
@@ -560,11 +618,22 @@ class Api:
                           else explain_exit_code(self.proc.returncode)),
         }
 
+    def save_settings(self, opts: dict) -> dict:
+        try:
+            self.saved_options = save_options(opts)
+            return {"ok": True, "msg": "配置已自动保存"}
+        except (OSError, ValueError, TypeError) as e:
+            return {"ok": False, "msg": f"保存失败：{e}"}
+
     # ---- 开关控制 ----
     def start(self, opts: dict) -> dict:
         if self.proc is not None and self.proc.poll() is None:
             return {"ok": False, "msg": "已经在跑了"}
-        argv = build_argv(opts or {})
+        saved = self.save_settings(opts or {})
+        if not saved["ok"]:
+            return saved
+        opts = dict(self.saved_options)
+        argv = build_argv(opts)
         if not argv:
             return {"ok": False, "msg": "一个功能都没勾 —— 至少勾一个再开始"}
         os.makedirs(LOG_DIR, exist_ok=True)
@@ -769,7 +838,7 @@ HTML = r"""<!doctype html>
   <div class="pill idle" id="pill"><span class="dot"></span><span id="pilltxt">空闲</span></div>
   <div class="spacer"></div>
   <button class="ghost" id="btnUpdate">检测更新</button>
-  <button id="btnStart">开始</button>
+  <button id="btnStart" disabled>开始</button>
   <button class="danger" id="btnStop" disabled>停止</button>
 </header>
 <main>
@@ -778,8 +847,9 @@ HTML = r"""<!doctype html>
     <div class="body" id="switches"></div>
     <div class="body" style="flex:0 0 auto;border-top:1px solid var(--line)">
       <div class="row"><label>跑几局</label>
-        <input type="number" id="rounds" min="0" max="99" value="3">
+        <input type="number" id="rounds" min="0" max="99" value="3" disabled>
         <span class="sub">0 = 一直跑</span></div>
+      <div class="sub" id="saveStatus" role="status" style="margin-top:6px">选项与局数自动保存，重启后恢复。</div>
       <div class="note">跑的时候别让面板盖住 KARDS —— 窗口被盖住时引擎会
         fail-closed 不动作(它本来就这么设计)。</div>
     </div>
@@ -816,23 +886,24 @@ let updUrl = '';   // 查到新版本后存发布页地址,按钮第二次点就
 const $ = s => document.querySelector(s);
 function toast(msg, ms=3200){ const t=$('#toast'); t.textContent=msg; t.classList.add('show');
   clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('show'), ms); }
-function renderSwitches(list, on){
+function renderSwitches(list, opts){
   const box = $('#switches');
   if(box.childElementCount) return;
+  $('#rounds').value = opts.max_rounds;
+  $('#rounds').disabled = false;
   for(const s of list){
     const d = document.createElement('label'); d.className='sw';
-    d.innerHTML = `<input type="checkbox" id="sw_${s.key}" ${on.includes(s.key)?'checked':''}>
+    d.innerHTML = `<input type="checkbox" id="sw_${s.key}" ${opts[s.key]?'checked':''}>
       <span class="txt"><span class="lbl">${s.label}</span>
       <span class="hint">${s.hint}<br>${s.flag}</span></span>`;
     const input = d.querySelector('input');
-    if(s.key === 'ranked'){
-      input.addEventListener('change', ()=>{
-        if(input.checked && !window.confirm(
-          '警告：排位模式下的自动操作可能被游戏检测，存在封号风险。\n\n确认要启用排位模式吗？')){
-          input.checked = false;
-        }
-      });
-    }
+    input.addEventListener('change', ()=>{
+      if(s.key === 'ranked' && input.checked && !window.confirm(
+        '警告：排位模式下的自动操作可能被游戏检测，存在封号风险。\n\n确认要启用排位模式吗？')){
+        input.checked = false;
+      }
+      persistOptions();
+    });
     box.appendChild(d);
   }
 }
@@ -877,7 +948,7 @@ function render(s){
 async function poll(){
   try{
     const s = await window.pywebview.api.snapshot(onlyKey, 400);
-    renderSwitches(s.switches, s.default_on); render(s);
+    renderSwitches(s.switches, s.saved_options); render(s);
     $('#logtag').textContent = 'main_loop.log';
     $('#logtag').style.color = '';
   }catch(e){
@@ -887,12 +958,37 @@ async function poll(){
     $('#logtag').style.color = 'var(--bad)';
   }
 }
+function collectOptions(){
+  const opts = {max_rounds: $('#rounds').value};
+  for(const sw of document.querySelectorAll('#switches input'))
+    opts[sw.id.slice(3)] = sw.checked;
+  return opts;
+}
+// 串行写入，快速连续修改时旧配置不会晚于新配置落盘。
+let saveQueue = Promise.resolve(), saveRevision = 0;
+function persistOptions(){
+  const revision = ++saveRevision;
+  const opts = collectOptions();
+  if(!/^[0-9]{1,2}$/.test(opts.max_rounds)){
+    $('#saveStatus').textContent = '局数须为 0~99 的整数，尚未保存当前修改';
+    return;
+  }
+  $('#saveStatus').textContent = '正在自动保存…';
+  saveQueue = saveQueue.then(async ()=>{
+    try {
+      const r = await window.pywebview.api.save_settings(opts);
+      if(revision === saveRevision) $('#saveStatus').textContent = r.msg;
+    } catch(e) {
+      if(revision === saveRevision) $('#saveStatus').textContent = '自动保存失败：' + e;
+    }
+  });
+}
 window.addEventListener('pywebviewready', async ()=>{
   poll(); setInterval(poll, 1000);
+  $('#rounds').addEventListener('input', persistOptions);
   $('#btnStart').onclick = async ()=>{
-    const opts = {max_rounds: $('#rounds').value};
-    for(const sw of document.querySelectorAll('#switches input'))
-      opts[sw.id.slice(3)] = sw.checked;
+    const opts = collectOptions();
+    await saveQueue;
     const r = await window.pywebview.api.start(opts);
     // 启动失败时那条消息是要人读的(可能两三行、还带操作步骤),3.2 秒根本看不完
     toast(r.ok ? ('已启动:'+r.argv.join(' ')) : r.msg, r.ok ? 3200 : 12000); poll();
@@ -964,6 +1060,8 @@ def main() -> int:
             #   `log_rev` 只有新代码才有,所以自检里出现这个字段 = 新面板真的在 exe 里。
             "log_rev": log_rev(LOG),
             "version": read_version(),
+            "options_file": options_path(),
+            "saved_options": load_options(),
             # ★★ 2026-09-19(v0.1.3):把"更新检测这次真的打进 exe 了"写进自检里。
             #   为什么非要这一条:面板是 **onefile exe**,`gui.py` 是**编进去**的 ——
             #   改了 gui.py 不重打包,用户那边看到的还是旧面板(新功能等于没发)。

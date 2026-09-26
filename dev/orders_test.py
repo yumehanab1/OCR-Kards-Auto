@@ -78,11 +78,41 @@ C("表里确实有「可直接打出」的指令", orders.MODE_DIRECT in by_mode
 if orders.MODE_DIRECT in by_mode:
     nm = by_mode[orders.MODE_DIRECT]
     C(f"direct 的指令放行:{nm}", orders.playable("order", nm) is True)
-for mode, label in ((orders.MODE_TARGET, "需要目标"), (orders.MODE_CHOICE, "抉择"),
-                    (orders.MODE_BLACKLIST, "黑名单"), (orders.MODE_UNSUPPORTED, "不支持")):
+for mode, label in ((orders.MODE_BLACKLIST, "黑名单"),
+                    (orders.MODE_UNSUPPORTED, "不支持")):
     nm = by_mode.get(mode)
     if nm:
         C(f"{label}的指令**不**放行:{nm}", orders.playable("order", nm) is False)
+
+_three = [nm for nm in (orders._CARDS or {}) if orders.is_three_order(nm)]
+C("目标码 7 中非两步的三选一共 19 个卡名", len(_three) == 19)
+C("三选一指令全部放行", all(orders.playable("order", n) for n in _three))
+C("三选一的两步卡仍不放行",
+  all(not orders.playable("order", n) for n, r in (orders._CARDS or {}).items()
+      if r["mode"] == orders.MODE_TARGET and r["kind"] == "7" and r["follow"]))
+try:
+    orders.PLAY_THREE_ORDERS = False
+    C("三选一开关关闭时整档不放行",
+      not any(orders.playable("order", n) for n in _three))
+finally:
+    orders.PLAY_THREE_ORDERS = True
+
+_marked = [nm for nm in (orders._CARDS or {}) if orders.choice_spec(nm)]
+_unmarked = [nm for nm in (orders._CARDS or {})
+             if orders.is_choice_card(nm) and not orders.choice_spec(nm)]
+C("明确标左/右的双牌抉择共 27 个卡名", len(_marked) == 27)
+C("标选边的抉择全部放行", all(orders.playable("order", n) for n in _marked))
+C("未标选边的抉择共 16 个卡名", len(_unmarked) == 16)
+C("未标选边的抉择全部是黑名单,且不放行",
+  all(orders.is_blacklisted(n) and not orders.playable("order", n) for n in _unmarked))
+C("呼叫殖民地选左", orders.choice_spec("呼叫殖民地").get("rows") == "1")
+try:
+    orders.PLAY_CHOICES = False
+    C("独立开关关闭时抉择全部不放行",
+      not any(orders.playable("order", n) for n in _marked))
+    C("关闭抉择不影响 direct", orders.playable("order", by_mode[orders.MODE_DIRECT]))
+finally:
+    orders.PLAY_CHOICES = True
 
 print()
 print("=" * 86)
@@ -157,8 +187,13 @@ _k5_n = len(_k5)
 C(f"「需要目标 {len(_tgt)} 个卡名」对得上", f"需要目标 {len(_tgt)} 个卡名" in _st, _st)
 C(f"「其中可打 {_ok_n} 个」= `_target_gate()` 逐卡现算", f"其中可打 {_ok_n} 个" in _st, _st)
 C(f"「可直接打出 {_dir_n} 个卡名」对得上", f"可直接打出 {_dir_n} 个卡名" in _st, _st)
-C(f"「黑名单 {_bl_n} 个卡名(表里 {_tbl_bl} + kind 5 {_k5_n})」对得上",
-  f"黑名单 {_bl_n} 个卡名" in _st and f"表里 {_tbl_bl} + kind 5 {_k5_n}" in _st, _st)
+C(f"「黑名单 {_bl_n} 个卡名」包含未标选边抉择",
+  f"黑名单 {_bl_n} 个卡名" in _st
+  and f"表里 {_tbl_bl} + kind 5 {_k5_n} + 未标选边抉择 {len(_unmarked)}" in _st, _st)
+C("status 的抉择可打数与逐卡判据一致",
+  f"其中可打 {sum(orders.is_choice(n) for n in _marked)} 个" in _st, _st)
+C("status 的三选一数与逐卡判据一致",
+  f"三选一 {len(_three)} 个" in _st, _st)
 C("账真的平:可打 + 不可打 = 表里 target 总数",
   _ok_n + sum(1 for r in _tgt if not orders._target_gate(r)[0]) == len(_tgt),
   f"{_ok_n} + {len(_tgt) - _ok_n} = {len(_tgt)}")

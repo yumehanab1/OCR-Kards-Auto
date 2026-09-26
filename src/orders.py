@@ -13,12 +13,15 @@ orders.py - 指令卡「能不能打」的唯一来源(读 `config/order_plays.j
     blacklist   不打,并且要提示用户"别带这张"(惩戒那一族等)
     unsupported 其余(没给规格 / 不在白名单 / 反制)
 
-★ 2026-09-20 第二版(target)放行了哪几档、没放行哪几档:
+当前放行范围:
   · 放行:`direct`(286 张)+ `target` 里 **kind 1~4/6 且不带 follow** 的
     (敌我单位/总部,落点由 `order_target.pick()` 现算);
-  · 不放行:`choice`(27 张,要按白名单点选项)、`target` 里的 **kind 5**
+  · 放行:`choice` 中已标左/右的双选项牌(2026-09-26 用户确认坐标);
+    未标选边的抉择一律归黑名单,两步抉择不放行。
+  · 放行:目标码 7 中无后续指向的三选一,三个位置等概率随机选择。
+  · 不放行:`target` 里的 **kind 5**
     (2026-09-21 用户决定**整档归黑名单**,见 `KIND5_AS_BLACKLIST`)、
-    kind 7(三选一,20 张)与带 `follow` 的两步卡(3 张)、
+    带 `follow` 的两步卡、
     `blacklist`(83 张,用户点名别带)、`unsupported`(67 张)。
   每一档的**判据都在这个文件里**(见 `_target_gate` / `is_blacklisted`),
   `status()` 会把它们如实打出来。
@@ -38,6 +41,7 @@ from __future__ import annotations
 
 import json
 import os
+import random
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PLAN_JSON = os.path.join(PROJECT_ROOT, "config", "order_plays.json")
@@ -53,6 +57,12 @@ PLAY_ORDERS = True
 #:   (`order_target.py`,要读战场/前线归属)。实机出问题时得能**只关这一档**、
 #:   把 direct 留着,否则一关就两档都没了,没法对比到底是哪一档的问题。
 PLAY_TARGETS = True
+
+#: 双牌抉择独立开关;关闭后不拖抉择,保留 direct / target。
+PLAY_CHOICES = True
+
+#: 已标为目标码 7 的三选一指令,选项出现后按等概率随机选择。
+PLAY_THREE_ORDERS = True
 
 #: ★★ A/B 开关(2026-09-21):**`kind 5`「选择一张手牌」整档按黑名单处理**。
 #:   依据 = 用户 2026-09-21 的决定:"kind5进黑名单"。
@@ -135,10 +145,22 @@ def load(path: str = PLAN_JSON) -> None:
                    "rows": rec.get("rows") or "",
                    "follow": rec.get("follow") or "",
                    "cost": rec.get("cost"),
+                   "src": rec.get("src") or "",
+                   "text": rec.get("text") or "",
+                   "choice_card": (rec.get("mode") == MODE_CHOICE
+                                   or rec.get("src") == "抉择"
+                                   or "抉择：" in (rec.get("text") or "")
+                                   or "抉择:" in (rec.get("text") or "")),
                    "cardId": cid}
             old = _CARDS.get(name)
             if old is None:
                 _CARDS[name] = new
+            elif ((old.get("choice_card") or new.get("choice_card"))
+                  and any(old.get(k) != new.get(k)
+                          for k in ("mode", "kind", "rows", "follow"))):
+                # 同名选边有冲突时不能随便用其中一条。
+                _CONFLICTS.append(f"{name}: 抉择规格冲突 -> 黑名单")
+                _CARDS[name] = dict(old, mode=MODE_BLACKLIST, choice_card=True)
             elif old["mode"] != new["mode"]:
                 # ★ 同名不同要求:引擎手里只有卡名,分不开 -> **取最保守的那个**,并留痕。
                 #   (现在表里只有「惩戒」一种重名,12 张全是黑名单,不冲突;
@@ -240,6 +262,17 @@ def is_target(name: str) -> bool:
     return _target_gate(rec)[0]
 
 
+def is_three_order(name: str) -> bool:
+    """无需场上目标、打出后弹三张卡的指令(两步卡仍不放行)。"""
+    import order_choice
+    rec = rec_of(name)
+    return bool(PLAY_ORDERS and PLAY_THREE_ORDERS
+                and order_choice.ENABLE_SELECTION_STAGE
+                and rec.get("mode") == MODE_TARGET
+                and str(rec.get("kind") or "").strip() == "7"
+                and not str(rec.get("follow") or "").strip())
+
+
 def target_refuse_reason(name: str) -> str:
     """
     「这张 target 指令**这一局**为什么打不了」的人话原因(能打就返回空串)。
@@ -270,6 +303,61 @@ def is_kind5(name: str) -> bool:
         and str(rec.get("kind") or "").strip() == "5"
 
 
+def is_choice_card(name: str) -> bool:
+    """是否为抉择,包括生成表中未标选边的 unsupported 记录。"""
+    rec = rec_of(name)
+    return bool(rec.get("choice_card") or rec.get("mode") == MODE_CHOICE
+                or rec.get("src") == "抉择")
+
+
+def _choice_marked(rec: dict) -> bool:
+    """是否确实标了选边;开关、选项数不改变这个事实。"""
+    return (rec.get("mode") == MODE_CHOICE
+            and str(rec.get("rows") or "").strip() in ("1", "3"))
+
+
+def _choice_gate(rec: dict) -> tuple[bool, str]:
+    import order_choice
+    if not order_choice.ENABLE_SELECTION_STAGE:
+        return False, "ENABLE_SELECTION_STAGE=False(选牌阶段已关闭)"
+    if not PLAY_CHOICES:
+        return False, "PLAY_CHOICES=False(双牌抉择开关已关闭)"
+    if not _choice_marked(rec):
+        return False, "抉择未标左/右,按黑名单处理"
+    if str(rec.get("kind") or "").strip() != "a":
+        return False, "仅已校准两个选项的抉择(kind=a)"
+    if str(rec.get("follow") or "").strip():
+        return False, "两步抉择尚未实现"
+    return True, ""
+
+
+def is_choice(name: str) -> bool:
+    """这局允许打的双牌抉择;scanner、引擎和点击模块共用。"""
+    return bool(PLAY_ORDERS and _choice_gate(rec_of(name))[0])
+
+
+def choice_spec(name: str) -> dict:
+    """已标选边的双牌规格;无规格返回空字典,不猜选项。"""
+    rec = rec_of(name)
+    if (not _choice_marked(rec) or str(rec.get("kind") or "").strip() != "a"
+            or str(rec.get("follow") or "").strip()):
+        return {}
+    return {"mode": MODE_CHOICE, "kind": "a",
+            "rows": str(rec["rows"]).strip(), "cardId": rec.get("cardId")}
+
+
+def selection_pick(name: str, count: int, step: int) -> str:
+    """当前第 step 次选牌的位置;三张牌等概率选左/中/右。"""
+    if count == 2 and is_choice(name):
+        spec = choice_spec(name)
+        # Follow-up two-card menus from a prior pick do not reveal whether
+        # the left/right effect maps to the original card's rule.
+        return spec.get("rows", "") if step == 0 else ""
+    if count == 3:
+        return random.choice(("1", "2", "3"))
+    return ""
+
+
 def is_blacklisted(name: str) -> bool:
     """
     用户点名"别带这张"的牌(惩戒那一族),**以及 2026-09-21 归进来的 kind 5 那一档**。
@@ -282,6 +370,8 @@ def is_blacklisted(name: str) -> bool:
     """
     if mode_of(name) == MODE_BLACKLIST:
         return True
+    if is_choice_card(name) and not _choice_marked(rec_of(name)):
+        return True
     return bool(KIND5_AS_BLACKLIST) and is_kind5(name)
 
 
@@ -290,21 +380,21 @@ def playable(ctype: str, name: str) -> bool:
     "这张牌现在允许被拖出去吗" —— **scanner 和 turn_engine 必须问同一个函数**。
 
     单位:认得出类型就行(能不能付得起由调用方按预算判);
-    指令:**放行「可直接打出」(direct)和「需要目标」(target)两档** ——
+    指令:放行 direct、已实现的 target、明确标左/右的双牌 choice、三选一。
       target 的落点由 `order_target.pick()` 现算(拖到目标卡/总部身上再松手,
       见那个模块的文件头),这里只回答"允不允许"。
-      `choice`(抉择:打出后弹选项,要按白名单点)/ `blacklist`(用户点名别带)/
-      `unsupported` **仍然一律不放行**;target 里的 **kind 5**
-      (2026-09-21 归黑名单;见 `KIND5_AS_BLACKLIST`)、kind 7(三选一)和带 `follow`
-      的两步卡也不放行(见 `_target_gate`)。
+      未标选边的抉择归黑名单。blacklist / unsupported 不放行;target 里的 **kind 5**
+      (2026-09-21 归黑名单;见 `KIND5_AS_BLACKLIST`)和带 `follow` 的两步卡
+      也不放行(见 `_target_gate` 和 `is_three_order`)。
     其它(剩余档 / countermeasure / None)= 不放行(fail-closed)。
     """
-    if not ctype:
+    if not ctype or is_blacklisted(name):
         return False
     if ctype in ("infantry", "tank", "fighter", "bomber", "artillery"):
         return True
     if ctype in ("order", "counter", "countermeasure"):
-        return is_direct(name) or is_target(name)
+        return (is_direct(name) or is_target(name) or is_choice(name)
+                or is_three_order(name))
     return False
 
 
@@ -330,8 +420,9 @@ def status() -> str:
     tgt = [r for r in _CARDS.values() if r["mode"] == MODE_TARGET]
     n_tgt = len(tgt)
     n_k5_in_bl = sum(1 for r in tgt if str(r.get("kind") or "").strip() == "5"
-                     and KIND5_AS_BLACKLIST) if PLAY_TARGETS else 0
+                     and KIND5_AS_BLACKLIST)
     n_ok = sum(1 for r in tgt if _target_gate(r)[0])
+    n_three = sum(1 for nm in _CARDS if is_three_order(nm))
     # 真正会被按"黑名单"对待的卡名数 = 表里的黑名单 + 归进来的 kind 5
     n_bl = sum(1 for nm in _CARDS if is_blacklisted(nm))
     n_bl_tbl = c.get(MODE_BLACKLIST, 0)
@@ -342,18 +433,27 @@ def status() -> str:
         k5_txt = f";其中 kind 5「选择一张手牌」{n_k5_in_bl} 个归黑名单"
     if PLAY_TARGETS:
         target_txt = (f"需要目标 {n_tgt} 个卡名(其中可打 {n_ok} 个;"
-                      f"kind 7/两步卡不放行{k5_txt})")
+                      f"三选一 {n_three} 个单独走选牌阶段;两步卡不放行{k5_txt})")
     else:
         target_txt = (f"需要目标 {n_tgt} 个卡名"
                       f"(PLAY_TARGETS=False -> 这一档不打)")
-    if PLAY_TARGETS and KIND5_AS_BLACKLIST:
-        bl_txt = f"黑名单 {n_bl} 个卡名(表里 {n_bl_tbl} + kind 5 {n_k5_in_bl})"
-    else:
-        bl_txt = f"黑名单 {n_bl_tbl} 个卡名"
+    unmarked = sum(1 for nm, r in _CARDS.items()
+                   if is_choice_card(nm) and not _choice_marked(r)
+                   and r["mode"] != MODE_BLACKLIST)
+    choices = [nm for nm in _CARDS if is_choice_card(nm)]
+    choice_ok = sum(1 for nm in choices if is_choice(nm))
+    choice_txt = (f"抉择 {len(choices)} 个卡名(其中可打 {choice_ok} 个;"
+                  f"未标选边 {unmarked} 个归黑名单"
+                  + (";PLAY_CHOICES=False" if not PLAY_CHOICES else "") + ")")
+    bl_txt = (f"黑名单 {n_bl} 个卡名(表里 {n_bl_tbl}"
+              + (f" + kind 5 {n_k5_in_bl}" if KIND5_AS_BLACKLIST else "")
+              + f" + 未标选边抉择 {unmarked})")
     return (f"指令卡:{n} 个卡名 / {_N_CARDS} 张(可直接打出 "
-            f"{c.get(MODE_DIRECT, 0)} 个卡名 / {target_txt} / 抉择 "
-            f"{c.get(MODE_CHOICE, 0)} 个卡名 / {bl_txt})—— 本局打「可直接打出」"
-            + ("+「需要目标(kind 1~4/6)」两档" if PLAY_TARGETS else "这一档")
+            f"{c.get(MODE_DIRECT, 0)} 个卡名 / {target_txt} / {choice_txt} / "
+            f"{bl_txt})—— 本局打「可直接打出」"
+            + ("+「需要目标」" if PLAY_TARGETS else "")
+            + ("+「已标选边双牌抉择」" if PLAY_CHOICES else "")
+            + (f"+「三选一 {n_three} 个」" if PLAY_THREE_ORDERS else "")
             + (";kind 5 按黑名单处理(不打 + 提示别带)" if PLAY_TARGETS
                and KIND5_AS_BLACKLIST else "")
-            + ";抉择 / 三选一(kind 7)/ 两步(follow)/ 黑名单 一律不打" + warn)
+            + ";未标选边抉择 / 两步(follow)/ 黑名单 一律不打" + warn)

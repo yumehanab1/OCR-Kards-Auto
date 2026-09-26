@@ -30,6 +30,8 @@ Windows 64 位 KARDS 画面自动化工具：只读屏幕、模拟鼠标，不�
 
 排位模式只在有 `ranked_mode_btn` 模板时点击排位；模板缺失会安全停住，不会回退到休闲模式。
 
+开关和局数修改后自动写入 `config/gui_options.json`，重启面板自动恢复，不会自动运行。
+
 ## 从源码运行
 
 需要 Windows 10/11、Python 3.10+：

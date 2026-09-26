@@ -34,9 +34,10 @@ unreadable, learns a price cap from refused drags.
 
 Heuristics (v1, safe):
   - deployable types: infantry, tank, fighter, bomber, artillery
-  - orders: only what `orders.playable()` allows (direct + target kind 1~6);
-    `choice` / blacklist / unsupported and target kind 7 / two-step cards are
-    never dragged; counters (`countermeasure`) are never dragged either
+  - orders: only what `orders.playable()` allows: direct, implemented targets,
+    marked two-card choices, and three-card orders without follow-up targeting
+  - current three-card menus interrupt ordinary actions, including unit effects
+  - unmarked choices, blacklist, unsupported and two-step cards are never dragged
   - never re-attempt a card position that already failed this turn
 """
 
@@ -51,6 +52,7 @@ from attack import Attacker, FrontMover
 from deploy import drag_deploy, deploy_candidates
 import orders                     # 指令卡"能不能打"的唯一来源(见 orders.playable)
 import order_target               # target 指令"该往哪个坐标拖"的唯一来源(见那个模块)
+import order_choice               # 独立的两牌/三牌选牌阶段
 import deploy as deploy_mod
 from hand_scanner_v2 import HandScannerV2, diff_bbox
 from hand_memory import HandMemory
@@ -58,6 +60,7 @@ import hand_scanner_v2 as hs_mod
 from kredits import Affordability, KreditsTracker, read_kredits
 import kredits as kredits_mod
 from ui_state import match_one
+import win
 from win import capture_client_bgr, client_to_screen
 import board
 
@@ -208,6 +211,9 @@ class TurnEngine:
         #   ★ 攻击仍然排在上前线之前:移动会消耗单位的行动,
         #     能打的先打(打了就变灰、不会被选去移动),打不到的才挪上去。
         self.phase = "wait_our_turn"
+        self.selection_pending = None  # 已拖出的选牌必须先处理
+        self.selection_flow = None
+        self.selection_resume_phase = None
         self.cards = []              # cached scan result for this turn
         self._scan_count = 0
         self.attacked_this_turn = 0
@@ -230,6 +236,35 @@ class TurnEngine:
                 return False
         s, _reg = self._end_turn_region(frame)
         return s >= END_TURN_MIN_SCORE
+
+    def _enter_screen_selection(self, frame):
+        """Enter from the visible layout, with no preceding card requirement."""
+        if (not order_choice.ENABLE_SELECTION_STAGE
+                or self.phase in ("selection_pending", "selection_blocked")):
+            return False
+        count, evidence = order_choice.detect_count(frame)
+        if count == -1:
+            self.phase = "selection_blocked"
+            self.log(f"[selection] ⚠️ 选牌布局歧义 -> 停手;{evidence}")
+            self._dump_frame("ambiguous", "", subdir="choice")
+            return True
+        if count != 3:
+            return False
+        self.selection_resume_phase = self.phase
+        self.selection_pending = {"name": "", "external": True}
+        self.selection_flow = order_choice.SelectionFlow("")
+        self.phase = "selection_pending"
+        self.log(f"[selection] 当前画面出现 {count} 张选项 -> 进入选牌阶段;"
+                 f"{evidence}")
+        self._dump_frame("detected", str(count), subdir="choice")
+        return True
+
+    def _action_hard_stop(self):
+        """A selection popup takes precedence over attack/move actions."""
+        frame = capture_client_bgr(self.hwnd)
+        return (frame is None or self._enter_screen_selection(frame)
+                or self.phase in ("selection_pending", "selection_blocked")
+                or not self._end_turn_visible(frame))
 
     def reset_turn(self):
         self.failed_x = set()
@@ -259,6 +294,9 @@ class TurnEngine:
         self.attacker.reset_turn()
         self.front_mover.reset_turn()
         self.phase = "wait_our_turn"
+        self.selection_pending = None
+        self.selection_flow = None
+        self.selection_resume_phase = None
 
     # --- window / frame helpers -------------------------------------------
     def _read_kredits_raw(self, frame):
@@ -1104,6 +1142,108 @@ class TurnEngine:
         frame = capture_client_bgr(self.hwnd)
         if frame is None:
             return "no_frame"
+        if self.phase == "selection_blocked":
+            return "selection_blocked"
+        self._enter_screen_selection(frame)
+        if self.phase == "selection_blocked":
+            return "selection_blocked"
+        if self.phase == "selection_pending":
+            # A modal selection remains its own stage across multiple ticks.
+            # Clicking once never authorizes play/end-turn until normal view.
+            pending = self.selection_pending or {}
+            name = pending.get("name")
+            target = pending.get("target") or {}
+            external = bool(pending.get("external"))
+            if not external and (not name or not (orders.is_choice(name)
+                                              or orders.is_three_order(name))):
+                self.phase = "selection_blocked"
+                self.log("[selection] ⚠️ 待处理选牌无有效白名单规则 -> 停手")
+                self._dump_frame("invalid_rule", name or "", subdir="choice")
+                return "selection_blocked"
+
+            def _click_option(cx, cy):
+                sx, sy = client_to_screen(self.hwnd, cx, cy)
+                return click(sx, sy, jitter=0)
+
+            flow = self.selection_flow
+            if flow is None:
+                flow = self.selection_flow = order_choice.SelectionFlow(name)
+            status, note = flow.tick(
+                frame, normal_visible=self._end_turn_visible,
+                click_client=_click_option,
+                can_act=lambda: win.window_is_capturable(self.hwnd, quiet=True),
+                log=self.log)
+            if status == "waiting":
+                return "selection_waiting"
+            self.log(f"[selection] {name}: {note}")
+            if status == "clicked":
+                return "selection_clicked"
+            if status == "blocked":
+                self.phase = "selection_blocked"
+                self._dump_frame("blocked", name, subdir="choice")
+                return "selection_blocked"
+            if external:
+                deferred = pending.get("deferred_deploy")
+                if deferred:
+                    after = self._field(park=True)
+                    self.field_now = after
+                    ok, verdict, _ = self._judge_deploy(
+                        deferred.get("before"), after, deferred["target"],
+                        deferred["cost"], is_order=deferred["is_order"])
+                    if not ok:
+                        self.phase = "selection_blocked"
+                        self.log(f"[selection] ⚠️ 选牌已完成,但原部署未能确认:"
+                                 f"{verdict} -> 停手")
+                        self._dump_frame("deploy_uncertain", "", subdir="choice")
+                        return "selection_blocked"
+                    self.deployed_this_turn += 1
+                    self.afford.note_deploy_ok(deferred["cost"])
+                    self.memory.note_played(deferred["target"].get("i"))
+                    self.cards = []
+                    self._scanned_full_this_turn = False
+                self.selection_pending = None
+                self.selection_flow = None
+                self.phase = self.selection_resume_phase or "wait_our_turn"
+                self.selection_resume_phase = None
+                self.log("[selection] 已回到正常对局,恢复之前的回合阶段")
+                return "selection_resolved"
+            # The popup is gone. Do not claim a paid play until the ordinary
+            # order cost check agrees; otherwise the result is uncertain.
+            cost = pending.get("cost")
+            if cost == 0:
+                now = self._kredits_now()
+                before_k = pending.get("kredits_before")
+                if before_k is not None and now is not None and now != before_k:
+                    self.phase = "selection_blocked"
+                    self.log(f"[selection] ⚠️ 0 费指令后费用变化"
+                             f"({before_k}->{now}),结果不可信 -> 停手")
+                    self._dump_frame("cost_uncertain", name, subdir="choice")
+                    return "selection_blocked"
+            if cost is not None and cost > 0:
+                expected = (pending.get("kredits_before") - cost
+                            if pending.get("kredits_before") is not None else None)
+                now = self._kredits_now()
+                if expected is None or now != expected:
+                    again = self._kredits_recheck()
+                    if expected is None or again != expected:
+                        self.phase = "selection_blocked"
+                        self.log(f"[selection] ⚠️ 已回到对局,但费用未能确认"
+                                 f"(预期 {expected},读数 {now}/{again}) -> 停手")
+                        self._dump_frame("cost_uncertain", name, subdir="choice")
+                        return "selection_blocked"
+            self._spend(cost)
+            self.deployed_this_turn += 1
+            self.afford.note_deploy_ok(cost)
+            self.memory.note_played(target.get("i"))
+            self.selection_pending = None
+            self.selection_flow = None
+            if self.lazy_scan:
+                self.cards = []
+                self._scanned_full_this_turn = False
+            self.phase = "play"
+            self.log(f"[selection] {name} 已选边并确认完成;本回合成功 "
+                     f"{self.deployed_this_turn} 个")
+            return "selection_resolved"
         et = self._end_turn_visible(frame)
 
         if self.phase == "wait_our_turn":
@@ -1173,11 +1313,9 @@ class TurnEngine:
             #   这不是浪费:通常前几个探针就能命中,单次约 2-3 秒,
             #   而全量扫描是 14 秒。
             if self.lazy_scan and not self.cards:
-                if self._support_line_full():
-                    pass          # 线满了就别扫了,直接进攻击/结束
-                elif (self.kredits_left is not None
-                        and self.kredits_left < MIN_KREDITS_TO_SCAN
-                        and self._kredits_measured()):
+                if (self.kredits_left is not None
+                         and self.kredits_left < MIN_KREDITS_TO_SCAN
+                         and self._kredits_measured()):
                     # ★ 2026-09-13 用户要求:钱太少(< MIN_KREDITS_TO_SCAN)就别扫了,
                     #   省掉一次 3~9 秒的扫描 —— 代价是手里若只有 1 费牌就不出了。
                     #   ★ **只对"真读到的"读数生效**:读不到时的兜底值是
@@ -1198,7 +1336,7 @@ class TurnEngine:
                     self._lazy_find_playable()
 
             target = None
-            unknown_target = None
+            skipped_full_line = False
             # 支援阵线满了就别再拖了(用户确认最多 4 个):即使费用充足也放不下,
             # 牌会留在手上,拖出去只是白费时间。
             # ★ 判据是【场上实际卡数】,不是"本回合部署了几个":
@@ -1243,6 +1381,11 @@ class TurnEngine:
                 #   (2026-09-20:以前 line_full 直接把整个出牌循环清空,于是
                 #    "线满了"连带把指令也一起禁掉了)。
                 if line_full and not is_order_c:
+                    # Units cannot be placed, but an order behind them can
+                    # still be played. Exclude this position and keep scanning.
+                    skipped_full_line = True
+                    self.attempted_x.add(c["x"])
+                    self.failed_x.add(c["x"])
                     continue
                 # ★★★ 2026-09-20:**指令卡**。用户把 674 张指令/反制的打法逐张给了出来,
                 #   落在 `config/order_plays.json`。两版下来的放行范围:
@@ -1250,33 +1393,23 @@ class TurnEngine:
                 #       —— 用户原话"拖出路径可以直接复用下单位时的路径");
                 #     第二版:+ `target` 里 kind 1~6 且不带 follow 的(落点 = **目标卡
                 #       中心**,由 `order_target.pick()` 现算,见下面那一段)。
-                #   `choice`/`blacklist`/`unsupported`、target 里的 kind 7(三选一)
-                #   与两步卡,全部由 `orders.playable()` 挡在外面(**判据只有那一处**,
-                #   这里不另写名单)。
+                #   已标选边的双牌抉择与无后续指向的三选一另走选牌阶段。
+                #   未标选边、黑名单和未实现步骤由 orders.playable() 挡住。
                 if orders.playable(ctype, c.get("name")):
                     if self._budget(cost):
                         target = c
                         break
                     continue
-                # 认不出来的牌(name/type 都空):不知道它是什么,也可能就是个
-                # 便宜单位。费用读到了就按费用判断;费用也没有就试一次 ——
-                # 试错成本极低(出不去就留在手上),而结果会立刻把上限压下来。
-                # PROJECT_STATE 第 35 条:这类牌以前直接不 append,等于从手牌里
-                # 消失,引擎永远不出。
+                # 抉择白名单要求未标选边的一律禁用。完全认不出身份的
+                # 手牌也可能是那 16 张之一,不能继续沿用盲拖试错。
                 if ctype is None and c.get("unknown"):
-                    if self.unknown_tried >= MAX_UNKNOWN_TRIES:
-                        continue
-                    if self._budget(cost, unknown_cost=MIN_UNKNOWN_COST):
-                        unknown_target = c
-                        break
-                # 已知是 order/counter -> 一律不碰(需要选目标,风险高)
-
-            if target is None and unknown_target is not None:
-                target = unknown_target
-                self.log(f"[turn] 未知牌 x={target['x']} "
-                         f"(费用 {target.get('cost')}) —— 试一次,出不去就作罢")
+                    continue
 
             if target is None:
+                if skipped_full_line and self.lazy_scan:
+                    self.cards = []
+                    self._scanned_full_this_turn = False
+                    return "line_full_scan_next"
                 # ★★★ 2026-09-13(第九个会话,用户要求):阶段顺序整个反过来 ——
                 #   **先让场上已有的单位行动(攻击 / 上前线),最后才部署手牌**。
                 #   所以"出牌阶段"现在是**最后一段**,出完就结束回合。
@@ -1294,6 +1427,47 @@ class TurnEngine:
             name = target.get("name") or target.get("type") or "未知牌"
             cost = target.get("cost")
             before = self._field(park=True)
+
+            if orders.is_choice(name) or orders.is_three_order(name):
+                # A choice remains modal after the drag. Record it before any
+                # action, then let selection_pending own the entire resolution.
+                # No normal deploy judgment may run while the popup is open.
+                if cost is None or (cost > 0 and self.kredits_left is None):
+                    self.failed_x.add(target["x"])
+                    self.log(f"[choice] ⚠️ {name} 费用/预算不明 -> 不拖")
+                    if self.lazy_scan:
+                        self.cards = []
+                        self._scanned_full_this_turn = False
+                    return "choice_no_budget"
+                drop = deploy_mod.fallback_drop()
+                self.failed_x.add(target["x"])
+                self.attempted_x.add(target["x"])
+                self.selection_pending = {
+                    "name": name, "target": target, "cost": cost,
+                    "kredits_before": self.kredits_left,
+                }
+                self.selection_flow = order_choice.SelectionFlow(name)
+                self.phase = "selection_pending"
+                rule = (f"双牌选{orders.choice_spec(name)['rows']}"
+                        if orders.is_choice(name) else "三牌等概率随机")
+                self.log(f"[selection] 拖「{name}」到客户区{drop},"
+                         f"等待选牌画面;规则={rule}")
+                try:
+                    dragged = drag_deploy(
+                        self.hwnd, target["x"], drop=drop,
+                        hover_wait=self.scanner.hold,
+                        on_pressed=lambda: self._dump_drag_frame(name, target))
+                except Exception as e:
+                    self.phase = "selection_blocked"
+                    self.log(f"[choice] ⚠️ 拖牌异常 {type(e).__name__}: {e} -> 停手")
+                    self._dump_frame("drag_error", name, subdir="choice")
+                    return "selection_blocked"
+                if dragged is False:
+                    self.phase = "selection_blocked"
+                    self.log("[choice] ⚠️ 拖牌输入失败 -> 停手")
+                    self._dump_frame("drag_failed", name, subdir="choice")
+                    return "selection_blocked"
+                return "selection_pending"
 
             # ---- 战场读一次:**两种落点都要用它** ----
             #   · 单位 / direct 指令:算"我方那一行的空槽位";
@@ -1425,6 +1599,25 @@ class TurnEngine:
                             on_pressed=lambda: self._dump_drag_frame(
                                 name, target))
                 time.sleep(DEPLOY_SETTLE)
+                # Unit deployment may trigger a menu. Entry is based on the
+                # frame, while this record only defers the deployment verdict
+                # and prevents a popup from being read as battlefield cards.
+                if order_choice.ENABLE_SELECTION_STAGE:
+                    selected_frame = capture_client_bgr(self.hwnd)
+                    count, evidence = order_choice.detect_count(selected_frame)
+                    if count in (3, -1):
+                        self.selection_resume_phase = "play"
+                        self.selection_pending = {
+                            "name": "", "external": True,
+                            "deferred_deploy": {
+                                "before": before, "target": target,
+                                "cost": cost, "is_order": is_order_like,
+                            },
+                        }
+                        self.selection_flow = order_choice.SelectionFlow("")
+                        self.phase = "selection_pending"
+                        self.log(f"[selection] 部署后当前画面为选牌 -> 切换阶段;{evidence}")
+                        return "selection_pending"
                 # ★ 拖完把光标挪开再复核:落点上会弹放大悬停卡,把旁边的卡盖住
                 #   (§7 第 72 条 ③ 那四个读点里的一类,这里以前漏了)。
                 before_attempt, after = after, self._field(park=True)
@@ -1501,9 +1694,13 @@ class TurnEngine:
                 return "turn_switched"
             # M4:出完牌后,让我方场上单位去打敌方总部(用户确认:拖拽到目标上)。
             # 一次 think() 只推进一段攻击,避免卡住主循环。
+            counted_landed = getattr(self.attacker, "landed", 0)
             attempts, landed = self.attacker.run_turn(
-                hard_stop=lambda: not self._end_turn_visible())
-            self.attacked_this_turn += landed
+                hard_stop=self._action_hard_stop)
+            self.attacked_this_turn += max(0, landed - counted_landed)
+            if (self.phase in ("selection_pending", "selection_blocked")
+                    or self._enter_screen_selection(capture_client_bgr(self.hwnd))):
+                return self.phase
             self.log(f"[turn] 攻击阶段结束:尝试 {attempts} 次,被接受 {landed} 次"
                      f"(本回合累计 {self.attacked_this_turn})")
             # ★ 2026-09-13:攻击之后进"上前线"阶段 —— 能打的已经打了(变灰),
@@ -1518,9 +1715,13 @@ class TurnEngine:
                 self.log("[turn] end-turn button gone before moving - resyncing")
                 self.reset_turn()
                 return "turn_switched"
+            counted_moved = getattr(self.front_mover, "moved", 0)
             moved, refused = self.front_mover.run_turn(
-                hard_stop=lambda: not self._end_turn_visible())
-            self.moved_this_turn += moved
+                hard_stop=self._action_hard_stop)
+            self.moved_this_turn += max(0, moved - counted_moved)
+            if (self.phase in ("selection_pending", "selection_blocked")
+                    or self._enter_screen_selection(capture_client_bgr(self.hwnd))):
+                return self.phase
             self.log(f"[turn] 上前线阶段结束:挪上去 {moved} 个,没动成 {refused} 个"
                      f"(本回合累计 {self.moved_this_turn})")
             # ★★ 2026-09-13:上前线会把我们自己的单位**挪离支援线**(空出位置),

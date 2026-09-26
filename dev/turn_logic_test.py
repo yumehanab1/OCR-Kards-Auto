@@ -812,8 +812,7 @@ print("    cleared")
 
 print()
 print("=" * 78)
-print("CASE 8: 完全认不出的牌(name/type/cost 全空)也要被试一次")
-print("        PROJECT_STATE 第 35 条:这类牌以前从手牌里消失,永远不出")
+print("CASE 8: 完全认不出的牌不盲拖,避免绕过未标选边抉择黑名单")
 print("=" * 78)
 eng = new_engine([{"name": None, "type": None, "cost": None, "x": 500,
                    "unknown": True},
@@ -823,12 +822,11 @@ eng = new_engine([{"name": None, "type": None, "cost": None, "x": 500,
 #   写死的次数会立刻错位(§7 第 45 条那个教训)。run_turn 一直跑到回合结束。
 run_turn(eng)
 print(f"    drags={drags}")
-assert 500 in drags, f"未知牌必须被试一次, got {drags}"
-assert drags == [700, 500], drags   # 便宜的先出
+assert drags == [700], drags
 
 print()
 print("=" * 78)
-print("CASE 9: 未知牌试错次数有上限(手牌识别整体崩掉时别瞎拖一手)")
+print("CASE 9: 未知牌全部不拖,已识别单位的出牌规则不受影响")
 print("=" * 78)
 eng = new_engine([{"name": None, "type": None, "cost": None, "x": 400 + 60 * i,
                    "unknown": True} for i in range(4)], kredits=5)
@@ -844,8 +842,8 @@ for _ in range(12):
         break
     show(eng.think())
 print(f"    drags={drags}  (上限 {turn_engine.MAX_UNKNOWN_TRIES}/回合)")
-assert len(drags) == turn_engine.MAX_UNKNOWN_TRIES, drags
-assert len(eng.attempted_x) == turn_engine.MAX_UNKNOWN_TRIES, eng.attempted_x
+assert drags == [], drags
+assert eng.attempted_x == set(), eng.attempted_x
 
 print()
 print("=" * 78)
@@ -1475,10 +1473,10 @@ assert len(drags) == 1, f"学到上限后就该停手,实得 {drags}"
 
 print()
 print("=" * 78)
-print("CASE 25: ★费用未知的牌按最低费扣账,不能白嫖预算")
+print("CASE 25: ★已识别单位费用未知时仍按最低费扣账,不能白嫖预算")
 print("=" * 78)
-eng = new_engine([{"name": None, "type": None, "cost": None,
-                   "x": 400 + 60 * i, "unknown": True} for i in range(6)],
+eng = new_engine([{"name": f"已识别单位{i}", "type": "infantry", "cost": None,
+                   "x": 400 + 60 * i} for i in range(6)],
                  kredits=2)
 run_turn(eng)
 print(f"    drags={drags} (预算 2 费,费用未知)")

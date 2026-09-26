@@ -40,7 +40,12 @@ SKIP_DIRS = {".venv", "venv", "build", "dist", ".git", "shots",
              "shots_hp_bogus", "hp_bogus", "__pycache__", "logs"}
 
 #: 这些文件名是"这台机器专属"的,别人拿了没用,而且 panel_token 是口令。
-SKIP_FILES = {"gui_window.json", "panel_token.txt"}
+SKIP_FILES = {"gui_window.json", "gui_options.json", "panel_token.txt",
+              "AGENTS.md", "SYSTEM_HANDOFF.md"}
+
+# 双系统交接与现场报告包含本机路径和取证信息，属于共享工作区资料。
+# 发布包只需要运行代码；另一系统从同一仓库读取交接文件。
+SKIP_REL_PREFIXES = ("docs/reports/",)
 
 #: 这些后缀是备份/半成品,**一律不进包**。
 #: ★★★ 2026-09-20:本机根目录下躺着一个 `KARDS AUTO.exe.bak`(上一版面板,15 MB),
@@ -88,6 +93,9 @@ def main() -> int:
                     continue
                 full = os.path.join(root, f)
                 rel = os.path.relpath(full, ROOT).replace(os.sep, "/")
+                if rel.startswith(SKIP_REL_PREFIXES):
+                    skipped += 1
+                    continue
                 z.write(full, f"{BASE}/{rel}")
                 n += 1
 
@@ -110,6 +118,12 @@ def main() -> int:
             problems.append("**包里混进了 .venv** —— 这会让下载的人退 103")
         if any("panel_token" in x for x in names):
             problems.append("**包里混进了面板口令 panel_token.txt**")
+        if any(x.endswith("/gui_options.json") for x in names):
+            problems.append("混进了本机面板配置 gui_options.json")
+        if any(x.endswith(("/AGENTS.md", "/SYSTEM_HANDOFF.md")) for x in names):
+            problems.append("混进了本机项目指令或双系统交接")
+        if any("/docs/reports/" in x for x in names):
+            problems.append("混进了本机现场报告")
         if any("__pycache__" in x for x in names):
             problems.append("混进了 __pycache__")
         # ★ 2026-09-20:备份文件也不许进包(见 SKIP_SUFFIXES 的说明)。

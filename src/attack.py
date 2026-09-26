@@ -620,6 +620,9 @@ class FrontMover:
             after = self._frame()
             if after is None:
                 break
+            if hard_stop is not None and hard_stop():
+                self.log("[move] 动作后出现选牌或回合状态变化,暂停战场判定")
+                break
             field2 = board.read_field(after, templates=self.templates)
             n_sup_after = len(field2.get("our_support") or [])
             n_front_after = len(field2.get("frontline") or [])
@@ -1635,6 +1638,9 @@ class Attacker:
             after = self._frame()
             if after is None:
                 self.log("[attack] 截图失败,停止攻击")
+                break
+            if hard_stop is not None and hard_stop():
+                self.log("[attack] 动作后出现选牌或回合状态变化,暂停命中判定")
                 break
             self._dump_after(after)
 

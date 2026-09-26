@@ -61,6 +61,7 @@ from actions import click  # noqa: E402
 #   之前的路径,没覆盖"要报原因"这一步。
 #   ⇒ 在模块顶层 import 一次(函数里那次保留,免得动到别处的写法)。
 import actions as actions_mod  # noqa: E402
+import order_choice  # noqa: E402
 from turn_engine import END_TURN_MIN_SCORE, TurnEngine  # noqa: E402
 from ui_state import classify, load_meta, load_states, load_templates, match_one  # noqa: E402
 from win import (  # noqa: E402
@@ -81,6 +82,29 @@ LOG = os.path.join(PROJECT_ROOT, "logs", "main_loop.log")
 # Cooldown (s) after each click, and blank-frame tolerance.
 COOLDOWN_AFTER_CLICK = 2.5
 BLANK_TOLERANCE = 6          # consecutive blank frames before we pause acting
+POST_MATCH_DARK_REWARD = True  # rollback switch for dark claim-screen recognition
+
+
+def post_match_reward_visible(frame) -> bool:
+    """Recognize the dark claim screen before treating it as a blank capture.
+
+    This is only used while dismissing a completed match. The icon and the
+    bright claim text must both be present in their separate central regions;
+    a black capture with a stray cursor or debug overlay does not qualify.
+    Regions scale with the client size (1280x720 reference screenshot).
+    """
+    if (frame is None or getattr(frame, "ndim", 0) != 3
+            or frame.shape[0] < 360 or frame.shape[1] < 640):
+        return False
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    h, w = gray.shape
+    icon = gray[int(h * .507):int(h * .674), int(w * .406):int(w * .578)]
+    claim = gray[int(h * .895):int(h * .980), int(w * .457):int(w * .551)]
+    return (icon.size > 0 and claim.size > 0
+            and float((icon > 80).mean()) >= .12
+            and float((claim > 80).mean()) >= .05)
+
+
 QUEUE_TIMEOUT_MIN = 12       # queueing longer than this -> click cancel
 
 # ---- 2026-09-21 深夜(用户提议)**打完一局之后的"补点窗口"** ----
@@ -239,6 +263,7 @@ class Controller:
         self._post_clicks_left = 0
         self._post_click_last = 0.0
         self._post_clicks_done = 0
+        self._post_reward_seen = False
 
     # ---- capture & classify ----
     def grab_frame(self):
@@ -509,6 +534,7 @@ class Controller:
         #   这些页面没有稳定的模板,所以用固定安全点每秒补点一次,最多十次。
         self._post_clicks_left = POST_MATCH_CLICK_N if POST_MATCH_CLICKS else 0
         self._post_clicks_done = 0
+        self._post_reward_seen = False
         self._post_click_last = 0.0     # 0 = 下一 tick 立刻点第一下
         if self._post_clicks_left:
             log(f"[post_match] 对局结束 -> 开 {POST_MATCH_CLICK_N} 下补点窗口"
@@ -939,16 +965,33 @@ class Controller:
                 time.sleep(5)
                 continue
 
-            # blank/occluded detection
-            if frame.mean() < 10 or frame.std() < 8:
+            # A claimed reward can have a nearly black background. The real
+            # 2026-09-26 claim frame has mean=8.95, yet its icon and text are
+            # visible; the old mean<10 rule paused after four post-match clicks.
+            # Only a positively recognized claim screen during dismissal may
+            # bypass the blank gate. Truly black captures still pause input.
+            mean, std = float(frame.mean()), float(frame.std())
+            dark_reward = (POST_MATCH_DARK_REWARD and self.dismiss and mean < 10
+                           and post_match_reward_visible(frame))
+            if dark_reward and not self._post_reward_seen:
+                self._post_reward_seen = True
+                log(f"[post_match] 识别到暗色领取奖励页"
+                    f"(亮度 {mean:.1f},标准差 {std:.1f}) -> 继续补点")
+            if (mean < 10 or std < 8) and not dark_reward:
                 self.blank_streak += 1
                 if self.blank_streak == 1:
-                    log("blank frame - window minimized/occluded?")
+                    log(f"blank frame - window minimized/occluded? "
+                        f"mean={mean:.1f} std={std:.1f}")
                 if self.blank_streak > BLANK_TOLERANCE:
                     # window is not usable; do nothing until it recovers
+                    if self.blank_streak == BLANK_TOLERANCE + 1:
+                        log(f"blank frame persisted {self.blank_streak} ticks "
+                            "-> pause clicks until a usable frame returns")
                     time.sleep(10)
                     continue
             else:
+                if self.blank_streak > BLANK_TOLERANCE:
+                    log("usable frame returned -> resume normal dispatch")
                 self.blank_streak = 0
 
             # ★★ 硬前提:窗口必须可见、不被遮挡(见 win.window_is_capturable)。
@@ -975,11 +1018,44 @@ class Controller:
                 log(f"✅ KARDS 窗口恢复可见,继续(之前被挡 {self.occluded_ticks} tick)")
                 self.occluded_ticks = 0
 
+            # Screen-first selection entry: units and triggered effects may
+            # open a three-card menu with no order-card context. Route that
+            # modal to TurnEngine even if classify() calls it an unknown page.
+            selection_count = (order_choice.detect_count(frame)[0]
+                               if self.play and not self.dry
+                               and order_choice.ENABLE_SELECTION_STAGE else None)
+            if (self.play and not self.dry and order_choice.ENABLE_SELECTION_STAGE
+                    and (self.turn_engine is None
+                         or self.turn_engine.phase not in (
+                             "selection_blocked",))
+                    and (selection_count in (3, -1)
+                         or (selection_count == 2 and self.turn_engine is not None
+                             and self.turn_engine.phase == "selection_pending"))):
+                self.handle_in_game()
+                time.sleep(0.15)
+                if self.max_ticks and ticks > self.max_ticks:
+                    break
+                continue
+
             state, matches = classify(frame, self.templates, self.states)
             if state != last_state_log:
                 log(f"state -> {state}")
                 last_state_log = state
             self.current_state = state
+
+            # A dragged choice is modal. Its popup may classify as an unknown
+            # screen, so hand control back to the engine before any dismiss,
+            # end-turn, or other state handler can act on it.
+            if self.turn_engine is not None and self.turn_engine.phase in (
+                    "selection_pending", "selection_blocked"):
+                if self.turn_engine.phase == "selection_pending":
+                    self.handle_in_game()
+                    time.sleep(0.15)
+                else:
+                    time.sleep(2)
+                if self.max_ticks and ticks > self.max_ticks:
+                    break
+                continue
 
             # ★★ 2026-09-23:补点窗口只由 victory/defeat 识别后的
             #   `finish_round()` 开启。未知画面本身不再启动补点,避免对手回合

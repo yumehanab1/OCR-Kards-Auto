@@ -2019,6 +2019,121 @@
    "hash": "fdfac7f491d8d5e0c5f2d951999e8fca8daa85aac9e859f0fdecffe7ffe7fee7",
    "name": "兰开斯特 B.III",
    "type": "bomber"
+  },
+  {
+   "hash": "dff6e7f485f2d5f0c572d15199978dcb8daa95aa89c8c9f0fde2efcefdcf7c6b",
+   "name": "兰开斯特 B.III",
+   "type": "bomber"
+  },
+  {
+   "hash": "f92cbd30d7c6f5c4e7f09d73b128192c8376c18c8d2ac3aac394f7bcb719a691",
+   "name": "牛津",
+   "type": "fighter"
+  },
+  {
+   "hash": "fbc7fbc5ffc5ffe5fff8fffc9fd09f3447281dcf94bd0725fed57ee09b34bf20",
+   "name": "M8 榴弹炮",
+   "type": "artillery"
+  },
+  {
+   "hash": "f785ffa5bf95ffc5fff8fb3cdf9c93c61ac6fcc77ce7fb39fbc9fbb07ef4fe6a",
+   "name": "死神降临",
+   "type": "order"
+  },
+  {
+   "hash": "f7e8cfc6958a998e57866f16ff35ff7c9f6eff84ff88fda8f7ecfd48f5dafcd5",
+   "name": "为了自由",
+   "type": "order"
+  },
+  {
+   "hash": "7f8e7ada7bf9fbe9dfe8ffeafffecfaf97e38ec3fee3fee3ff9dffe87d737f63",
+   "name": "死神降临",
+   "type": "order"
+  },
+  {
+   "hash": "7d9fcfcf9de489d3d16ffd61ff73fd7f7e73ffce7f967ff85fd42ed9aff1eb31",
+   "name": "死神降临",
+   "type": "order"
+  },
+  {
+   "hash": "f7a7ffa6bfa5ffaeffc4fbc4de4693e43be4faaffaedfa39fbd1fbd07e67f4e1",
+   "name": "大西洋护航队",
+   "type": "order"
+  },
+  {
+   "hash": "c3fcc7dcd5ead5eaddd1d98383a5834b83ce8daa8dee89d881f085f889b4c72c",
+   "name": "B-17 飞行堡垒",
+   "type": "bomber"
+  },
+  {
+   "hash": "71e5f3a5fbe5fca4ffb0a5eaa57eceae8b9ec38da3cecf568988c588832ec92c",
+   "name": "猎狼犬团",
+   "type": "infantry"
+  },
+  {
+   "hash": "6fc0c7d0ab51a5310bb103a983a599838f558f2acb52cdb0d1a8d3cabcda94d3",
+   "name": "3.7 英寸高射炮",
+   "type": "artillery"
+  },
+  {
+   "hash": "f799fe99be99fe99ff98ff91afd5cef89b3d0339c715a7edcb718bd4837c7a6e",
+   "name": "猎狼犬团",
+   "type": "infantry"
+  },
+  {
+   "hash": "e610a56a8d88a782ddaaa9aa9132c3c183d4a3aa8da6a5a4a19ae160a158530c",
+   "name": "J2F 鸭式",
+   "type": "fighter"
+  },
+  {
+   "hash": "9aa2b2b2b2a2baa3fec06ce09e40ae209a20eb248b28dcc2ff01fc80f980f910",
+   "name": "死神降临",
+   "type": "order"
+  },
+  {
+   "hash": "edfaa5e88dc8e782ddaaa9af913383e18355a3ab8db685b4a5ece5eda1434356",
+   "name": "J2F 鸭式",
+   "type": "fighter"
+  },
+  {
+   "hash": "ffd9ffc9ffe9fdadfebeedfce7c5d5c8d57499838da885aa81d4fdec7fef7726",
+   "name": "B-25 米切尔",
+   "type": "bomber"
+  },
+  {
+   "hash": "d9f8a7e8a7cca782ddbbb9af913b83618b5583ab8da285b4b5c4e4eeb1c4d3cd",
+   "name": "J2F 鸭式",
+   "type": "fighter"
+  },
+  {
+   "hash": "cec9deb8bf60ffe9bfedbb0eb3a6f9d0ffe83faa3f8a1fa22fe2c7a0dab077f0",
+   "name": "M18 地狱猫",
+   "type": "tank"
+  },
+  {
+   "hash": "b4bab58ad630ff9cd5f0a5c8af82adaa912ac37183d503aaa5a4a1c4e1c3dbd8",
+   "name": "J2F 鸭式",
+   "type": "fighter"
+  },
+  {
+   "hash": "98f498b69cb6bee7ebf0c3f48f8289cc8b9e951b8945a3aac38aefa4fbdc5359",
+   "name": "M18 地狱猫",
+   "type": "tank"
+  },
+  {
+   "hash": "a39cb315ba59b799f700d7609f00961206708e7c270cc684c630dfa0f770f674",
+   "name": "M18 地狱猫",
+   "type": "tank"
+  },
+  {
+   "hash": "fddea5d49d8c8fcedd8a2b87839e83968dae8daa81c88592c9e2db896f2dff06",
+   "name": "第 41 步兵团",
+   "type": "infantry"
+  },
+  {
+   "hash": "771acf38b132c3aa63199514917a973ad72e93aa99c891b07b88e38ae5d8e69a",
+   "name": "团结就是力量",
+   "type": "order"
   }
  ]
 }
