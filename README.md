@@ -71,13 +71,13 @@ install.cmd
 
 源码采用 GPL-3.0。`ui_templates/` 中的游戏截图素材属于 1939 Games，边界见 [`NOTICE.md`](NOTICE.md)。
 
-## Mobile / Android
+## 手机端 / Android
 
-The Android assistant is maintained separately from the Windows client. Download the current mobile assets from the **Mobile / Android** section of the [v0.2.0 Release](https://github.com/yumehanab1/OCR-Kards-Auto/releases/tag/v0.2.0):
+手游助手与 Windows PC 端分开维护。请从 [v0.2.0 Release](https://github.com/yumehanab1/OCR-Kards-Auto/releases/tag/v0.2.0) 的 **Mobile / Android** 区域下载：
 
-- `KARDS-AUTO-Mobile-v0.2.0.zip` — APK, installation notes, and public verification reports.
-- `KARDS-AUTO-Mobile-v0.2.0.manifest.json` — SHA-256 and size manifest for the package.
+- `KARDS-AUTO-Mobile-v0.2.0.zip`：APK、安装说明和公开验证报告。
+- `KARDS-AUTO-Mobile-v0.2.0.manifest.json`：包内文件的 SHA-256 与大小清单。
 
-The package contains APK code57 / versionName 0.8.31. Runtime-test verification with KARDS 1.60.27292/code2703 completed five consecutive casual matches (5/5 wins and 330 accepted/completed battle inputs). Physical-phone, host-free, and full disconnect/reconnect validation remain open; see the mobile report in the repository and the report inside the package.
+当前包包含 code57 / versionName 0.8.31。runtime-test 模拟器配合 KARDS 1.60.27292/code2703 完成了休闲模式连续 5 局实测：5/5 胜利，330 次战斗输入均 accepted/completed，每局胜负和回页均确认。实体手机、脱离主机和完整断线重连仍未验收，详见仓库及包内报告。
 
-The phone build runs from the APK and Android accessibility permission. Windows, ADB, Python, and the PC client are not runtime dependencies. Do not treat PC validation as mobile validation.
+手机端只依赖 APK 和 Android 无障碍权限，运行时不依赖 Windows、ADB、Python 或 PC 端程序。PC 端验证结果不能替代手游验证。

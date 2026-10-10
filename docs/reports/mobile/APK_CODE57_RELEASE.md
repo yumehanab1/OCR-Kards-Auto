@@ -1,13 +1,13 @@
-# Mobile / Android release report
+# 手机端 / Android 发布报告
 
-- Package: `KARDS-AUTO-Mobile-v0.2.0.zip`
-- APK: code57 / versionName 0.8.31
-- KARDS: 1.60.27292/code2703
-- Verification system: runtime-test emulator
-- Scope: casual mode
+- 发布包：`KARDS-AUTO-Mobile-v0.2.0.zip`
+- APK：code57 / versionName 0.8.31
+- KARDS：1.60.27292/code2703
+- 验证系统：runtime-test 模拟器
+- 模式：休闲
 
-## Verification
+## 验证结果
 
-The code57 run completed five consecutive casual matches: 5/5 wins, 330 battle inputs accepted and completed, and result/return confirmation on every match. Twelve ordinary action outcomes remained unknown without stopping the APK. The observer read-retry fix raises the bounded consecutive read-failure threshold to six and backs off for 1–5 seconds before retrying.
+code57 连续完成 5 局休闲对局，5/5 胜利；330 次战斗输入均 accepted/completed，每局结果和回页均确认。12 次普通动作效果未知，但没有导致 APK 停止。观察器读取容错已修复：连续读取失败上限为 6 次，失败间按 1–5 秒退避后重试。
 
-The package does not claim physical-phone, host-free, or complete disconnect/reconnect validation. The PC client and its validation are maintained separately.
+本包不宣称实体手机、脱离主机或完整断线重连通过。PC 客户端及其验证线独立维护。

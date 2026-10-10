@@ -17,12 +17,12 @@
 ---
 
 
-### Mobile / Android package (added to v0.2.0 Release)
+### 手机端 / Android 包（加入 v0.2.0 Release）
 
-- Added the independent `KARDS-AUTO-Mobile-v0.2.0.zip` package and its SHA-256 manifest.
-- The package contains APK code57 / versionName 0.8.31, installation notes, and the code57 five-match verification report.
-- Runtime-test verification: 5/5 casual matches and 330 accepted/completed battle inputs, with result and return confirmation on every match.
-- The observer now tolerates transient ADB/Android settlement read failures with bounded retry and backoff. Physical-phone, host-free, and full reconnect validation remain open.
+- 新增独立 `KARDS-AUTO-Mobile-v0.2.0.zip` 及对应 SHA-256 清单。
+- 包内为 code57 / versionName 0.8.31 APK、安装说明和 code57 五局验证报告。
+- runtime-test 实测休闲 5/5 局完成，330 次战斗输入均 accepted/completed，每局结果与回页均确认。
+- 观察器增加短暂 ADB/Android 结算读取失败的有界重试和退避；实体手机、脱离主机和完整断线重连仍未验收。
 
 ## v0.1.12 — 2026-09-26
 

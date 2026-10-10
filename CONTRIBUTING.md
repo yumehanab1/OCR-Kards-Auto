@@ -61,8 +61,8 @@ Release 附件上传；面板只读取这个小清单来列出本地变更，不
 提交信息用中文，说明改了什么、为什么、如何验证。不要提交面板 token、账号昵称、完整日志或本机绝对路径。
 
 
-## Mobile / Android release
+## 手机端 / Android 发布
 
-The Android line is maintained in the separate runtime-test checkout. Do not copy its source, device logs, screenshots, or build tree into the PC repository. A mobile release is a self-contained `KARDS-AUTO-Mobile-vX.Y.Z.zip` plus a matching `.manifest.json` with SHA-256 and sizes, uploaded as independent assets to the existing GitHub Release.
+手游线维护在独立的 runtime-test 目录。不要把手游源码、设备日志、截图或构建目录复制进 PC 仓库。发布时生成独立的 `KARDS-AUTO-Mobile-vX.Y.Z.zip` 与同名 `.manifest.json`，写入 APK、安装说明、公开验证报告和 SHA-256/大小清单，再作为独立资产上传到已有 GitHub Release。
 
-The public mobile report must state APK version/code, package SHA-256, KARDS version, test system, input/result evidence, and untested paths. Local absolute paths, credentials, account names, raw logs, and screenshots stay out of the public package.
+公开报告必须写明 APK 版本/版本号、包 SHA-256、KARDS 版本、测试系统、输入与结果证据和未覆盖路径。绝对路径、凭据、账号名、原始日志和截图不得进入公开包。
