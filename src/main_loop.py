@@ -228,6 +228,10 @@ class Controller:
         self.turn_engine = None
         self.last_turn_status = None
         self.hwnd = None
+        # A game restart can replace the window handle.  Keep a small miss
+        # budget so a temporary blank/minimized capture is tolerated, while a
+        # stale handle is eventually rediscovered instead of waiting forever.
+        self._capture_misses = 0
         self.meta = load_meta(META)
         self.templates = load_templates(self.meta)
         self.states = load_states(STATES)
@@ -272,7 +276,15 @@ class Controller:
             if not wins:
                 return None
             self.hwnd = wins[0]["hwnd"]
-        return capture_client_bgr(self.hwnd)
+        frame = capture_client_bgr(self.hwnd)
+        if frame is None:
+            self._capture_misses += 1
+            if self._capture_misses >= 3:
+                self.hwnd = None
+                self._capture_misses = 0
+        else:
+            self._capture_misses = 0
+        return frame
 
     def client_to_screen(self, x: int, y: int):
         if self.hwnd is None:
@@ -526,6 +538,11 @@ class Controller:
         log(f"== round {self.round_count} finished ({result}) after {elapsed:.1f} min ==")
         self.round_started = time.time()
         self.deck_step = "casual"
+        # A completed match is a hard lifecycle boundary.  Do not carry a
+        # pending choice, cost anchor, or per-turn ledger into the next match
+        # if the game skips or hides the mulligan screen.
+        self.turn_engine = None
+        self.last_turn_status = None
         # level-up / quest-complete screens follow; dismiss with any-click.
         self.dismiss = True
         self.dismiss_tries = 0
@@ -585,19 +602,29 @@ class Controller:
                                                      POST_MATCH_JITTER_X)))
         cy = min(fh - 10, max(10, by + random.randint(-POST_MATCH_JITTER_Y,
                                                      POST_MATCH_JITTER_Y)))
-        self._post_clicks_left -= 1
-        self._post_clicks_done += 1
-        n_done = self._post_clicks_done
-        log(f"[post_match] 补点 {n_done}/{POST_MATCH_CLICK_N} "
-            f"client({cx},{cy})/{fw}x{fh}(开始按钮那块安全点;"
-            f"对局已结束,结算尾页补点)")
+        log(f"[post_match] 尝试补点 {self._post_clicks_done + 1}/"
+            f"{POST_MATCH_CLICK_N} client({cx},{cy})/{fw}x{fh}"
+            f"(开始按钮那块安全点;对局已结束,结算尾页补点)")
+        clicked = True
         if not self.dry:
             try:
                 sx, sy = self.client_to_screen(cx, cy)
-                click(sx, sy)
+                # ``actions.click`` returns False when Windows blocks input.
+                # Keep this slot pending so ten successful clicks really mean
+                # ten clicks; a transient input failure must not silently end
+                # the dismissal window.
+                clicked = click(sx, sy) is not False
             except Exception as e:      # 补点失败绝不许弄崩主循环(§7 第 57 条)
                 log(f"[post_match] 这一下没点成:{type(e).__name__}: {e}")
+                clicked = False
         self._post_click_last = time.time()
+        if not clicked:
+            log("[post_match] ⚠️ 补点未成功,保留本次次数并在下一间隔重试")
+            return True
+        self._post_clicks_left -= 1
+        self._post_clicks_done += 1
+        n_done = self._post_clicks_done
+        log(f"[post_match] 补点成功 {n_done}/{POST_MATCH_CLICK_N}")
         if self._post_clicks_left == 0:
             log(f"[post_match] {POST_MATCH_CLICK_N} 下补点用完 -> 交回主循环"
                 f"(画面若已变回已知状态,`dismiss` 那套会照常收工)")
@@ -1018,44 +1045,23 @@ class Controller:
                 log(f"✅ KARDS 窗口恢复可见,继续(之前被挡 {self.occluded_ticks} tick)")
                 self.occluded_ticks = 0
 
-            # Screen-first selection entry: units and triggered effects may
-            # open a three-card menu with no order-card context. Route that
-            # modal to TurnEngine even if classify() calls it an unknown page.
-            selection_count = (order_choice.detect_count(frame)[0]
-                               if self.play and not self.dry
-                               and order_choice.ENABLE_SELECTION_STAGE else None)
-            if (self.play and not self.dry and order_choice.ENABLE_SELECTION_STAGE
-                    and (self.turn_engine is None
-                         or self.turn_engine.phase not in (
-                             "selection_blocked",))
-                    and (selection_count in (3, -1)
-                         or (selection_count == 2 and self.turn_engine is not None
-                             and self.turn_engine.phase == "selection_pending"))):
-                self.handle_in_game()
-                time.sleep(0.15)
-                if self.max_ticks and ticks > self.max_ticks:
-                    break
-                continue
-
             state, matches = classify(frame, self.templates, self.states)
             if state != last_state_log:
                 log(f"state -> {state}")
                 last_state_log = state
             self.current_state = state
 
-            # A dragged choice is modal. Its popup may classify as an unknown
-            # screen, so hand control back to the engine before any dismiss,
-            # end-turn, or other state handler can act on it.
-            if self.turn_engine is not None and self.turn_engine.phase in (
-                    "selection_pending", "selection_blocked"):
-                if self.turn_engine.phase == "selection_pending":
-                    self.handle_in_game()
-                    time.sleep(0.15)
-                else:
-                    time.sleep(2)
-                if self.max_ticks and ticks > self.max_ticks:
-                    break
-                continue
+            # A choice can resolve directly into a result/menu screen.  Do
+            # not let the modal branch hide that lifecycle transition forever;
+            # release the old engine and let the normal result handler run.
+            if (state in ("main_menu", "deck_select", "queueing", "mulligan",
+                          "victory", "defeat")
+                    and self.turn_engine is not None
+                    and self.turn_engine.phase in (
+                        "selection_pending", "selection_blocked")):
+                log(f"[selection] 已识别到 {state},清理未完成选牌阶段")
+                self.turn_engine = None
+                self.last_turn_status = None
 
             # ★★ 2026-09-23:补点窗口只由 victory/defeat 识别后的
             #   `finish_round()` 开启。未知画面本身不再启动补点,避免对手回合
@@ -1093,6 +1099,56 @@ class Controller:
                     if self._max_rounds_hit():
                         break
                     continue
+
+            # A dragged choice is modal.  Its popup may classify as an unknown
+            # screen, so hand control back to the engine before any normal
+            # state handler can act on it.  This comes after post-match and
+            # dismiss handling so a stale engine can never click a choice on a
+            # result/menu screen.
+            if self.turn_engine is not None and self.turn_engine.phase in (
+                    "selection_pending", "selection_blocked"):
+                if self.turn_engine.phase == "selection_pending":
+                    self.handle_in_game()
+                    time.sleep(0.15)
+                else:
+                    time.sleep(2)
+                if self.max_ticks and ticks > self.max_ticks:
+                    break
+                continue
+
+            # Unit-triggered and other external three-card menus have no
+            # order-card context and often classify as None.  Only enter this
+            # route when the frame is an actual in-game screen or an existing
+            # engine is already active; a coincidental light panel on the menu
+            # or result screen must never create a new engine and click it.
+            selection_count = (order_choice.detect_count(frame)[0]
+                               if self.play and not self.dry
+                               and order_choice.ENABLE_SELECTION_STAGE else None)
+            # A known menu/result state wins over a stale engine.  An existing
+            # engine is only enough when classification is genuinely unknown,
+            # which is how choice overlays normally appear.
+            active_game = (state == "in_game"
+                           or (state is None and self.turn_engine is not None
+                               and self.turn_engine.phase in (
+                                   "attack", "move_front", "play",
+                                   "selection_pending")))
+            if (self.play and not self.dry and order_choice.ENABLE_SELECTION_STAGE
+                    and active_game
+                    and (selection_count in (3, -1)
+                         or (selection_count == 2 and self.turn_engine is not None
+                             and self.turn_engine.phase == "selection_pending"))):
+                self.handle_in_game()
+                time.sleep(0.15)
+                if self.max_ticks and ticks > self.max_ticks:
+                    break
+                continue
+
+            # Do not start another match in the same tick that the previous
+            # one reached the requested limit.  The post-match/dismiss stages
+            # may already have recognized main_menu or deck_select and
+            # cleared their own work before reaching this point.
+            if self._post_clicks_left <= 0 and self._max_rounds_hit():
+                break
 
             if state:
                 self.handle_state(state)

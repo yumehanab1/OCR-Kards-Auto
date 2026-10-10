@@ -18,6 +18,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import os
 import sys
 import time
@@ -46,6 +47,7 @@ SKIP_FILES = {"gui_window.json", "gui_options.json", "panel_token.txt",
 # 双系统交接与现场报告包含本机路径和取证信息，属于共享工作区资料。
 # 发布包只需要运行代码；另一系统从同一仓库读取交接文件。
 SKIP_REL_PREFIXES = ("docs/reports/",)
+SKIP_REL_FILES = {"config/update_manifest.json"}
 
 #: 这些后缀是备份/半成品,**一律不进包**。
 #: ★★★ 2026-09-20:本机根目录下躺着一个 `KARDS AUTO.exe.bak`(上一版面板,15 MB),
@@ -62,6 +64,14 @@ def read_version() -> str:
             return str(json.load(f).get("version", "0.0.0"))
     except Exception:
         return "0.0.0"
+
+
+def file_sha256(path: str) -> str:
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for block in iter(lambda: f.read(1024 * 1024), b""):
+            h.update(block)
+    return h.hexdigest()
 
 
 def main() -> int:
@@ -81,6 +91,7 @@ def main() -> int:
     t0 = time.time()
     n = 0
     skipped = 0
+    manifest_files = {}
     with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED, compresslevel=6) as z:
         for root, dirs, files in os.walk(ROOT):
             keep = [d for d in dirs if d not in SKIP_DIRS]
@@ -93,11 +104,25 @@ def main() -> int:
                     continue
                 full = os.path.join(root, f)
                 rel = os.path.relpath(full, ROOT).replace(os.sep, "/")
-                if rel.startswith(SKIP_REL_PREFIXES):
+                if rel.startswith(SKIP_REL_PREFIXES) or rel in SKIP_REL_FILES:
                     skipped += 1
                     continue
                 z.write(full, f"{BASE}/{rel}")
+                manifest_files[rel] = {"sha256": file_sha256(full),
+                                      "size": os.path.getsize(full)}
                 n += 1
+
+        # Keep the manifest inside the installed package as a tiny local
+        # index.  It is also written next to the zip below for GitHub Release
+        # upload, so the updater can compare hashes without downloading the
+        # archive.
+        manifest = {"schema": 1, "version": ver, "files": manifest_files}
+        manifest_json = (json.dumps(manifest, ensure_ascii=False, indent=2)
+                         + "\n").encode("utf-8")
+        z.writestr(f"{BASE}/config/update_manifest.json", manifest_json)
+
+    manifest_out = out[:-4] + ".manifest.json" if out.lower().endswith(".zip") \
+        else out + ".manifest.json"
 
     size = os.path.getsize(out) / 1048576
     print(f"  打进 {n} 个文件(跳过 {skipped} 个目录/文件),"
@@ -124,6 +149,8 @@ def main() -> int:
             problems.append("混进了本机项目指令或双系统交接")
         if any("/docs/reports/" in x for x in names):
             problems.append("混进了本机现场报告")
+        if names.count(f"{BASE}/config/update_manifest.json") != 1:
+            problems.append("缺少或重复打包 config/update_manifest.json")
         if any("__pycache__" in x for x in names):
             problems.append("混进了 __pycache__")
         # ★ 2026-09-20:备份文件也不许进包(见 SKIP_SUFFIXES 的说明)。
@@ -167,7 +194,15 @@ def main() -> int:
         print(f"     {bad}")
         return 1
 
+    # Publish the sidecar only after the zip self-test succeeds.  A failed
+    # package must never leave a fresh-looking manifest next to it that could
+    # be uploaded by mistake.
+    with open(manifest_out, "wb") as f:
+        f.write(manifest_json)
+
     print("\n  下一步:到 GitHub 上新建 Release,把上面那个 zip 传成附件。")
+    print(f"  文件清单:{manifest_out}")
+    print("  ★ Release 还应上传同名 .manifest.json；面板可只下载它来列出变更文件。")
     print("  ★ 传之前把包解压到一个空目录再验一次:版本号 / 卡库张数 / 费用数字模板 10/10。")
     return 0
 

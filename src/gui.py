@@ -225,10 +225,10 @@ SWITCHES = [
      "hint": "按规则表挑攻击者与目标(含守护/拦截判据)"},
     {"key": "ranked", "flag": "--ranked", "label": "排位模式",
      "hint": "⚠️ 可能被游戏检测并有封号风险；需要确认后才启用"},
-    {"key": "fast_scan", "flag": "--fast-scan", "label": "惰性扫描",
-     "hint": "找到第一张可出的牌就停(省时间)"},
+    {"key": "fast_scan", "flag": "--fast-scan", "label": "坐标表直扫",
+     "hint": "使用已标定的手牌坐标(需先完成标定，速度更快)"},
     {"key": "end_turn", "flag": "--end-turn", "label": "结束回合",
-     "hint": "出完牌点『结束回合』"},
+     "hint": "只在未开启『自动打完一局』时单独点结束回合"},
     #  ★ 2026-09-21 用户要求改口径:干跑**是调试用的,平时不需要开**
     #    (原来写的是"第一次开面板建议先开它" —— 那会让人以为跑之前都该勾上,
     #     结果真打的时候忘了关,看起来就像"引擎不动")。
@@ -587,9 +587,22 @@ class Api:
         self.error: str | None = None
         self._fh = None
 
+    def _close_run_log(self) -> None:
+        """Release the child log handle after the child has stopped."""
+        fh, self._fh = self._fh, None
+        if fh is not None:
+            try:
+                fh.close()
+            except Exception:
+                pass
+
     # ---- 状态 ----
     def snapshot(self, only_key: bool = False, tail: int = 400) -> dict:
         running = self.proc is not None and self.proc.poll() is None
+        if not running and self.proc is not None:
+            # A child may exit on its own; do not retain one file descriptor
+            # for every start/stop cycle until the panel itself closes.
+            self._close_run_log()
         lines = tail_lines(LOG, tail)
         if only_key:
             lines = [ln for ln in lines if any(w in ln for w in KEY_WORDS)]
@@ -629,6 +642,7 @@ class Api:
     def start(self, opts: dict) -> dict:
         if self.proc is not None and self.proc.poll() is None:
             return {"ok": False, "msg": "已经在跑了"}
+        self._close_run_log()
         saved = self.save_settings(opts or {})
         if not saved["ok"]:
             return saved
@@ -672,6 +686,7 @@ class Api:
             rc = self.proc.poll()
             if rc is not None:
                 tail = tail_lines(GUI_RUN_LOG, 40)
+                self._close_run_log()
                 self.error = (f"启动失败(退出码 {rc})。"
                               + explain_exit_code(rc, "\n".join(tail)))
                 return {"ok": False, "msg": self.error, "exit_code": rc,
@@ -680,6 +695,7 @@ class Api:
             return {"ok": True, "msg": f"已启动 pid={self.proc.pid}",
                     "argv": argv}
         except Exception as e:
+            self._close_run_log()
             self.error = f"{type(e).__name__}: {e}"
             return {"ok": False, "msg": self.error}
 
@@ -697,6 +713,8 @@ class Api:
         except Exception as e:
             self.error = f"{type(e).__name__}: {e}"
             return {"ok": False, "msg": self.error}
+        finally:
+            self._close_run_log()
 
     # ---- 检测更新 ----
     def check_update(self) -> dict:
@@ -715,6 +733,27 @@ class Api:
         ver = read_version()
         local = str(ver.get("version") or "0.0.0")
         r = update_check.check(local, ver.get("update_url"))
+        manifest_asset = r.get("manifest_asset") or {}
+        manifest_url = manifest_asset.get("browser_download_url")
+        if r.get("ok") and manifest_url:
+            diff = update_check.compare_manifest(PROJECT_ROOT,
+                                                 manifest_url=manifest_url)
+            r["file_changes"] = diff
+            if diff.get("ok"):
+                changed = diff.get("changed", [])
+                missing = diff.get("missing", [])
+                names = (changed + missing)[:12]
+                suffix = "" if len(changed) + len(missing) <= 12 else " …"
+                detail = "; ".join(names) + suffix if names else "无"
+                r["msg"] += f"；本地文件差异 {len(changed)} 个变更、{len(missing)} 个缺失"
+                if names:
+                    r["msg"] += f"（{detail}）"
+            else:
+                r["msg"] += f"；{diff.get('msg', '文件清单不可用')}"
+        elif r.get("ok"):
+            r["file_changes"] = {"ok": False, "changed": [], "missing": [],
+                                  "same": 0, "msg": "该 Release 没有文件清单附件"}
+            r["msg"] += "；该 Release 没有文件清单，无法列出文件差异"
         # 记住发布页地址:第二次点按钮就是"打开发布页"(用系统默认浏览器)
         self._release_url = r.get("url") or update_check.RELEASES_PAGE
         self._has_update = bool(r.get("has_update"))
@@ -965,7 +1004,19 @@ function collectOptions(){
   return opts;
 }
 // 串行写入，快速连续修改时旧配置不会晚于新配置落盘。
-let saveQueue = Promise.resolve(), saveRevision = 0;
+let saveQueue = Promise.resolve(), saveRevision = 0, starting = false;
+async function flushOptionSaves(){
+  // A save may enqueue another save while this await is in progress.  Keep
+  // waiting until the revision observed before the await is still current.
+  for(;;){
+    const revision = saveRevision, queue = saveQueue;
+    await queue;
+    if(revision === saveRevision) return;
+  }
+}
+function lockOptionControls(locked){
+  document.querySelectorAll('#switches input, #rounds').forEach(x=>x.disabled=locked);
+}
 function persistOptions(){
   const revision = ++saveRevision;
   const opts = collectOptions();
@@ -987,11 +1038,23 @@ window.addEventListener('pywebviewready', async ()=>{
   poll(); setInterval(poll, 1000);
   $('#rounds').addEventListener('input', persistOptions);
   $('#btnStart').onclick = async ()=>{
-    const opts = collectOptions();
-    await saveQueue;
-    const r = await window.pywebview.api.start(opts);
-    // 启动失败时那条消息是要人读的(可能两三行、还带操作步骤),3.2 秒根本看不完
-    toast(r.ok ? ('已启动:'+r.argv.join(' ')) : r.msg, r.ok ? 3200 : 12000); poll();
+    if(starting) return;
+    starting = true;
+    $('#btnStart').disabled = true;
+    lockOptionControls(true);
+    try {
+      await flushOptionSaves();
+      // Controls stay locked through the Python start call, so the command
+      // line and the final config file cannot diverge if startup takes 1.2s.
+      const opts = collectOptions();
+      const r = await window.pywebview.api.start(opts);
+      // 启动失败时那条消息是要人读的(可能两三行、还带操作步骤),3.2 秒根本看不完
+      toast(r.ok ? ('已启动:'+r.argv.join(' ')) : r.msg, r.ok ? 3200 : 12000); poll();
+    } finally {
+      lockOptionControls(false);
+      starting = false;
+      poll();
+    }
   };
   $('#btnStop').onclick = async ()=>{ const r = await window.pywebview.api.stop(); toast(r.msg); poll(); };
   $('#btnUpdate').onclick = async ()=>{

@@ -18,6 +18,9 @@ from __future__ import annotations
 
 import os
 import sys
+import hashlib
+import json
+import tempfile
 import urllib.error
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
@@ -53,6 +56,8 @@ RELEASE = {
         {"name": "source.zip", "size": 100, "browser_download_url": "u1"},
         {"name": "kards-auto_v0.9.9_x86_64.zip", "size": 139000000,
          "browser_download_url": "u2"},
+        {"name": "kards-auto_v0.9.9_x86_64.manifest.json", "size": 900,
+         "browser_download_url": "manifest-url"},
     ],
 }
 
@@ -85,13 +90,61 @@ C("★ 优先挑 x86_64 那个 zip(不是在前的 source.zip)",
   (rel["asset"] or {}).get("name"))
 C("说明截断了(400 字以内)", len(rel["notes"]) <= uc.NOTES_MAX + 20,
   f"{len(rel['notes'])} 字")
+C("挑到文件清单附件", rel["manifest_asset"]["name"].endswith(".manifest.json"))
+C("附件列表混入非对象时不炸", uc.parse_release(
+    {"tag_name": "v1.0", "assets": [None, "bad", {"name": "ok.zip"}]}
+    )["asset"]["name"] == "ok.zip")
+C("附件字段不是列表时不炸", uc.parse_release(
+    {"tag_name": "v1.0", "assets": 42})["asset"] is None)
 C("空 payload 不炸", uc.parse_release(None)["tag"] == "")
 C("没有 zip 附件时 asset=None(不算错)", uc.parse_release(
     {"tag_name": "v1.0", "assets": [{"name": "x.7z"}]})["asset"] is None)
 
 print()
 print("=" * 84)
-print("③ 正常路径:有新版本 / 已是最新 / 本地是开发版")
+print("③ 文件清单:只比对哈希,不下载或解压更新包")
+print("=" * 84)
+with tempfile.TemporaryDirectory() as td:
+    root = os.path.abspath(td)
+    files = {"src/a.txt": b"same", "config/b.txt": b"old"}
+    for rel_name, data in files.items():
+        path = os.path.join(root, *rel_name.split("/"))
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "wb") as f:
+            f.write(data)
+    manifest = {"schema": 1, "version": "0.9.9", "files": {
+        rel_name: {"sha256": hashlib.sha256(data).hexdigest(), "size": len(data)}
+        for rel_name, data in files.items()}}
+    C("全部一致时不列出变更",
+      uc.compare_manifest(root, manifest=manifest)["changed"] == [])
+    with open(os.path.join(root, "config", "b.txt"), "wb") as f:
+        f.write(b"new")
+    os.remove(os.path.join(root, "src", "a.txt"))
+    diff = uc.compare_manifest(root, manifest=manifest)
+    C("能分别列出变更和缺失文件",
+      diff["changed"] == ["config/b.txt"] and diff["missing"] == ["src/a.txt"],
+      str(diff))
+    remote = json.dumps(manifest).encode("utf-8")
+    fetched = uc.compare_manifest(root, manifest_url="manifest-url",
+                                  _fetch=lambda url, timeout: (200, remote))
+    C("清单只通过一次小 JSON 请求读取",
+      fetched["ok"] and fetched["remote_files"] == 2)
+    digest = hashlib.sha256(b"safe").hexdigest()
+    malformed = {"files": {
+        "../outside.txt": {"sha256": digest},
+        "/absolute.txt": {"sha256": digest},
+        "C:\\absolute.txt": {"sha256": digest},
+        "./dot.txt": {"sha256": digest},
+        "nested//empty.txt": {"sha256": digest},
+        "safe/file.txt": {"sha256": digest},
+    }}
+    C("清单拒绝绝对路径和 .. 路径",
+      list(uc._manifest_files(malformed)) == ["safe/file.txt"],
+      str(uc._manifest_files(malformed)))
+
+print()
+print("=" * 84)
+print("④ 正常路径:有新版本 / 已是最新 / 本地是开发版")
 print("=" * 84)
 import json as _json
 
@@ -113,7 +166,7 @@ C("★ 本地更新时说'开发版',**不许**说'已是最新'",
 
 print()
 print("=" * 84)
-print("④ 错误分支(★ 这一节是这个模块存在的理由:不许把'查不到'说成'已是最新')")
+print("⑤ 错误分支(★ 这一节是这个模块存在的理由:不许把'查不到'说成'已是最新')")
 print("=" * 84)
 cases = [
     ("断网/代理", fake(exc=urllib.error.URLError("getaddrinfo failed")), "连不上"),
@@ -136,7 +189,7 @@ C("★ 不认识的异常也不许把面板弄崩",
 
 print()
 print("=" * 84)
-print("⑤ 备用源(releases.atom):★ API 被限流时也得能报出新版本")
+print("⑥ 备用源(releases.atom):★ API 被限流时也得能报出新版本")
 print("=" * 84)
 FEED = """<?xml version="1.0" encoding="UTF-8"?>
 <feed xmlns="http://www.w3.org/2005/Atom">
@@ -182,7 +235,7 @@ C("★ 备用源成功时就不会再提'请求太频繁'",
 
 print()
 print("=" * 84)
-print("⑥ 更新源地址:空就用默认的 GitHub,填了就用填的")
+print("⑦ 更新源地址:空就用默认的 GitHub,填了就用填的")
 print("=" * 84)
 C("默认源指向本仓库",
   "yumehanab1/OCR-Kards-Auto" in uc.DEFAULT_API, uc.DEFAULT_API)
@@ -205,7 +258,7 @@ C("结果里回报'实际用了哪个地址'(排错要用)", r["source"] == uc.D
 if "--live" in sys.argv:
     print()
     print("=" * 84)
-    print("⑦ --live:真去 GitHub 查一次(只有这一节连网)")
+    print("⑧ --live:真去 GitHub 查一次(只有这一节连网)")
     print("=" * 84)
     live = uc.check("0.0.0")
     print(f"  msg : {live['msg']}")

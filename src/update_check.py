@@ -5,7 +5,8 @@ update_check.py - "检测更新":把远端发布信息和本地版本号比一�
 ------
 GitHub Releases(仓库是公开的,不用 token):
     GET https://api.github.com/repos/yumehanab1/OCR-Kards-Auto/releases/latest
-返回里的 `tag_name` 就是版本,`body` 是更新说明,`assets[]` 是附件(我们发的是 zip)。
+返回里的 `tag_name` 就是版本,`body` 是更新说明,`assets[]` 是附件(我们发的是 zip
+和同名 `.manifest.json` 清单)。
 要换成别的源,把 `config/app_version.json` 的 `update_url` 填上就行 —— 那个字段
 在 v0.1.0 就留好了,一直空着(当时项目还不是 git 仓库,机制没定;现在定了)。
 
@@ -17,13 +18,17 @@ GitHub Releases(仓库是公开的,不用 token):
 ② **不自动装**。更新包是 130 MB 的便携目录(连 python 目录一起),替换**正在运行**的
    自己是件危险事:Windows 上被占用的文件换不掉,换到一半就是个坏包,而用户
    拿到的现象是"双击没反应"。所以这里只**报告** + 给出发布页地址,装不装由人决定。
-③ **纯逻辑可离线测**。版本比较、解析、每一条错误分支都不碰网络:
+③ **只比对清单**。有清单时只下载小 JSON，并在本地计算 SHA-256；不会下载或解压 zip，
+   也不会自动替换文件。清单缺失或格式不对时明确报告，绝不把未知说成无变更。
+④ **纯逻辑可离线测**。版本比较、解析、每一条错误分支都不碰网络:
    `check(..., _fetch=假取数器)` 可以喂任意响应,见 `dev/update_check_test.py`。
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
+import os
 import re
 import urllib.error
 import urllib.request
@@ -80,6 +85,13 @@ def is_newer(remote, local) -> bool:
     return r > l
 
 
+def _asset_entries(assets):
+    """Return only a list-like asset collection; malformed JSON is empty."""
+    if isinstance(assets, (list, tuple)):
+        return assets
+    return ()
+
+
 def pick_asset(assets) -> dict | None:
     """
     从附件里挑"该下的那个":优先 `*x86_64*.zip`(我们的命名是
@@ -87,8 +99,12 @@ def pick_asset(assets) -> dict | None:
 
     ★ 挑不到不算错:有的 Release 只写说明、不发附件,面板仍然可以给发布页地址。
     """
-    zips = [a for a in (assets or [])
-            if str(a.get("name", "")).lower().endswith(".zip")]
+    # GitHub normally returns a list of objects, but keep malformed entries
+    # from making the update panel crash if a proxy or custom update source
+    # injects a scalar/list item into ``assets``.
+    zips = [a for a in _asset_entries(assets)
+            if isinstance(a, dict)
+            and str(a.get("name", "")).lower().endswith(".zip")]
     if not zips:
         return None
     for a in zips:
@@ -97,11 +113,24 @@ def pick_asset(assets) -> dict | None:
     return zips[0]
 
 
+def pick_manifest_asset(assets) -> dict | None:
+    """Pick the small hash manifest used for file-level update checks."""
+    manifests = [a for a in _asset_entries(assets)
+                 if isinstance(a, dict)
+                 if str(a.get("name", "")).lower().endswith(".manifest.json")]
+    if not manifests:
+        return None
+    for a in manifests:
+        if "x86_64" in str(a.get("name", "")).lower():
+            return a
+    return manifests[0]
+
+
 def parse_release(payload) -> dict:
     """
     把 GitHub 那条 release JSON 变成我们要的几个字段;缺东西就留空,不抛异常。
 
-    返回 {tag, version, name, notes, url, published_at, asset}
+    返回 {tag, version, name, notes, url, published_at, asset, manifest_asset}
     """
     p = payload if isinstance(payload, dict) else {}
     tag = str(p.get("tag_name") or "").strip()
@@ -116,7 +145,87 @@ def parse_release(payload) -> dict:
         "url": str(p.get("html_url") or "").strip() or RELEASES_PAGE,
         "published_at": str(p.get("published_at") or "").strip(),
         "asset": pick_asset(p.get("assets")),
+        "manifest_asset": pick_manifest_asset(p.get("assets")),
     }
+
+
+def _manifest_files(payload) -> dict:
+    """Normalize a manifest to ``{relative_path: {sha256, size}}``."""
+    if not isinstance(payload, dict) or not isinstance(payload.get("files"), dict):
+        return {}
+    out = {}
+    for raw_rel, item in payload["files"].items():
+        # The manifest is downloaded from a release, so treat its paths as
+        # untrusted input.  Reject absolute paths and traversal segments
+        # instead of allowing a malformed manifest to make us hash files
+        # outside the installed package.  Empty/dot segments are rejected as
+        # well: silently normalizing them could make two entries collide.
+        raw_rel = str(raw_rel)
+        if (not raw_rel or raw_rel.startswith(("/", "\\"))
+                or re.match(r"^[A-Za-z]:", raw_rel)):
+            continue
+        parts = raw_rel.replace("\\", "/").split("/")
+        if any(part in ("", ".", "..") for part in parts):
+            continue
+        rel = "/".join(parts)
+        if not isinstance(item, dict):
+            continue
+        digest = str(item.get("sha256") or "").lower()
+        if re.fullmatch(r"[0-9a-f]{64}", digest):
+            out[rel] = {"sha256": digest, "size": item.get("size")}
+    return out
+
+
+def compare_manifest(root: str, manifest=None, manifest_url: str | None = None,
+                     timeout: float = TIMEOUT, _fetch=None) -> dict:
+    """Compare installed files with a remote manifest without downloading zip."""
+    if manifest is None:
+        if not manifest_url:
+            return {"ok": False, "changed": [], "missing": [], "same": 0,
+                    "remote_files": 0, "msg": "该 Release 没有文件清单附件"}
+        fetch = _fetch or _http_get
+        try:
+            code, raw = fetch(manifest_url, timeout)
+        except Exception as e:
+            return {"ok": False, "changed": [], "missing": [], "same": 0,
+                    "remote_files": 0,
+                    "msg": f"文件清单下载失败({type(e).__name__}: {e})"}
+        if code != 200:
+            return {"ok": False, "changed": [], "missing": [], "same": 0,
+                    "remote_files": 0, "msg": f"文件清单返回 HTTP {code}"}
+        try:
+            manifest = json.loads(raw.decode("utf-8", "replace"))
+        except Exception:
+            return {"ok": False, "changed": [], "missing": [], "same": 0,
+                    "remote_files": 0, "msg": "文件清单不是有效 JSON"}
+    files = _manifest_files(manifest)
+    if not files:
+        return {"ok": False, "changed": [], "missing": [], "same": 0,
+                "remote_files": 0, "msg": "文件清单为空或格式不兼容"}
+
+    changed, missing, same = [], [], 0
+    root = os.path.abspath(root)
+    for rel, expected in files.items():
+        path = os.path.join(root, *rel.split("/"))
+        if not os.path.isfile(path):
+            missing.append(rel)
+            continue
+        h = hashlib.sha256()
+        try:
+            with open(path, "rb") as f:
+                for block in iter(lambda: f.read(1024 * 1024), b""):
+                    h.update(block)
+        except OSError:
+            missing.append(rel)
+            continue
+        if h.hexdigest().lower() == expected["sha256"]:
+            same += 1
+        else:
+            changed.append(rel)
+    return {"ok": True, "changed": changed, "missing": missing, "same": same,
+            "remote_files": len(files),
+            "msg": (f"文件清单比对完成：{len(changed)} 个变更、{len(missing)} 个缺失、"
+                    f"{same} 个一致")}
 
 
 def parse_feed(xml_bytes) -> dict:
@@ -159,6 +268,7 @@ def parse_feed(xml_bytes) -> dict:
                          or entry.findtext("a:published", default="",
                                            namespaces=ns) or ""),
         "asset": None,                   # atom 里没有附件清单
+        "manifest_asset": None,
     }
 
 
@@ -201,7 +311,8 @@ def check(local_version: str, api_url: str | None = None,
 
         {"ok": 查询本身成功了吗, "has_update": 远端是否更新,
          "local": ..., "remote": ..., "msg": 一句人话,
-         "url": 发布页, "asset": 附件信息或 None, "notes": 更新说明,
+         "url": 发布页, "asset": 附件信息或 None,
+         "manifest_asset": 文件清单附件或 None, "notes": 更新说明,
          "source": 实际用的地址}
 
     `ok` 与 `has_update` 是**两件事**:查不到(ok=False)不等于"已是最新";
@@ -212,7 +323,8 @@ def check(local_version: str, api_url: str | None = None,
 
     fetch = _fetch or _http_get
     base = {"ok": False, "has_update": False, "local": local, "remote": None,
-            "url": RELEASES_PAGE, "asset": None, "notes": "", "source": api,
+            "url": RELEASES_PAGE, "asset": None, "manifest_asset": None,
+            "notes": "", "source": api,
             "via": "api", "msg": ""}
 
     # ---- 第一路:API(信息最全:附件名 + 大小 + 说明) ----
@@ -258,7 +370,9 @@ def check(local_version: str, api_url: str | None = None,
         return dict(base, msg=f"查不到:{why}。可以直接开 {RELEASES_PAGE}")
 
     out = dict(base, ok=True, remote=rel["version"] or rel["tag"],
-               url=rel["url"], asset=rel["asset"], notes=rel["notes"], via=via)
+               url=rel["url"], asset=rel["asset"],
+               manifest_asset=rel.get("manifest_asset"),
+               notes=rel["notes"], via=via)
     tail = "" if via == "api" else "(备用源;附件信息查不到)"
     if is_newer(rel["tag"], local):
         size = ""

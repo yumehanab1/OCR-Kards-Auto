@@ -55,4 +55,7 @@ install.cmd
 4. 运行 `python\\python.exe make_release.py`，确认自检通过。
 5. 把 zip 解压到空目录，检查版本、卡库和费用模板，再创建 GitHub Release。
 
+`make_release.py` 还会在桌面生成同名 `.manifest.json`。发布时把它和 zip 一起作为
+Release 附件上传；面板只读取这个小清单来列出本地变更，不会自动替换安装目录。
+
 提交信息用中文，说明改了什么、为什么、如何验证。不要提交面板 token、账号昵称、完整日志或本机绝对路径。

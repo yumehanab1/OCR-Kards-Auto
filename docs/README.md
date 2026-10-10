@@ -7,12 +7,14 @@
 - [根目录 README](../README.md)：安装、运行、面板开关、常见排障。
 - [NOTICE](../NOTICE.md)：自动化风险、第三方素材和授权边界。
 - [CHANGELOG](../CHANGELOG.md)：按版本查看行为变化。
+- [目前不能自动打出的指令卡](generated/打不出去的指令卡.md)：按原因查看卡名和费用。
 
 ## 改代码
 
 - [当前架构](architecture.md)：运行链路、状态机、运行时输入和文件归属。
 - [贡献指南](../CONTRIBUTING.md)：环境、回归用例、判据修改纪律、发布流程。
 - [开发工具索引](../dev/README.md)：测试、探针、A/B 工具和现场排查脚本。
+- [当前可用指令清单](generated/指令卡清单.md)：按出牌方式查看已放行卡名。
 - [src/archive 说明](../src/archive/README.md)：早期实验，不能当作运行时模块使用。
 
 ## 文档分层
@@ -25,3 +27,5 @@
 | `archive/` | 旧状态、备份、一次性材料 | 只用于追溯 |
 
 手游/Android 相关状态文档属于独立维护线，不能因为 PC 目录整理而删除或覆盖；本机副本有 `MOBILE_STATE.md` 时，请放入 `reports/mobile/`。完整日志、截图、账号昵称和绝对路径留在本机 `shots/`、`logs/` 或归档副本中，不提交到公共仓库。
+
+发布页按平台分区：PC 使用根目录源码和 `kards-auto_vX.Y.Z_x86_64.zip`，手机版通过仓库根目录 [`mobile/`](../mobile/) 预留说明并在同一 Release 页面上传独立的 `KARDS-AUTO-Mobile-vX.Y.Z.zip`。两个包不互相覆盖源码或运行材料。

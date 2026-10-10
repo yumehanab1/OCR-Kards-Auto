@@ -26,9 +26,14 @@ NORMAL_SETTLE_S = 2.5
 OPEN_TIMEOUT_S = 6.0
 NEXT_SET_GAP_S = 0.8
 CONFIRM_GAP_S = 0.15
+TWO_CONFIRM_GAP_S = 0.5
 TITLE_UNREADABLE_TIMEOUT_S = 6.0
 TITLE_MISMATCH_CONFIRM_S = 1.0
 TITLE_TOTAL_TIMEOUT_S = 6.0
+# A click can open another menu, close the turn, or fail to produce a
+# recognizable frame.  Bound each post-click step so selection_pending cannot
+# permanently mask victory/defeat handling.
+SELECTION_STEP_TIMEOUT_S = 12.0
 TITLE_MIN_CONF = 0.72  # portable OCR reads the real 19:25 choice titles at .78/.83
 THREE_TITLE_MIN_CONF = 0.50  # portable OCR reads real weather titles at .54-.78
 THREE_TITLE_CONFIRM_FRAMES = 2
@@ -57,6 +62,16 @@ def panel_evidence(frame, count: int = 2) -> tuple[bool, str]:
         edge_light = float((edge > 145).mean())
         bottom_light = float((bottom > 145).mean())
         contrast = float(edge.mean() - outside.mean())
+        if count == 2 and (edge_light < 0.70 or contrast < 25):
+            # A hovered two-card option expands its left border by 5 px.
+            # Keep the panel/bottom tests and require the same continuous,
+            # contrasting border at that observed position (Oct 3 real frame).
+            hover_edge = gray[272:502, x - 3:x + 1]
+            hover_outside = gray[275:500, x - 12:x - 7]
+            hover_light = float((hover_edge > 145).mean())
+            hover_contrast = float(hover_edge.mean() - hover_outside.mean())
+            if hover_light >= 0.70 and hover_contrast >= 25:
+                edge_light, contrast = hover_light, hover_contrast
         ok = (mean >= 155 and light >= 0.70
               and edge_light >= (0.65 if count == 3 else 0.70)
               and bottom_light >= 0.78 and contrast >= 25)
@@ -154,7 +169,7 @@ def _known_titles() -> frozenset[str]:
 
 
 def titles_match(frame, name: str) -> tuple[bool | None, str]:
-    """Read both title strips; None means OCR has not found both titles yet."""
+    """Offline OCR diagnostic only; two-card selection never calls this."""
     if not calibrated(frame):
         return False, "标题帧尺寸不匹配"
     seen = _title_strips(frame, CARD_LEFTS, TITLE_MIN_CONF)
@@ -211,12 +226,16 @@ class SelectionFlow:
         self.three_title_started_at = None
 
     def tick(self, frame, *, normal_visible, click_client, can_act,
-             read_titles=titles_match, read_three_titles=three_titles_match,
+             read_three_titles=three_titles_match,
              now: float | None = None,
              log=print) -> tuple[str, str]:
         now = time.monotonic() if now is None else now
         if not ENABLE_SELECTION_STAGE:
             return "blocked", "选牌阶段总开关已关闭,不点击"
+        if (self.steps and self.last_click_at is not None
+                and now - self.last_click_at >= SELECTION_STEP_TIMEOUT_S):
+            return "blocked", (f"第 {self.steps + 1} 组选牌等待超过 "
+                                f"{SELECTION_STEP_TIMEOUT_S:.0f}s,停手")
         if not can_act():
             return "waiting", "游戏窗口暂不可操作"
         count, evidence = detect_count(frame)
@@ -262,6 +281,9 @@ class SelectionFlow:
         self.normal_frames = 0
         if count == 2 and not orders.is_choice(self.name):
             return "blocked", "双牌抉择没有已标注的选边规则"
+        if (count == 2 and not self.steps
+                and now - self.started_at >= OPEN_TIMEOUT_S):
+            return "blocked", "双牌选项在限时内未能稳定,停手"
         if self.last_clicked_count == count:
             if not changed_since(self.last_clicked_image, frame):
                 return "waiting", "上一次选牌画面尚未变化,不重复点击"
@@ -286,40 +308,20 @@ class SelectionFlow:
                 self.title_failure_since = None
                 self.title_kind_since = None
                 self.title_failure_frames = 0
-        self.candidate_image = current_image
+        # For two-card reveal animations, compare against the start of the
+        # stable interval. Small changes between adjacent frames must not
+        # accumulate into an apparently stable, still moving card.
+        if not stable or count != 2:
+            self.candidate_image = current_image
         self.candidate_count = count
+        confirm_gap = TWO_CONFIRM_GAP_S if count == 2 else CONFIRM_GAP_S
         if (self.candidate_frames < 2
-                or now - self.candidate_since < CONFIRM_GAP_S):
+                or now - self.candidate_since < confirm_gap):
             return "waiting", f"检测到 {count} 张选项,等待稳定画面确认"
 
-        title_note = ""
-        if count == 2 and self.steps == 0:
-            matched, title_note = read_titles(frame, self.name)
-            if matched is not True:
-                kind = "unreadable" if matched is None else "mismatch"
-                if self.title_failure_since is None:
-                    self.title_failure_since = now
-                if kind != self.title_failure_kind:
-                    self.title_failure_kind = kind
-                    self.title_kind_since = now
-                    self.title_failure_frames = 0
-                    log(f"[selection] {self.name}: 双牌标题"
-                        f"{'尚未读全,等待动画结束' if kind == 'unreadable' else '与出牌名不符,复读确认'};"
-                        f"{title_note}")
-                self.title_failure_frames += 1
-                limit = (TITLE_UNREADABLE_TIMEOUT_S if kind == "unreadable"
-                         else TITLE_MISMATCH_CONFIRM_S)
-                if (now - self.title_failure_since < TITLE_TOTAL_TIMEOUT_S
-                        and (self.title_failure_frames < 2
-                             or now - self.title_kind_since < limit)):
-                    return "waiting", "双牌标题待复读;" + title_note
-                return "blocked", "双牌标题未能核对白名单;" + title_note
-            if self.title_failure_kind is not None:
-                log(f"[selection] {self.name}: 动画后双牌标题已核对;{title_note}")
-            self.title_failure_kind = None
-            self.title_failure_since = None
-            self.title_kind_since = None
-            self.title_failure_frames = 0
+        # The hand was identified before deployment. The saved marked rule
+        # supplies the side; option-title OCR is not part of the two-card gate.
+        title_note = "双牌布局已稳定,按已标规则选边" if count == 2 else ""
         if count == 3:
             # A valid reading is still provisional until it agrees twice.
             # Keep one deadline across valid, blank and mismatched reads.

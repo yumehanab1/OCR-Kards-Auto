@@ -51,8 +51,8 @@ PLAN_JSON = os.path.join(PROJECT_ROOT, "config", "order_plays.json")
 #:   留这个开关是项目纪律(改判据要能一句话退回去),也方便实机对比"带不带指令"。
 PLAY_ORDERS = True
 
-#: ★★ A/B 开关(2026-09-20 第二版):**「需要目标」那一档**(211 张)单独一个开关。
-#:   False = target 一律不打,退回第一版(只打「可直接打出」那 286 张)。
+#: ★★ A/B 开关:**需要场上目标的 target** 单独一个开关。
+#:   False = 不打普通目标卡；三选一仍由 PLAY_THREE_ORDERS 独立控制。
 #: ★ 为什么必须独立于 `PLAY_ORDERS`:target 多了一整套"往哪个坐标拖"的判据
 #:   (`order_target.py`,要读战场/前线归属)。实机出问题时得能**只关这一档**、
 #:   把 direct 留着,否则一关就两档都没了,没法对比到底是哪一档的问题。
@@ -95,8 +95,8 @@ KIND5_AS_BLACKLIST = True
 #:   1 指定敌方单位(打不了总部) / 2 敌方单位或总部 / 3 指定敌方总部 /
 #:   4 我方单位 / 6 随意阵营单位
 #: ★ **5(选择一张手牌)** 见 `KIND5_AS_BLACKLIST`:用户 2026-09-21 决定整档归黑名单。
-#: ★ **7(三选一)不在这里** —— 打出后弹三张卡,要另外一套操作(点哪一张),
-#:   不是"拖到一个坐标"能表达的,本次不做。
+#: ★ **7(三选一)不在这里** —— 不走场上目标坐标判据，而由
+#:   `is_three_order()` / `order_choice.SelectionFlow` 独立处理。
 TARGET_KINDS_OK = ("1", "2", "3", "4", "6")
 
 #: 本局放行的目标码 = `TARGET_KINDS_OK`,**再加上**(开关关掉时的)kind 5。
@@ -226,14 +226,14 @@ def _target_gate(rec: dict) -> tuple[bool, str]:
     返回 `(能不能打, 不能打的人话原因)`。四个条件少一条都不行:
       · 开关 `PLAY_TARGETS` 为真(A/B 用);
       · `kind` 不是 5(`KIND5_AS_BLACKLIST` 为真时;见那个常量的长注释);
-      · `kind` 在 `target_kinds_ok()` 里(7 = 三选一、空值、没见过的数字**一律不打**);
+      · `kind` 在 `target_kinds_ok()` 里(7 = 三选一走独立阶段，不走本函数);
       · `follow` 为空(带 follow 的是两步卡:先一个动作、再一个动作,本次不做)。
     """
     if not PLAY_TARGETS:
         return False, "PLAY_TARGETS=False(A/B 开关关掉了「需要目标」这一档)"
     kind = str(rec.get("kind") or "").strip()
     if kind == "7":
-        return False, "目标码 7 = 三选一(打出后弹三张卡),本次不做"
+        return False, "目标码 7 = 三选一，使用独立选牌阶段而非场上目标判据"
     if kind not in target_kinds_ok():
         if kind == "5":
             return False, ("目标码 5 = 选择一张手牌,2026-09-21 用户决定**整档归黑名单**"
@@ -275,7 +275,9 @@ def is_three_order(name: str) -> bool:
 
 def target_refuse_reason(name: str) -> str:
     """
-    「这张 target 指令**这一局**为什么打不了」的人话原因(能打就返回空串)。
+    「这张 target 指令为什么不能走场上目标路径」的人话原因。
+    kind 7 的单步三选一可能由 `is_three_order()` 放行；调用方判断整体
+    可用性应使用 `playable()`，不能把此函数的结果当作总判据。
 
     ★ 给引擎写日志用。为什么要有它:引擎只许**引用**判据、不许自己再判一遍
       (例如自己写 `kind == "7"`),否则"日志里说的"和"代码里做的"早晚会分家

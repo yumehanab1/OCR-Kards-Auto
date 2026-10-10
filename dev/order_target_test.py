@@ -156,10 +156,11 @@ print("  " + orders.status())
 C("打法表载入了", len(orders._CARDS or {}) > 600, f"实得 {len(orders._CARDS or {})} 张")
 C("status() 仍能看出分档(可直接打出/需要目标/抉择/黑名单都在)",
   all(k in orders.status() for k in ("可直接打出", "需要目标", "抉择", "黑名单")))
-C("status() 如实说清了「本局打哪两档」",
-  "两档" in orders.status() and "kind 1~4/6" in orders.status(), orders.status()[:60] + "…")
-C("status() 点名了**没做**的那几档(不许写成'指令都能打了')",
-  "三选一(kind 7)" in orders.status() and "抉择" in orders.status())
+C("status() 如实说清当前放行的四类指令",
+  all(k in orders.status() for k in
+      ("可直接打出", "需要目标", "已标选边双牌抉择", "三选一 19 个")))
+C("status() 点名仍未放行的类别",
+  all(k in orders.status() for k in ("未标选边抉择", "两步", "黑名单")))
 C("status() 点名 kind 5 归黑名单(2026-09-21 用户决定)",
   "kind 5" in orders.status() and "黑名单" in orders.status()
   and "kind 1~6" not in orders.status(), orders.status()[:60] + "…")
@@ -522,8 +523,10 @@ for kind, rows, follow, why in ((("7"), "", "", "三选一"),
     C(f"表里有 kind {kind} follow={follow or '-'} 的卡({why})", bool(nm), str(nm))
     if not nm:
         continue
-    # ① 放行判据不许放它过去
-    C(f"  orders.playable() 不放行「{nm}」", orders.playable("order", nm) is False)
+    # 单步三选一经独立阶段放行；场上目标路径仍必须拒绝它。
+    allowed = kind == "7" and not follow
+    C(f"  orders.playable() 对「{nm}」按当前阶段放行",
+      orders.playable("order", nm) is allowed)
     C(f"  orders.is_target() 为假", orders.is_target(nm) is False)
     C(f"  target_refuse_reason() 有话说", bool(orders.target_refuse_reason(nm)),
       orders.target_refuse_reason(nm))

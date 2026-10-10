@@ -19,12 +19,14 @@
 ```
 
 `choice_test.py` 需要原始截图置于被忽略的 `shots/choice_samples/`，文件名为
-`choice_two.png`、`three_first.png`、`three_second.png`、`three_unit.png`、`normal.png`；也可用
+`choice_two.png`、`choice_two_sea_battle.png`、`choice_two_sea_battle_blocked.png`、
+`three_first.png`、`three_second.png`、`three_unit.png`、`normal.png`；也可用
 `--samples-dir` 指向另一目录。测试还会扫描 `shots/` 中的真实非选牌帧。
 三牌测试核对标题能否在卡库找到、连续两帧一致才随机选边，以及动画空标题、
 陌生标题和超时停手。两组三牌截图也由面板便携 Python 验证。
-本机实机停手帧 `shots/choice/0926_192524_blocked.png` 用于验证便携 Python 的
-标题 OCR 和选边；缺少该本机帧时这项断言会报错。选牌判据改动应同时用
+本机实机停手帧 `shots/choice/0926_192524_blocked.png` 和两张“海战”样本用于验证
+双牌无需 OCR 即可按规则选边、动画稳定等待、悬停边框和禁止重复点击。
+缺少本机样本时测试会报错。选牌判据改动应同时用
 `.venv` 和面板使用的 `python/python.exe` 运行，以覆盖两套 OCR 置信度。
 正常对局帧默认读取样本目录的 `normal.png`，也可用 `--normal-frame` 指定。
 固定样本不要只留在会自动清理的 `scan_frames/` 中。
@@ -58,7 +60,7 @@ $env:PYTHONPATH = (Join-Path $PWD 'src')
 | `gui_test.py` | 面板参数、日志和冻结路径 |
 | `gui_options_test.py` | 配置持久化、无效输入和写入失败 |
 | `actions_test.py` | 鼠标动作失败处理 |
-| `update_check_test.py` | 更新检查错误分支 |
+| `update_check_test.py` | 更新检查、Release 附件和文件清单哈希比对 |
 
 依赖真实截图的用例在没有 `shots/` 时可能跳过或报缺样本，这是预期行为。
 
@@ -72,7 +74,7 @@ $env:PYTHONPATH = (Join-Path $PWD 'src')
 - `probe_*.py`、`*_probe.py`：现场取证或采样；
 - `state_roi_ab.py`、`hand_edge_ab.py`、`card_mask_ab.py`：常用识别对照。
 - `choice_title_probe.py`：只读比较旧双牌样本和实机停手帧的标题 OCR 裁切、
-  置信度及文本；不连接游戏、不点击。
+  置信度及文本；双牌运行流程已不使用该 OCR 判据。探针不连接游戏、不点击。
 - `three_title_probe.py`：只读比较两组三选一截图在面板便携 Python 和开发环境
   的标题 OCR 置信度，并核对六个标题是否存在于卡库。
 
@@ -93,7 +95,7 @@ $env:PYTHONPATH = (Join-Path $PWD 'src')
 ## 规则与文档生成
 
 - `order_plan.py`：维护指令卡规则并生成 `config/order_plays.json`；
-- `order_list_doc.py`：生成 `docs/generated/指令卡清单.md`；
+- `order_list_doc.py`：按当前 `orders.playable()` 生成可用及不能自动打出的两份指令卡清单；
 - `orders_test.py`、`order_target_test.py`：验证规则表和目标判据。
 
 生成文件不要手改；修改生成器后重新生成并跑对应测试。

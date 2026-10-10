@@ -1757,11 +1757,27 @@ class TurnEngine:
                 cx = reg[0] + reg[2] // 2
                 cy = reg[1] + reg[3] // 2
                 sx, sy = client_to_screen(self.hwnd, cx, cy)
-                click(sx, sy)
+                try:
+                    clicked = click(sx, sy)
+                except Exception as e:
+                    clicked = False
+                    self.log(f"[turn] 结束回合点击异常:{type(e).__name__}: {e}")
+                if clicked is False:
+                    # Keep the phase and all per-turn ledgers intact.  A
+                    # blocked mouse input is not evidence that the turn
+                    # actually ended; resetting here would allow the engine
+                    # to attack/deploy again on the same turn.
+                    self.log(f"[turn] ⚠️ 结束回合点击未成功,保留当前回合并重试 "
+                             f"at client ({cx},{cy}) score {s:.3f}")
+                    return "end_turn_click_failed"
                 self.log(f"[turn] clicked end turn at client ({cx},{cy}) "
                          f"score {s:.3f}")
             else:
                 self.log("[turn] end-turn button vanished before we clicked it")
+                # The button disappearing is evidence that the game already
+                # advanced to the opponent turn; resync the per-turn ledger.
+                self.reset_turn()
+                return "turn_switched"
             self.reset_turn()
             return "ended_turn"
 

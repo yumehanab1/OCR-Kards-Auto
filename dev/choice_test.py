@@ -2,9 +2,10 @@
 r"""Offline card-selection regression: no game window, no real clicks.
 
 Run: .venv\Scripts\python.exe dev\choice_test.py [--samples-dir PATH] [--normal-frame PATH]
-The ignored samples directory needs choice_two.png, three_first.png,
-three_second.png, three_unit.png and normal.png. These are original
-1284x766 screenshots or 1280x720 clients.
+The ignored samples directory needs choice_two.png, choice_two_sea_battle.png,
+choice_two_sea_battle_blocked.png, three_first.png, three_second.png,
+three_unit.png and normal.png. These are original 1284x766/767 screenshots
+or 1280x720 clients.
 Existing shots/ supply real negative frames. No game window is accessed.
 """
 
@@ -34,7 +35,7 @@ import main_loop
 
 def read(path):
     frame = cv2.imdecode(np.fromfile(path, dtype=np.uint8), cv2.IMREAD_COLOR)
-    if frame is not None and frame.shape[:2] == (766, 1284):
+    if frame is not None and frame.shape[:2] in ((766, 1284), (767, 1284)):
         frame = frame[45:765, 2:1282]
     return frame
 
@@ -51,11 +52,12 @@ samples = [read(str(args.samples_dir / name)) for name in
 assert all(order_choice.calibrated(f) for f in samples), "缺已确认截图"
 two, first_three, second_three = samples
 assert [order_choice.detect_count(f)[0] for f in samples] == [2, 3, 3]
-assert order_choice.titles_match(two, "呼叫殖民地")[0]
-assert not order_choice.titles_match(two, "生产令")[0]
 blocked_real = read(str(repo / "shots/choice/0926_192524_blocked.png"))
 assert order_choice.detect_count(blocked_real)[0] == 2
-assert order_choice.titles_match(blocked_real, "呼叫殖民地")[0] is True
+sea_battle = read(str(args.samples_dir / "choice_two_sea_battle.png"))
+sea_blocked = read(str(args.samples_dir / "choice_two_sea_battle_blocked.png"))
+assert order_choice.detect_count(sea_battle)[0] == 2
+assert order_choice.detect_count(sea_blocked)[0] == 2
 for frame, titles in ((first_three, ("蓝天", "薄雾", "狂风")),
                       (second_three, ("雷暴", "热带风暴", "旋风"))):
     matched, seen, _ = order_choice.three_titles_match(frame)
@@ -113,40 +115,39 @@ flow = order_choice.SelectionFlow("呼叫殖民地", now=0.0)
 three_ok = lambda _frame: (True, ("蓝天", "薄雾", "狂风"), "test")
 
 
-def tick(frame, at, title_ok=True):
+def tick(frame, at):
     return flow.tick(frame, normal_visible=lambda _: True,
                      click_client=lambda x, y: clicked.append((x, y)) or True,
                      can_act=lambda: True,
-                     read_titles=lambda _frame, _name: (title_ok, "test"),
                      read_three_titles=three_ok,
                      now=at, log=lambda _: None)[0]
 
 
 assert tick(two, 0.1) == "waiting"
 assert tick(two, 0.11) == "waiting" and not clicked  # rapid polling is not confirmation
-assert tick(two, 0.3) == "clicked" and clicked == [(531, 375)]
-assert tick(two, 0.4) == "waiting" and clicked == [(531, 375)]
+assert tick(two, 0.3) == "waiting" and not clicked
+assert tick(two, 0.7) == "clicked" and clicked == [(531, 375)]
+assert tick(two, 0.8) == "waiting" and clicked == [(531, 375)]
 
 # Forecast/development may produce another set after the first choice.
 old_choice = orders.random.choice
 try:
     draws = iter(("2", "3"))
     orders.random.choice = lambda sides: next(draws)
-    assert tick(first_three, 1.2) == "waiting"
-    assert tick(first_three, 1.4) == "waiting"
-    assert tick(first_three, 1.6) == "clicked"
+    assert tick(first_three, 1.6) == "waiting"
+    assert tick(first_three, 1.8) == "waiting"
+    assert tick(first_three, 2.0) == "clicked"
     assert clicked[-1] == (640, 375)
-    assert tick(first_three, 1.5) == "waiting"  # no duplicate on same screen
-    assert tick(second_three, 2.4) == "waiting"
-    assert tick(second_three, 2.6) == "waiting"
+    assert tick(first_three, 2.1) == "waiting"  # no duplicate on same screen
     assert tick(second_three, 3.0) == "waiting"
-    assert tick(second_three, 3.3) == "clicked"
+    assert tick(second_three, 3.2) == "waiting"
+    assert tick(second_three, 3.4) == "clicked"
     assert clicked[-1] == (859, 375)
 finally:
     orders.random.choice = old_choice
 
 assert tick(normal, 3.5) == "waiting"
-assert tick(normal, 6.0) == "complete"
+assert tick(normal, 6.1) == "complete"
 assert len(clicked) == 3
 
 # The 21:36 unit-triggered menu is a separate real scene from the two weather
@@ -170,69 +171,103 @@ with patch.object(orders.random, "choice", return_value="2"):
         assert result == expected, (at, result)
 unit_real_click.assert_called_once_with(640, 375)
 
-# The 19:25 real match had visible option panels but OCR returned ['', '']
-# during the reveal animation. The saved frame a moment later reads both
-# titles exactly. Retry unreadable titles, then click only on an exact match.
-recover = order_choice.SelectionFlow("呼叫殖民地", now=0)
-recover_clicks = []
-recover_logs = []
-def recover_tick(at, title_result):
-    return recover.tick(
-        blocked_real, normal_visible=lambda _: False,
-        click_client=lambda x, y: recover_clicks.append((x, y)) or True,
-        can_act=lambda: True,
-        read_titles=lambda _frame, _name: title_result,
-        now=at, log=recover_logs.append)[0]
-assert recover_tick(0.1, (None, "选项标题=['', '']")) == "waiting"
-assert recover_tick(0.3, (None, "选项标题=['', '']")) == "waiting"
-assert recover_tick(1.3, (None, "选项标题=['', '']")) == "waiting"
-assert not recover_clicks
-assert recover_tick(1.6, order_choice.titles_match(blocked_real,
-                                                  "呼叫殖民地")) == "clicked"
-assert recover_clicks == [(531, 375)]
-assert any("等待动画结束" in line for line in recover_logs)
+# Real two-card failures resolve from stable geometry without any OCR.
+two_blank = blocked_real.copy()
+for x in order_choice.CARD_LEFTS:
+    two_blank[430:457, x + 8:x + 184] = (205, 205, 205)
+assert order_choice.detect_count(two_blank)[0] == 2
 
-real_clicks = []
-real_flow = order_choice.SelectionFlow("呼叫殖民地", now=0)
-for at, expected in ((0.1, "waiting"), (0.3, "clicked")):
-    status, _ = real_flow.tick(
-        blocked_real, normal_visible=lambda _: False,
-        click_client=lambda x, y: real_clicks.append((x, y)) or True,
-        can_act=lambda: True, now=at, log=lambda _: None)
-    assert status == expected
-assert real_clicks == [(531, 375)]
+def two_tick(flow, frame, at, click, can_act=lambda: True):
+    return flow.tick(frame, normal_visible=lambda _: True,
+                     click_client=click, can_act=can_act,
+                     now=at, log=lambda _: None)[0]
 
-for failure, limit in ((None, order_choice.TITLE_UNREADABLE_TIMEOUT_S),
-                       (False, order_choice.TITLE_MISMATCH_CONFIRM_S)):
-    guard = order_choice.SelectionFlow("呼叫殖民地", now=0)
-    guard_click = Mock(return_value=True)
-    def guarded_title(at):
-        return guard.tick(
-            blocked_real, normal_visible=lambda _: False,
-            click_client=guard_click, can_act=lambda: True,
-            read_titles=lambda *_: (failure, "test"), now=at,
-            log=lambda _: None)[0]
-    assert guarded_title(0.1) == "waiting"
-    assert guarded_title(0.3) == "waiting"
-    assert guarded_title(0.3 + limit + 0.1) == "blocked"
-    guard_click.assert_not_called()
+with patch.object(order_choice, "_title_strips",
+                  side_effect=AssertionError("two-card flow must not OCR")):
+    for frame, name, point in ((blocked_real, "呼叫殖民地", (531, 375)),
+                               (two_blank, "呼叫殖民地", (531, 375)),
+                               (sea_battle, "海战", (750, 375)),
+                               (sea_blocked, "海战", (750, 375))):
+        real_flow = order_choice.SelectionFlow(name, now=0)
+        real_click = Mock(return_value=True)
+        for at, expected in ((0.1, "waiting"), (0.11, "waiting"),
+                              (0.3, "waiting"), (0.7, "clicked"),
+                              (1.6, "waiting"), (3.0, "waiting")):
+            assert two_tick(real_flow, frame, at, real_click) == expected
+        real_click.assert_called_once_with(*point)
+        assert two_tick(real_flow, normal, 3.1, real_click) == "waiting"
+        assert two_tick(real_flow, normal, 5.7, real_click) == "complete"
 
-alternating = order_choice.SelectionFlow("呼叫殖民地", now=0)
-alternating_click = Mock(return_value=True)
-for at, value in ((0.1, None), (0.3, False), (1.2, None),
-                  (2.1, False), (3.0, None), (4.0, False),
-                  (5.0, None)):
-    status, _ = alternating.tick(
-        blocked_real, normal_visible=lambda _: False,
-        click_client=alternating_click, can_act=lambda: True,
-        read_titles=lambda *_: (value, "test"), now=at, log=lambda _: None)
-    assert status == "waiting"
-status, _ = alternating.tick(
-    blocked_real, normal_visible=lambda _: False,
-    click_client=alternating_click, can_act=lambda: True,
-    read_titles=lambda *_: (False, "test"), now=6.4, log=lambda _: None)
-assert status == "blocked"
-alternating_click.assert_not_called()
+    # Check every marked side and every unmarked card, regardless of title.
+    for name in marked:
+        marked_flow = order_choice.SelectionFlow(name, now=0)
+        marked_click = Mock(return_value=True)
+        assert two_tick(marked_flow, two_blank, 0.1, marked_click) == "waiting"
+        assert two_tick(marked_flow, two_blank, 0.7, marked_click) == "clicked"
+        marked_click.assert_called_once_with(
+            *order_choice.CHOICE_POINTS[orders.choice_spec(name)["rows"]])
+    for name in ["", "未知卡名", *unmarked]:
+        refused_click = Mock()
+        assert two_tick(order_choice.SelectionFlow(name, now=0), sea_blocked,
+                        0.1, refused_click) == "blocked"
+        refused_click.assert_not_called()
+
+# Slow cumulative motion must reset the stable interval. Alter card art only,
+# preserving real panel/border evidence and small adjacent-frame differences.
+animation = []
+for delta in (0, 12, 24, 36, 48):
+    frame = sea_blocked.copy()
+    for x in order_choice.CARD_LEFTS:
+        art = frame[290:420, x + 10:x + 180]
+        art[:] = np.clip(art.astype(np.int16) + delta, 0, 255).astype(np.uint8)
+    assert order_choice.detect_count(frame)[0] == 2
+    animation.append(frame)
+moving = order_choice.SelectionFlow("海战", now=0)
+moving_click = Mock(return_value=True)
+for frame, at in zip(animation, (0.1, 0.25, 0.4, 0.55, 0.7)):
+    assert two_tick(moving, frame, at, moving_click) == "waiting"
+moving_click.assert_not_called()
+assert two_tick(moving, animation[-1], 1.3, moving_click) == "clicked"
+moving_click.assert_called_once_with(750, 375)
+
+unsettled = order_choice.SelectionFlow("海战", now=0)
+unsettled_click = Mock()
+for i, at in enumerate((0.1, 0.4, 0.7, 1.0, 2.0, 3.0, 4.0, 5.0, 6.1)):
+    expected = "blocked" if at == 6.1 else "waiting"
+    assert two_tick(unsettled, animation[0 if i % 2 else -1], at,
+                    unsettled_click) == expected
+unsettled_click.assert_not_called()
+
+# A second two-card menu cannot reuse the first menu's rule after a board gap.
+followup = order_choice.SelectionFlow("海战", now=0)
+followup_click = Mock(return_value=True)
+for frame, at, expected in ((sea_blocked, 0.1, "waiting"),
+                            (sea_blocked, 0.7, "clicked"),
+                            (normal, 1.0, "waiting"),
+                            (normal, 1.4, "waiting"),
+                            (sea_blocked, 1.6, "waiting"),
+                            (sea_blocked, 2.2, "blocked")):
+    assert two_tick(followup, frame, at, followup_click) == expected
+followup_click.assert_called_once_with(750, 375)
+
+# Missing panels, wrong resolution, ambiguity and loss of foreground stop.
+for bad_frame in (np.zeros_like(two), two[:600]):
+    bad_flow, bad_click = order_choice.SelectionFlow("海战", now=0), Mock()
+    assert two_tick(bad_flow, bad_frame, 0.1, bad_click) == "waiting"
+    assert two_tick(bad_flow, bad_frame, 6.1, bad_click) == "blocked"
+    bad_click.assert_not_called()
+with patch.object(order_choice, "detect_count", return_value=(-1, "ambiguous")):
+    bad_click = Mock()
+    assert two_tick(order_choice.SelectionFlow("海战", now=0), sea_blocked,
+                    0.1, bad_click) == "blocked"
+    bad_click.assert_not_called()
+focus_flow, focus_click = order_choice.SelectionFlow("海战", now=0), Mock()
+assert two_tick(focus_flow, sea_blocked, 0.1, focus_click,
+                can_act=lambda: False) == "waiting"
+assert two_tick(focus_flow, sea_blocked, 0.2, focus_click) == "waiting"
+assert two_tick(focus_flow, sea_blocked, 0.8, focus_click,
+                can_act=Mock(side_effect=(True, False))) == "waiting"
+focus_click.assert_not_called()
 
 hover_guard = order_choice.SelectionFlow("", now=0)
 hover_click = Mock(return_value=True)
@@ -282,8 +317,7 @@ assert transient_tick(second_three, 0.3) == "waiting" and not transient_clicks
 assert transient_tick(second_three, 0.5) == "waiting"
 assert transient_tick(second_three, 0.7) == "clicked"
 
-# Three-card reveal follows the same read/retry gate as a marked two-card
-# choice. A random side is drawn only after all three known names agree twice.
+# Three-card reveal retains its title gate. A random side is drawn only after all three known names agree twice.
 three_retry = order_choice.SelectionFlow("测试开发", now=0)
 three_click = Mock(return_value=True)
 three_draw = Mock(return_value="2")
@@ -335,22 +369,12 @@ for alternate in ((True, ("雷暴", "热带风暴", "旋风"), "changed"),
         unstable_click.assert_not_called()
         unstable_draw.assert_not_called()
 
-# Wrong two-card titles and failed mouse input must stop before ordinary play.
-for title_ok, click_ok in [(False, True), (True, False)]:
-    guarded = order_choice.SelectionFlow("呼叫殖民地", now=0)
-    guarded_click = Mock(return_value=click_ok)
-    def guarded_tick(at):
-        return guarded.tick(two, normal_visible=lambda _: False,
-                            click_client=guarded_click, can_act=lambda: True,
-                            read_titles=lambda *_: (title_ok, "test"), now=at,
-                            log=lambda _: None)[0]
-    assert guarded_tick(0.1) == "waiting"
-    if title_ok:
-        assert guarded_tick(0.3) == "blocked"
-    else:
-        assert guarded_tick(0.3) == "waiting"
-        assert guarded_tick(1.4) == "blocked"
-    assert guarded_click.call_count == int(title_ok)
+# Failed mouse input must stop before ordinary play.
+guarded = order_choice.SelectionFlow("呼叫殖民地", now=0)
+guarded_click = Mock(return_value=False)
+assert two_tick(guarded, two, 0.1, guarded_click) == "waiting"
+assert two_tick(guarded, two, 0.7, guarded_click) == "blocked"
+guarded_click.assert_called_once_with(531, 375)
 
 # A unit or triggered effect can open the stage from the current screen,
 # without any previous card name. The three-card rule still supplies a pick.
@@ -509,7 +533,9 @@ for frame, phase in [(first_three, "attack"), (normal, "selection_pending")]:
     controller.grab_frame = lambda: frame
     controller.handle_in_game = Mock()
     controller.handle_state = Mock()
-    controller.dismiss = True
+    # A live choice stage is never entered while post-match dismissal is
+    # active; keep this fixture aligned with that lifecycle invariant.
+    controller.dismiss = False
     controller.tick_dismiss = Mock()
     with patch.object(main_loop, "window_is_capturable", return_value=True), \
          patch.object(main_loop, "classify", return_value=(None, {})), \
