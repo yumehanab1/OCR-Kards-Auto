@@ -70,3 +70,14 @@ install.cmd
 ## 许可
 
 源码采用 GPL-3.0。`ui_templates/` 中的游戏截图素材属于 1939 Games，边界见 [`NOTICE.md`](NOTICE.md)。
+
+## Mobile / Android
+
+The Android assistant is maintained separately from the Windows client. Download the current mobile assets from the **Mobile / Android** section of the [v0.2.0 Release](https://github.com/yumehanab1/OCR-Kards-Auto/releases/tag/v0.2.0):
+
+- `KARDS-AUTO-Mobile-v0.2.0.zip` — APK, installation notes, and public verification reports.
+- `KARDS-AUTO-Mobile-v0.2.0.manifest.json` — SHA-256 and size manifest for the package.
+
+The package contains APK code57 / versionName 0.8.31. Runtime-test verification with KARDS 1.60.27292/code2703 completed five consecutive casual matches (5/5 wins and 330 accepted/completed battle inputs). Physical-phone, host-free, and full disconnect/reconnect validation remain open; see the mobile report in the repository and the report inside the package.
+
+The phone build runs from the APK and Android accessibility permission. Windows, ADB, Python, and the PC client are not runtime dependencies. Do not treat PC validation as mobile validation.

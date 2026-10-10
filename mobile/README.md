@@ -1,12 +1,10 @@
-# Mobile / Android 发布位置
+# Mobile / Android release
 
-这里预留 KARDS AUTO 手机版的发布位置。手机版源码、APK、设备日志和实机报告继续维护在独立的手游目录；后续发布时把移动端材料作为独立包上传到同一个 GitHub Release 页面。
+The mobile line is separate from the PC source and release package. The current public assets are attached to the [v0.2.0 Release](https://github.com/yumehanab1/OCR-Kards-Auto/releases/tag/v0.2.0):
 
-当前 PC 发布包不包含手游源码、APK、设备日志或截图。对应 Release 资产命名为：
+- `KARDS-AUTO-Mobile-v0.2.0.zip`
+- `KARDS-AUTO-Mobile-v0.2.0.manifest.json`
 
-```text
-KARDS-AUTO-Mobile-vX.Y.Z.zip
-KARDS-AUTO-Mobile-vX.Y.Z.manifest.json
-```
+The package contains APK code57 / versionName 0.8.31, installation notes, and public verification reports. Runtime-test verification with KARDS 1.60.27292/code2703 completed five casual matches (5/5) with 330 accepted/completed battle inputs and confirmed result/return for every match. Physical-phone, host-free, and complete disconnect/reconnect validation remain future work.
 
-PC 端使用根目录源码和 `kards-auto_vX.Y.Z_x86_64.zip`。两个平台共用版本号和 Release 页面，包内容与验证记录分别维护。
+The PC release package deliberately does not contain the mobile APK or mobile source.

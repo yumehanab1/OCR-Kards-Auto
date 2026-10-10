@@ -59,3 +59,10 @@ install.cmd
 Release 附件上传；面板只读取这个小清单来列出本地变更，不会自动替换安装目录。
 
 提交信息用中文，说明改了什么、为什么、如何验证。不要提交面板 token、账号昵称、完整日志或本机绝对路径。
+
+
+## Mobile / Android release
+
+The Android line is maintained in the separate runtime-test checkout. Do not copy its source, device logs, screenshots, or build tree into the PC repository. A mobile release is a self-contained `KARDS-AUTO-Mobile-vX.Y.Z.zip` plus a matching `.manifest.json` with SHA-256 and sizes, uploaded as independent assets to the existing GitHub Release.
+
+The public mobile report must state APK version/code, package SHA-256, KARDS version, test system, input/result evidence, and untested paths. Local absolute paths, credentials, account names, raw logs, and screenshots stay out of the public package.
