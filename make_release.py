@@ -38,7 +38,7 @@ BASE = os.path.basename(ROOT) or "kards-auto"
 #:     `os.makedirs(..., exist_ok=True)` 建 logs 目录(实测 main_loop.py:85 /
 #:     gui.py:464,787),空目录本来也不进 zip。
 SKIP_DIRS = {".venv", "venv", "build", "dist", ".git", "shots",
-             "shots_hp_bogus", "hp_bogus", "__pycache__", "logs"}
+             "shots_hp_bogus", "hp_bogus", "__pycache__", "logs", "mobile"}
 
 #: 这些文件名是"这台机器专属"的,别人拿了没用,而且 panel_token 是口令。
 SKIP_FILES = {"gui_window.json", "gui_options.json", "panel_token.txt",
