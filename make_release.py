@@ -21,6 +21,7 @@ import json
 import hashlib
 import os
 import sys
+import subprocess
 import time
 import zipfile
 
@@ -116,7 +117,14 @@ def main() -> int:
         # index.  It is also written next to the zip below for GitHub Release
         # upload, so the updater can compare hashes without downloading the
         # archive.
-        manifest = {"schema": 1, "version": ver, "files": manifest_files}
+        build_id = hashlib.sha256(json.dumps(manifest_files, sort_keys=True).encode()).hexdigest()
+        try:
+            source_commit = subprocess.check_output(['git', 'rev-parse', 'HEAD'],
+                cwd=ROOT, stderr=subprocess.DEVNULL, text=True).strip()
+        except (OSError, subprocess.SubprocessError):
+            source_commit = None
+        manifest = {"schema": 1, "version": ver, "files": manifest_files,
+                    "build": {"id": build_id, "epoch": int(time.time()), "commit": source_commit}}
         manifest_json = (json.dumps(manifest, ensure_ascii=False, indent=2)
                          + "\n").encode("utf-8")
         z.writestr(f"{BASE}/config/update_manifest.json", manifest_json)
@@ -178,6 +186,7 @@ def main() -> int:
                 f"{BASE}/config/kredits_digits/n_00_mask.png",
                 f"{BASE}/config/weather_variants.json",
                 f"{BASE}/src/weather_cards.py", f"{BASE}/src/hand_cost_filter.py",
+                f"{BASE}/src/update_install.py",
                 f"{BASE}/config/hand_cost_digits/1.png"]
         for w in need:
             if w not in names:

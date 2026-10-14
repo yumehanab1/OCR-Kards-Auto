@@ -4,6 +4,8 @@
 
 ## 离线回归
 
+- `update_install_test.py`：只替换变更/新增文件、分段下载/完整回退、断网与损坏校验、配置保护、文件占用回滚、崩溃恢复、Windows互斥锁及独立助手退出等待/重启；只操作临时目录，不操作游戏。
+
 - `weather_variants_test.py --assets <KARDS_Batch目录>`：27 个同名天气版本的规则、歧义拒绝、原图与 240px 缩图 OCR；不操作游戏。
 - `pending_fixes_test.py`：零费候选、费用恢复、嵌套扫描截止、总部爆炸真实帧、丛林热友方目标与无目标路径。
 

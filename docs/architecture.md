@@ -37,12 +37,23 @@ PC 默认惰性路径先由 `hand_cost_filter` 在收起扇形的一帧中筛橙
 | `ui_templates/` | 按钮、图标模板 | 只放运行时需要的模板 |
 | `config/kredits_digits/` | 费用数字模板 | 不要移到 `shots/`，发布脚本会检查它 |
 | `config/order_plays.json` | 指令卡规则表 | 由 `dev/order_plan.py` 生成，避免手改 |
-| `config/update_manifest.json` | 发布包内的文件 SHA-256 清单 | 由 `make_release.py` 生成；仅用于检测变更，不自动覆盖文件 |
+| `config/update_manifest.json` | 发布包内的文件 SHA-256 清单 | 由 `make_release.py` 生成；用于核对与用户触发的增量更新 |
 | `card_db/kards_data.json` | 卡名、费用、类型 | 运行时必需，不是测试夹具 |
 | `logs/` | 本机运行日志 | 不提交、不打包 |
 | `shots/` | 本机截图和取证材料 | 不提交、不打包 |
 
 ## 状态机边界
+
+面板更新检测由 `update_check.py` 查询 Release，`update_install.py` 严格核对配套 PC 清单。
+“应用更新”由用户点击；自动对局运行时不能应用，准备及安装阶段持有引擎互斥锁。
+清单相同文件不写入；本机设置、学习哈希、日志、截图、手机版和交接资料受保护。
+下载通过 HTTPS Range 读取 ZIP 目录与所需成员，服务器不支持分段时一次完整下载；每个成员
+须符合清单大小与 SHA-256。所有下载在 logs/updates/<任务>/new 内完成后才允许安装。
+清单build记录内容标识、构建时间及源码提交；同版本仅在已有本地清单且远端构建较新、内容不同的情况下允许应用。
+独立助手等待面板进程退出，再逐文件原子替换；先备份，版本及本地清单最后写入。
+检测后本地有新修改会取消替换。失败按事务记录恢复；崩溃保留安装意图和备份，下次面板提供恢复按钮。
+若更新涉及 python/，助手使用暂存的独立 Python 副本，避免替换自身加载的 DLL。
+不删除清单未列出的本地额外文件。旧面板需一次手动换新；后续无需重新解压整目录。
 
 同名天气指令由 `weather_cards.py` 根据手牌悬停描述匹配 `config/weather_variants.json`
 中的 27 个版本，再以独立规则键进入 `orders`。纯卡名/卡图指纹不放行未分版本的天气牌，

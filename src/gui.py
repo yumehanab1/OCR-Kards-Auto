@@ -19,7 +19,7 @@
   · **开关控制** = 开始 / 停止(起一个 `main_loop.py` 子进程;引擎自己有单实例锁,
     这里再挡一层"我自己已经在跑");
   · **日志查看** = 跟 `logs/main_loop.log`(**只读**),关键行高亮 + "只看关键行"过滤;
-  · **检测更新** = 版本号 + 远端清单(清单地址还没定,所以现在只报"未配置")。
+  · **检测更新** = 版本与文件清单核对；用户点击应用后，校验变更文件并退出面板替换。
 
 ★ 它**不碰游戏、不碰鼠标**:只读日志 + 起/停子进程。跑起来的时候别用面板盖住 KARDS
   (盖住了引擎会 fail-closed 不动作,这是它本来就有的规矩)。
@@ -39,6 +39,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -51,6 +52,7 @@ if hasattr(sys.stderr, "reconfigure"):
 
 from watch_log import KEY_WORDS  # noqa: E402  (关键行只有一份,别抄第二遍)
 import update_check  # noqa: E402  (只依赖标准库,用例 import 本模块时不需要联网)
+import update_install  # noqa: E402
 
 
 def project_root() -> str:
@@ -586,6 +588,10 @@ class Api:
         self.saved_options = load_options()
         self.error: str | None = None
         self._fh = None
+        self.window = None
+        self._update_lock = threading.Lock()
+        self._update_release = None
+        self._update_state = update_install.latest_status(PROJECT_ROOT)
 
     def _close_run_log(self) -> None:
         """Release the child log handle after the child has stopped."""
@@ -623,6 +629,7 @@ class Api:
             "switches": SWITCHES,
             "default_on": sorted(DEFAULT_ON),
             "saved_options": dict(self.saved_options),
+            "update_state": dict(self._update_state),
             "error": self.error,
             "exit_code": (None if running or self.proc is None
                           else self.proc.returncode),
@@ -640,6 +647,8 @@ class Api:
 
     # ---- 开关控制 ----
     def start(self, opts: dict) -> dict:
+        if self._update_state.get('phase') in ('preparing', 'closing', 'recovery'):
+            return {"ok": False, "msg": "请先完成更新或恢复旧文件"}
         if self.proc is not None and self.proc.poll() is None:
             return {"ok": False, "msg": "已经在跑了"}
         self._close_run_log()
@@ -726,7 +735,7 @@ class Api:
         查 `releases/latest`,和 `config/app_version.json` 里的版本号比。
 
         ★ 三条纪律照抄 `update_check` 里的:查不到就说查不到(不许说成"已是最新")、
-        **不自动装**(130 MB 的便携目录,替换正在运行的自己会换个坏包出来)、
+        应用更新必须由用户点击，先校验，再退出面板替换文件、
         纯逻辑离线可测。
         ★ `update_url` 仍然有用:填了就用填的那个地址(别的地方发的包也能查)。
         """
@@ -736,8 +745,17 @@ class Api:
         manifest_asset = r.get("manifest_asset") or {}
         manifest_url = manifest_asset.get("browser_download_url")
         if r.get("ok") and manifest_url:
-            diff = update_check.compare_manifest(PROJECT_ROOT,
-                                                 manifest_url=manifest_url)
+            try:
+                manifest = update_install.read_manifest(manifest_asset, r['remote'])
+                plan = update_install.plan_update(PROJECT_ROOT, manifest)
+                if r['remote'] == local and update_install.newer_build(PROJECT_ROOT, manifest):
+                    r['has_update'] = True
+                    r['msg'] = f'发现 v{local} 的修订更新'
+                diff = dict(ok=True, changed=[x['path'] for x in plan['files'] if x['before']],
+                            missing=[x['path'] for x in plan['files'] if not x['before']],
+                            same=plan['same'], bytes=plan['bytes'], protected=plan['skipped'])
+            except Exception as error:
+                diff = dict(ok=False, msg=f'文件清单核对失败：{error}')
             r["file_changes"] = diff
             if diff.get("ok"):
                 changed = diff.get("changed", [])
@@ -757,10 +775,57 @@ class Api:
         # 记住发布页地址:第二次点按钮就是"打开发布页"(用系统默认浏览器)
         self._release_url = r.get("url") or update_check.RELEASES_PAGE
         self._has_update = bool(r.get("has_update"))
+        files = r.get('file_changes') or {}
+        r['can_apply'] = bool(r.get('ok') and r.get('has_update') and files.get('ok')
+            and (files.get('changed') or files.get('missing'))
+            and not update_check.is_newer(local, r.get('remote'))
+            and str((r.get('asset') or {}).get('name', '')).startswith('kards-auto_v'))
+        self._update_release = dict(r) if r['can_apply'] else None
         log_update(f"[手动] 本地 v{local} ok={r.get('ok')} "
                    f"has_update={r.get('has_update')} remote={r.get('remote')} "
                    f"via={r.get('via')} | {r.get('msg')}")
         return dict(r, version=local)
+
+    def install_update(self) -> dict:
+        if self.proc is not None and self.proc.poll() is None:
+            return {'ok': False, 'msg': '请先停止自动对局，再应用更新'}
+        if not self.window:
+            return {'ok': False, 'msg': '更新需要从独立面板应用'}
+        if not self._update_release and self._update_state.get('phase') != 'recovery':
+            return {'ok': False, 'msg': '请先检测更新'}
+        if not self._update_lock.acquire(blocking=False):
+            return {'ok': False, 'msg': '更新正在进行中'}
+        recovery = self._update_state if self._update_state.get('phase') == 'recovery' else None
+        release = self._update_release
+        self._update_state = {'phase': 'preparing', 'msg': '正在准备更新'}
+
+        def worker():
+            try:
+                with update_install.engine_guard():
+                    py = engine_python()
+                    if not py: raise RuntimeError('找不到可运行的 Python')
+                    if recovery:
+                        job = recovery['job']
+                    else:
+                        def progress(msg): self._update_state = {'phase': 'preparing', 'msg': msg}
+                        job = update_install.stage_update(PROJECT_ROOT, release, progress)
+                    if job is None:
+                        self._update_state = {'phase': 'done', 'msg': '文件已一致，无需替换'}
+                        return
+                    restart = {'cwd': PROJECT_ROOT, 'argv':
+                        [sys.executable, '--root', PROJECT_ROOT] if getattr(sys, 'frozen', False) else
+                        [py, os.path.join(SRC, 'gui.py'), '--root', PROJECT_ROOT]}
+                    update_install.launch_helper(job, py, update_install.panel_exit_pid(), restart, recover=bool(recovery))
+                    self._update_state = {'phase': 'closing', 'msg': '文件已校验，正在关闭面板并应用更新'}
+                    log_update('[安装] '+self._update_state['msg'])
+                    self.window.destroy()
+            except Exception as error:
+                self._update_state = {'phase': 'error', 'msg': f'更新未完成：{error}'}
+                log_update('[安装] '+self._update_state['msg'])
+            finally:
+                self._update_lock.release()
+        threading.Thread(target=worker, daemon=False).start()
+        return {'ok': True, 'msg': '正在下载并校验；完成后面板会自动重启'}
 
     def open_release(self) -> dict:
         """用系统默认浏览器打开发布页(面板自己不去下载、更不去替换自己)。"""
@@ -877,6 +942,8 @@ HTML = r"""<!doctype html>
   <div class="pill idle" id="pill"><span class="dot"></span><span id="pilltxt">空闲</span></div>
   <div class="spacer"></div>
   <button class="ghost" id="btnUpdate">检测更新</button>
+  <button id="btnApplyUpdate" style="display:none">应用更新</button>
+  <button class="ghost" id="btnRelease" style="display:none">发布页</button>
   <button id="btnStart" disabled>开始</button>
   <button class="danger" id="btnStop" disabled>停止</button>
 </header>
@@ -921,7 +988,7 @@ HTML = r"""<!doctype html>
 <div class="toast" id="toast"></div>
 <script>
 let onlyKey = false, autoscroll = true, lastRev = '';
-let updUrl = '';   // 查到新版本后存发布页地址,按钮第二次点就是打开它
+let updUrl = '', lastUpdateMessage = '', checkingUpdate=false;   // 查到新版本后存发布页地址,按钮第二次点就是打开它
 const $ = s => document.querySelector(s);
 function toast(msg, ms=3200){ const t=$('#toast'); t.textContent=msg; t.classList.add('show');
   clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('show'), ms); }
@@ -952,7 +1019,15 @@ function render(s){
   $('#pilltxt').textContent = run ? `运行中 pid=${s.pid}` : (s.exit_code===null?'空闲':`已停止(退出码 ${s.exit_code})`);
   // 退出码本身说明不了什么(103 尤其),把翻译好的那句话挂成悬停提示
   $('#pill').title = (!run && s.exit_hint) ? s.exit_hint : '';
-  $('#btnStart').disabled = run; $('#btnStop').disabled = !run;
+  const us = s.update_state || {}, updating = ['preparing','closing'].includes(us.phase);
+  $('#btnStart').disabled = run || updating || us.phase==='recovery'; $('#btnStop').disabled = !run;
+  $('#btnApplyUpdate').disabled = run || updating;
+  $('#btnUpdate').disabled = updating || checkingUpdate;
+  if(us.phase==='recovery'){
+    $('#btnApplyUpdate').style.display=''; $('#btnApplyUpdate').textContent='恢复旧文件';
+  }else if(updating){ $('#btnApplyUpdate').textContent='更新中…'; }
+  else { $('#btnApplyUpdate').textContent='应用更新'; }
+  if(us.msg && us.msg!==lastUpdateMessage){lastUpdateMessage=us.msg; toast(us.msg,10000);}
   $('#ver').textContent = 'v' + s.version;
   $('#elapsed').textContent = run && s.elapsed!=null ? (s.elapsed+'s') : '—';
   const st = s.status || {};
@@ -1058,11 +1133,20 @@ window.addEventListener('pywebviewready', async ()=>{
   };
   $('#btnStop').onclick = async ()=>{ const r = await window.pywebview.api.stop(); toast(r.msg); poll(); };
   $('#btnUpdate').onclick = async ()=>{
-    // 第二次点 = 打开发布页(第一次查完之后 JS 把按钮文字改掉了)
-    if (updUrl) { const r = await window.pywebview.api.open_release(); toast(r.msg, 7000); return; }
-    const r = await window.pywebview.api.check_update();
-    toast(r.msg, r.ok ? 7000 : 11000);       // 查不到/要人照做的消息留久一点
-    if (r.has_update && r.url) { updUrl = r.url; $('#btnUpdate').textContent = '打开发布页'; }
+    checkingUpdate=true; $('#btnUpdate').disabled=true; $('#btnUpdate').textContent='检测中…';
+    try{
+      const r = await window.pywebview.api.check_update();
+      toast(r.msg, r.ok ? 10000 : 11000);
+      updUrl=r.url||'';
+      $('#btnRelease').style.display=updUrl?'':'none';
+      $('#btnApplyUpdate').style.display=r.can_apply?'':'none';
+      $('#btnApplyUpdate').textContent='应用更新';
+    }catch(e){toast('检测更新失败：'+e,11000);}
+    finally{checkingUpdate=false; $('#btnUpdate').disabled=false; $('#btnUpdate').textContent='检测更新';}
+  };
+  $('#btnRelease').onclick = async ()=>{const r=await window.pywebview.api.open_release();toast(r.msg);};
+  $('#btnApplyUpdate').onclick = async ()=>{
+    const r=await window.pywebview.api.install_update(); toast(r.msg,11000); poll();
   };
   $('#btnKey').onclick = ()=>{ onlyKey=!onlyKey; lastRev='';
     $('#btnKey').textContent = onlyKey?'看全部':'只看关键行'; poll(); };
@@ -1133,6 +1217,10 @@ def main() -> int:
             "update_check": {"api": update_check.DEFAULT_API,
                              "feed": update_check.DEFAULT_FEED,
                              "timeout": update_check.TIMEOUT},
+            "incremental_update": {"available": callable(update_install.stage_update),
+                                   "helper_exists": os.path.isfile(os.path.join(SRC, 'update_install.py')),
+                                   "wait_pid": update_install.panel_exit_pid(),
+                                   "recovery": callable(update_install.recover_job)},
             "argv": build_argv({"play": True, "attack": True, "max_rounds": "3"}),
         }
         with open(os.path.join(LOG_DIR, "gui_selftest.txt"), "w",
@@ -1153,6 +1241,7 @@ def main() -> int:
     window = webview.create_window(
         APP_NAME, html=HTML, js_api=api, width=w, height=h, x=x, y=y,
         min_size=WIN_MIN, background_color="#0a0e13", text_select=False)
+    api.window = window
 
     def _remember(*_a, **_k):
         try:
