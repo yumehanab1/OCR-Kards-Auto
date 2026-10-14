@@ -56,6 +56,7 @@ GLYPH_W_MIN, GLYPH_W_MAX = 4, 40
 GLYPH_H_MIN, GLYPH_H_MAX = 11, 44
 GLYPH_AREA_MIN = 25
 GLYPH_FILL_MIN = 0.25
+SPLIT_JOINED_DIGITS = True  # JPEG/downscale bridge between two HQ digits
 
 SAT_DIGIT = 100            # 饱和像素也算"数字像素"(红字/绿字)
 V_FLOOR = 110              # 亮像素的下限(白字)
@@ -161,12 +162,35 @@ def extract_glyphs(shield):
         if area < GLYPH_AREA_MIN or area / float(bw * bh) < GLYPH_FILL_MIN:
             continue
         gm = (lab[by:by + bh, bx:bx + bw] == i)
-        px = shield[by:by + bh, bx:bx + bw][gm]
-        hh = cv2.cvtColor(px.reshape(-1, 1, 3), cv2.COLOR_BGR2HSV).reshape(-1, 3)
-        out.append({"img": shield[by:by + bh, bx:bx + bw].copy(),
-                    "x": bx, "y": by, "w": bw, "h": bh, "n": int(area),
-                    "s": float(hh[:, 1].mean()), "v": float(hh[:, 2].mean()),
-                    "hue": float(hh[:, 0].mean())})
+        pieces = [(0, bw)]
+        # Downscaled JPEG can join two digits with a one-pixel bridge.
+        # Split only a wide component with a pronounced interior waist;
+        # a normal single digit must never be split just because it is wide.
+        if SPLIT_JOINED_DIGITS and bw >= 1.35 * bh:
+            lo, hi = int(bw * .30), int(bw * .70)
+            columns = gm.sum(axis=0)
+            cut = lo + int(np.argmin(columns[lo:hi]))
+            if columns[cut] <= .25 * bh:
+                proposed = [(0, cut), (cut, bw)]
+                if all(gm[:, a:b].sum() >= GLYPH_AREA_MIN
+                       and b-a >= GLYPH_W_MIN for a,b in proposed):
+                    pieces = proposed
+        for a, b in pieces:
+            ys, xs = np.where(gm[:, a:b])
+            if not len(xs):
+                continue
+            gx, gy = a + int(xs.min()), int(ys.min())
+            gw, gh = int(xs.max()-xs.min()+1), int(ys.max()-ys.min()+1)
+            part = gm[gy:gy+gh, gx:gx+gw]
+            if gw < GLYPH_W_MIN or gh < GLYPH_H_MIN:
+                continue
+            crop = shield[by+gy:by+gy+gh, bx+gx:bx+gx+gw]
+            px = crop[part]
+            hh = cv2.cvtColor(px.reshape(-1, 1, 3), cv2.COLOR_BGR2HSV).reshape(-1, 3)
+            out.append({"img": crop.copy(), "x": bx+gx, "y": by+gy,
+                        "w": gw, "h": gh, "n": int(part.sum()),
+                        "s": float(hh[:, 1].mean()), "v": float(hh[:, 2].mean()),
+                        "hue": float(hh[:, 0].mean())})
     out.sort(key=lambda g: g["x"])
     return out
 

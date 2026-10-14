@@ -37,6 +37,7 @@ SELECTION_STEP_TIMEOUT_S = 12.0
 TITLE_MIN_CONF = 0.72  # portable OCR reads the real 19:25 choice titles at .78/.83
 THREE_TITLE_MIN_CONF = 0.50  # portable OCR reads real weather titles at .54-.78
 THREE_TITLE_CONFIRM_FRAMES = 2
+VERIFY_THREE_TITLES = False  # optional OCR diagnosis; random picks need only stable layout
 
 
 def calibrated(frame) -> bool:
@@ -51,6 +52,19 @@ def panel_evidence(frame, count: int = 2) -> tuple[bool, str]:
     if count not in (2, 3):
         return False, "未知选项数"
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    # Weather reveal lighting can brighten the narrow outside-border strip.
+    # An alternate three-card witness requires all three fixed cost plates,
+    # while keeping panel, continuous-edge and bottom thresholds unchanged.
+    three_plates = False
+    if count == 3:
+        plates = [gray[243:271, x+2:x+30] for x in THREE_LEFTS]
+        three_plates = all(float((p<125).mean()) >= .50
+                           and .08 <= float((p>150).mean()) <= .45 for p in plates)
+    two_plates = False
+    if count == 2:
+        plates = [gray[243:271, x+2:x+30] for x in CARD_LEFTS]
+        two_plates = all(float((p<125).mean()) >= .50
+                         and .08 <= float((p>150).mean()) <= .45 for p in plates)
     metrics = []
     for x in (CARD_LEFTS if count == 2 else THREE_LEFTS):
         panel = gray[440:502, x + 7:x + 184]
@@ -62,19 +76,30 @@ def panel_evidence(frame, count: int = 2) -> tuple[bool, str]:
         edge_light = float((edge > 145).mean())
         bottom_light = float((bottom > 145).mean())
         contrast = float(edge.mean() - outside.mean())
-        if count == 2 and (edge_light < 0.70 or contrast < 25):
-            # A hovered two-card option expands its left border by 5 px.
+        edge_min = 0.70 if count == 2 else 0.65
+        if edge_light < edge_min or contrast < 25:
+            # A hovered option expands its left border by 5 px (two or three cards).
             # Keep the panel/bottom tests and require the same continuous,
             # contrasting border at that observed position (Oct 3 real frame).
             hover_edge = gray[272:502, x - 3:x + 1]
             hover_outside = gray[275:500, x - 12:x - 7]
             hover_light = float((hover_edge > 145).mean())
             hover_contrast = float(hover_edge.mean() - hover_outside.mean())
-            if hover_light >= 0.70 and hover_contrast >= 25:
+            if hover_light >= edge_min and (hover_contrast >= 25 or three_plates):
                 edge_light, contrast = hover_light, hover_contrast
+        # A bright board unit behind the gap can hide the left contrast.
+        # Both fixed cost plates plus an intact opposite border supply an
+        # independent witness; the original left continuity is still required.
+        opposite_border = False
+        if count == 2 and two_plates and edge_light >= .70 and contrast < 25:
+            right_edge = gray[272:502, x+188:x+192]
+            right_outside = gray[275:500, x+195:x+200]
+            opposite_border = (float((right_edge > 145).mean()) >= .70
+                               and float(right_edge.mean()-right_outside.mean()) >= 25)
         ok = (mean >= 155 and light >= 0.70
               and edge_light >= (0.65 if count == 3 else 0.70)
-              and bottom_light >= 0.78 and contrast >= 25)
+              and bottom_light >= 0.78
+              and (contrast >= 25 or three_plates or opposite_border))
         metrics.append((ok, mean, light, edge_light, bottom_light, contrast))
     why = "; ".join(
         f"{('左', '中', '右')[i if count == 3 else (0 if i == 0 else 2)]}:"
@@ -321,8 +346,9 @@ class SelectionFlow:
 
         # The hand was identified before deployment. The saved marked rule
         # supplies the side; option-title OCR is not part of the two-card gate.
-        title_note = "双牌布局已稳定,按已标规则选边" if count == 2 else ""
-        if count == 3:
+        title_note = ("双牌布局已稳定,按已标规则选边" if count == 2
+                      else "三牌布局已稳定,等概率随机选")
+        if count == 3 and VERIFY_THREE_TITLES:
             # A valid reading is still provisional until it agrees twice.
             # Keep one deadline across valid, blank and mismatched reads.
             if self.three_title_started_at is None:

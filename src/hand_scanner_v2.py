@@ -16,6 +16,7 @@ import json
 import os
 import re
 import time
+from functools import wraps
 
 import cv2
 import numpy as np
@@ -28,6 +29,33 @@ from hover_card_reader import _ocr
 import orders                     # 指令卡"能不能打"的唯一来源(见 orders.playable)
 from ui_state import match_one
 from win import capture_client_bgr, client_to_screen
+
+SCAN_TIME_LIMIT_S = 12.0  # cooperative deadline; one in-flight OCR may finish
+
+class ScanDeadline(Exception):
+    pass
+
+def bounded_scan(fn):
+    @wraps(fn)
+    def run(self, *args, **kwargs):
+        outer = getattr(self, '_scan_deadline', None) is None
+        if outer:
+            self._scan_deadline = time.monotonic() + SCAN_TIME_LIMIT_S
+        try:
+            return fn(self, *args, **kwargs)
+        except ScanDeadline:
+            if not outer:
+                raise
+            self.last_reason = f'扫描达到 {SCAN_TIME_LIMIT_S:g}s 预算，停止盲扫，等待下一次稳定画面'
+            self.last_probe_seen = []
+            self.last_hand_count = None
+            self._memory_broken = True
+            print('[scan] '+self.last_reason)
+            return ([], None) if fn.__name__ == 'find_playable' else []
+        finally:
+            if outer:
+                self._scan_deadline = None
+    return run
 
 # ---- calibrate ----
 SAFE_POINT = (1270, 360)   # screen middle far right - no hover panel
@@ -437,6 +465,8 @@ class HandScannerV2:
         self.hash_db = CardHashDB(HASH_DB_PATH)
         self._hash_dirty = False
         self._hash_saved_at = 0.0
+        self.orange_cache = []
+        self.last_orange = None
 
     def _learn_hash(self, bits, name, type_=None):
         """
@@ -468,7 +498,9 @@ class HandScannerV2:
         光标被裁剪这件事单独计数,由 last_reason 报出来(否则扫描会安静地
         扫空:悬停探针全落在错误的位置,一张牌都弹不出来)。
         """
+        self._check_scan_deadline()
         sx, sy = client_to_screen(self.hwnd, x, y)
+        self._last_client = (x, y)
         actual = set_cursor_checked(sx, sy)
         if actual is None:                       # 读不到就退回请求点
             set_cursor(sx, sy)
@@ -543,6 +575,32 @@ class HandScannerV2:
         return iou >= PANEL_IOU_SAME and size_ratio >= 0.6
 
     def _classify(self, region, y0=0, box=None, frame=None, debug=False):
+        self._check_scan_deadline()
+        import weather_cards
+        info = self._classify_name(region, y0=y0, box=box, frame=frame, debug=debug)
+        last_client = getattr(self, '_last_client', None)
+        if (not info.get('name') and info.get('cost') is None
+                and frame is not None and last_client
+                and last_client[1] == self.y and not self.user_took_over()):
+            # Animation/tooltip may swallow the first hover. Reset once at
+            # the same probe before walking more coordinates through the board.
+            neutral = self._baseline()
+            retried = self._hover_frame(last_client[0])
+            retry_box = diff_bbox(neutral, retried)
+            if retry_box is not None:
+                rx, ry, rw, rh = retry_box
+                region = retried[ry:ry+rh, rx:rx+rw]
+                info = self._classify_name(region, y0=ry, box=retry_box,
+                                           frame=retried, debug=debug)
+                info['hover_retried'] = True
+        return weather_cards.identify(info, region, _ocr)
+
+    def _check_scan_deadline(self):
+        deadline = getattr(self, '_scan_deadline', None)
+        if deadline is not None and time.monotonic() >= deadline:
+            raise ScanDeadline()
+
+    def _classify_name(self, region, y0=0, box=None, frame=None, debug=False):
         """
         ★ 2026-09-13:把识别**限制在一个近正方形的窗口里**(见 NAME_OCR_* 的实测说明)。
 
@@ -722,6 +780,9 @@ class HandScannerV2:
                 # 卡名查库的类型比 24px 图标匹配权威,冲突时以库为准
                 if info["db_type"]:
                     info["type"] = info["db_type"]
+            import weather_cards
+            if nm in weather_cards.names() and best == 'order' and best_s > .65:
+                info['type'] = 'order'  # e.g. Cyclone also names a non-weather unit
 
         # 2. 学习指纹:卡名读出来了就记住这张卡的卡面
         bits = None
@@ -762,6 +823,130 @@ class HandScannerV2:
             info["ocr_lines"] = [ln["text"] for ln in lines][:6]
         return info
 
+    def scan_orange(self, budget, exclude=None, debug=False):
+        """Identify orange candidates once; reuse identity only on matching panels.
+
+        None means the prefilter was unavailable and callers should use the
+        established scanner. Empty list means observed candidates were rejected.
+        Never put this partial inventory into the positional HandMemory.
+        """
+        import hand_cost_filter as hcf
+        # Combat uses the same cursor between scans. The previous scan's last
+        # cursor position cannot establish takeover at a new scan's entry.
+        self._last_cursor = None
+        self.last_reason = None
+        base = self._baseline()
+        if base is None:
+            return None
+        anchors = hcf.candidates(base)
+        self.last_orange = {'anchors': len(anchors), 'ocr': 0, 'cached': 0,
+                            'rejected': [], 'records': []}
+        if not anchors:
+            if budget == 0:
+                self.last_orange['zero_budget_no_anchors'] = True
+                return []
+            # Only classify absence on a visible cost-plate fan. Empty or
+            # unrecognized hands keep the established scanner as fallback.
+            if hcf.candidates(base, colour='grey'):
+                self.last_orange['all_grey'] = True
+                return []
+            return None
+        cards = []
+        uncertain = False
+        exclude = exclude or set()
+        for anchor in anchors:
+            if self.user_took_over():
+                self.last_reason = 'orange scan interrupted by user cursor movement'
+                self.last_orange['aborted'] = True
+                return []
+            px = anchor['probe_x']
+            if px in exclude:
+                continue
+            cost = hcf.read_candidate_cost(base, anchor)
+            zero_probe = budget == 0 and cost is None
+            if (cost is None and not zero_probe) or (cost is not None and cost > budget):
+                self.last_orange['rejected'].append(dict(anchor, reason='cost unknown/over budget'))
+                uncertain |= cost is None
+                continue
+            neutral = self._baseline()
+            hover = self._hover_frame(px)
+            box = diff_bbox(neutral, hover)
+            if box is None:
+                self.last_orange['rejected'].append(dict(anchor, reason='no hover panel'))
+                continue
+            bx, by, bw, bh = box
+            panel = hover[by:by+bh, bx:bx+bw].copy()
+            enlarged = hcf.candidates(hover, zone=(max(340, px-140), 50,
+                                                  min(960, px-30), 600),
+                                      height_range=(20, 50))
+            # The enlarged card must still be orange and show the same fee;
+            # this also rejects an anchor that hovered the adjacent grey card.
+            primary = max(enlarged, key=lambda c: c['h'], default=None)
+            if primary is None or (not zero_probe and hcf.read_candidate_cost(hover, primary) != cost):
+                self.last_orange['rejected'].append(dict(anchor, reason='hover cost/color mismatch'))
+                uncertain = True
+                continue
+            # Anchor the identity crop on the enlarged numeral, not diff_bbox:
+            # ambient effects and adjacent tooltips can enlarge the diff box.
+            # Exclude the fee/header so a changed fee never changes identity.
+            ix, iy = max(0, primary['x']-12), max(0, primary['y']-10)
+            identity_crop = hover[iy+45:min(720,iy+300), ix:min(1280,ix+220)]
+            fingerprint = cv2.resize(identity_crop, (80, 100))
+            info = None
+            for saved, saved_info in self.orange_cache:
+                if saved_info.get('weather_id') or saved_info.get('weather_unresolved'):
+                    continue  # identical artwork/title can hide a different effect
+                # Exact visual agreement prevents same-cost neighbours sharing ID.
+                if float(np.mean(np.abs(fingerprint.astype(float)-saved.astype(float)))) < 1.5:
+                    info = dict(saved_info)
+                    self.last_orange['cached'] += 1
+                    break
+            if info is None:
+                info = self._classify(panel, y0=by, box=box, frame=hover, debug=debug)
+                self.last_orange['ocr'] += 1
+                if info.get('name') and not (info.get('weather_id') or info.get('weather_unresolved')):
+                    self.orange_cache.append((fingerprint, dict(info)))
+            if zero_probe:
+                # The neutral 0 template is not yet calibrated. Hover only
+                # the orange numeral anchors and require an actual 0 cost.
+                if info.get('cost') != 0:
+                    self.last_orange['rejected'].append(dict(anchor, reason='zero cost not confirmed'))
+                    continue
+                cost = 0
+            if info.get('cost') != cost and len(hcf._templates()) < 10:
+                self.last_orange['rejected'].append(dict(anchor, reason='incomplete bank cost conflict'))
+                uncertain = True
+                continue
+            info = dict(info, cost=cost, cost_source='pc orange numeral template')
+            self.last_orange['records'].append(dict(x=px, name=info.get('name'),
+                                                    type=info.get('type'), cost=cost))
+            if not info.get('name') or not is_playable(info.get('type'), info.get('name')):
+                continue
+            cards.append(dict(x=px, i=None, name=info['name'], type=info['type'],
+                              cost=cost, info=info, panel=panel, orange=True))
+        self._move(*self.safe)
+        time.sleep(SAFE_SETTLE)
+        # A rejected artwork fragment must not discard correctly identified
+        # candidates and send the whole hand through ambiguous legacy probes.
+        return None if uncertain and not cards and budget != 0 else cards
+
+    def recheck_card(self, card):
+        """Verify a legacy fallback's identity at its final grab coordinate."""
+        self._last_cursor = None
+        neutral = self._baseline()
+        hover = self._hover_frame(card['x'])
+        if self.user_took_over():
+            return False, 'user cursor movement'
+        box = diff_bbox(neutral, hover)
+        if box is None:
+            return False, 'no hover panel at grab point'
+        x,y,w,h = box
+        info = self._classify(hover[y:y+h,x:x+w],y0=y,box=box,frame=hover)
+        same = (info.get('name') == card.get('name') and info.get('name')
+                and info.get('cost') == card.get('cost'))
+        return bool(same), f"grab point now shows {info.get('name')}({info.get('cost')})"
+
+    @bounded_scan
     def find_playable(self, budgets, edge=None, right=None, exclude=None,
                       max_cards=10, debug=False, allow_draw=False):
         """
@@ -1566,6 +1751,7 @@ class HandScannerV2:
                   f"总 {time.time() - t_start:.1f}s")
         return results, hits, False
 
+    @bounded_scan
     def scan_fast(self, max_cards=10, debug=False):
         """
         用校准好的坐标表直接悬停,跳过盲扫。
@@ -1689,6 +1875,7 @@ class HandScannerV2:
         self.flush_hash_db()      # 把这次学到的指纹写盘(去抖可能还没触发)
         return results
 
+    @bounded_scan
     def scan(self, max_cards=10, debug=False):
         segments = []           # 连续"同一张卡"的段
         baseline = self._baseline()

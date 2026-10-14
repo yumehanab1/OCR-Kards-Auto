@@ -1,0 +1,119 @@
+[
+  {
+    "digit": 4,
+    "box": [
+      364,
+      685,
+      13,
+      17
+    ],
+    "angle": -19,
+    "source": "shots/orange_pc_20261013/live/088.png",
+    "system": "runtime-test",
+    "date": "2026-10-13"
+  },
+  {
+    "digit": 3,
+    "box": [
+      462,
+      655,
+      13,
+      17
+    ],
+    "angle": -13,
+    "source": "shots/orange_pc_20261013/live/088.png",
+    "system": "runtime-test",
+    "date": "2026-10-13"
+  },
+  {
+    "digit": 4,
+    "box": [
+      513,
+      644,
+      13,
+      17
+    ],
+    "angle": -8,
+    "source": "shots/orange_pc_20261013/live/088.png",
+    "system": "runtime-test",
+    "date": "2026-10-13"
+  },
+  {
+    "digit": 6,
+    "box": [
+      565,
+      637,
+      12,
+      18
+    ],
+    "angle": -4,
+    "source": "shots/orange_pc_20261013/live/088.png",
+    "system": "runtime-test",
+    "date": "2026-10-13"
+  },
+  {
+    "digit": 1,
+    "box": [
+      620,
+      635,
+      8,
+      17
+    ],
+    "angle": 0,
+    "source": "shots/orange_pc_20261013/live/088.png",
+    "system": "runtime-test",
+    "date": "2026-10-13"
+  },
+  {
+    "digit": 2,
+    "box": [
+      671,
+      635,
+      13,
+      18
+    ],
+    "angle": 4,
+    "source": "shots/orange_pc_20261013/live/088.png",
+    "system": "runtime-test",
+    "date": "2026-10-13"
+  },
+  {
+    "digit": 7,
+    "box": [
+      727,
+      639,
+      12,
+      18
+    ],
+    "angle": 10,
+    "source": "shots/orange_pc_20261013/live/088.png",
+    "system": "runtime-test",
+    "date": "2026-10-13"
+  },
+  {
+    "digit": 2,
+    "box": [
+      777,
+      647,
+      14,
+      19
+    ],
+    "angle": 16,
+    "source": "shots/orange_pc_20261013/live/088.png",
+    "system": "runtime-test",
+    "date": "2026-10-13"
+  },
+  {
+    "digit": 5,
+    "box": [
+      462,
+      665,
+      11,
+      17
+    ],
+    "source": "shots/orange_pc_20261013/second_mulligan.png",
+    "system": "runtime-test",
+    "date": "2026-10-13",
+    "colour": "grey"
+  }
+]

@@ -178,9 +178,24 @@ def read_guard(frame, field, hq=None, debug=False):
             continue
         if kind == "hq":
             out["hq_guarded"] = True
-        else:
+        elif d.get('which') == 'unit':
             b["guard"] = True        # ★ 给调用方一个记号,选目标时优先打它
             out["guard_units"].append(b)
+    # The protected half-shield can be hidden by effects/overlapping tabs.
+    # A full guard shield on an immediately adjacent support-line unit is
+    # independent evidence. Frontline guards must not protect a rear HQ.
+    support = sorted(field.get('enemy_support') or [], key=lambda u:u['cx'])
+    for i, card in enumerate(support):
+        if not card.get('is_hq') and (int(card['x']),int(card['y'])) not in hq_keys:
+            continue
+        for j in (i-1,i+1):
+            if not 0 <= j < len(support):continue
+            neighbour=support[j]
+            if not any(g is neighbour for g in out['guard_units']):continue
+            if (abs(card['cy']-neighbour['cy'])<=35
+                    and abs(card['cx']-neighbour['cx'])<=1.8*max(card['w'],neighbour['w'])):
+                out['hq_guarded']=True
+                out['detail']['adjacent_guard']=dict(hq_x=card['cx'],guard_x=neighbour['cx'])
     return out
 
 

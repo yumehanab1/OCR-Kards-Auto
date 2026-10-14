@@ -691,10 +691,10 @@ eng = new_engine(hand(("喀秋莎", "artillery", 2, 388),
                  deploy_refused=True)
 statuses = run_turn(eng)
 print(f"    drags={drags}")
-# 1 费那张先试 -> 被拒绝 -> 学到上限 0 -> 后面都不再试
+# 费用读不到时保留保守预扣账本，不凭拒绝推断全局费用上限。
 assert drags == [700], \
     f"学到上限后就该停手,不该把每张都试一遍,got {drags}"
-assert state["max_cost_seen"] == 0, state["max_cost_seen"]
+assert state["max_cost_seen"] is None, state["max_cost_seen"]
 
 print()
 print("=" * 78)
@@ -977,10 +977,9 @@ eng = new_engine(hand(("轻步兵", "infantry", 1, 500)), kredits=5,
 run_turn(eng)
 print(f"    drags={drags}")
 # ★ 我方那一行是**空的**(our_support=0),所以"砸在卡上"这条解释不成立 ->
-#   不该重试(重试也是白拖),一次就够,而且照样把上限压下去收手。
+#   不该换空槽重试；按已尝试位置去重，不伪造费用上限。
 assert len(drags) == 1, drags
-assert state["max_cost_seen"] == 0, \
-    f"被拒绝后必须把可负担上限压到 0,实得 {state['max_cost_seen']}"
+assert state["max_cost_seen"] is None, state["max_cost_seen"]
 
 print()
 print("=" * 78)
@@ -996,9 +995,8 @@ print(f"    drags={drags} (我方那一行有 1 张,第一次被拒)")
 assert len(drags) == deploy.MAX_SLOT_TRIES, \
     (f"有卡在那一行时,被拒应该换一个空槽位再试(上限 "
      f"{deploy.MAX_SLOT_TRIES}),实得 {drags}")
-# 而且两次都不成 -> 仍然按老逻辑收手(不能退化成"反复拖")
-assert state["max_cost_seen"] == 0, \
-    f"两次都失败后必须收手,实得 {state['max_cost_seen']}"
+# 两个空槽都不成，该牌仍只处理一次，不压低其他牌的费用上限。
+assert state["max_cost_seen"] is None, state["max_cost_seen"]
 # 两个落点必须是**不同的空槽位**(不是原地重拖一次)
 assert len({p[0] for p in state.get("drop_points", [])}) == 2, \
     f"重试必须换一个槽位,实得 {state.get('drop_points')}"
@@ -1460,7 +1458,7 @@ assert len(drags) == 2, f"2 费最多拖 2 张 1 费牌,实得 {drags}"
 
 print()
 print("=" * 78)
-print("CASE 24: ★被拒绝的拖拽也要扣预算(否则会一直拖)")
+print("CASE 24: 未扣费的拒绝恢复预算；连续两张失败才停止，不伪造费用上限")
 print("=" * 78)
 eng = new_engine([{"name": f"轻步兵{i}", "type": "infantry", "cost": 1,
                    "x": 400 + 60 * i} for i in range(6)], kredits=2,
@@ -1469,7 +1467,8 @@ run_turn(eng)
 print(f"    drags={drags} (预算 2 费,且全被拒绝)")
 # 第一次被拒绝就学到"可负担上限 = 0" -> 后面不该再拖
 # (这正是我们要的:不要一直白拖。用户实测的"乱部署"就是这里失控)
-assert len(drags) == 1, f"学到上限后就该停手,实得 {drags}"
+assert len(drags) == 2, f"连续两张拒绝后应停手,实得 {drags}"
+assert eng.afford.max_cost is None
 
 print()
 print("=" * 78)
@@ -2578,5 +2577,20 @@ print()
 
 print()
 print("=" * 78)
+print("CASE: accepted end-turn input clears hover; rejected input keeps ledger")
+from unittest.mock import Mock, patch
+end_hover_engine = new_engine([], kredits=4)
+end_hover_engine.phase = "end_turn"
+end_hover_engine.kredits_left = 4
+with patch.object(turn_engine, "click", return_value=False), \
+     patch.object(turn_engine, "park_cursor") as parking:
+    assert end_hover_engine.think() == "end_turn_click_failed"
+    assert end_hover_engine.phase == "end_turn" and end_hover_engine.kredits_left == 4
+    parking.assert_not_called()
+with patch.object(turn_engine, "click", return_value=True), \
+     patch.object(turn_engine, "park_cursor", return_value=True) as parking:
+    assert end_hover_engine.think() == "ended_turn"
+    assert end_hover_engine.phase == "wait_our_turn"
+    parking.assert_called_once_with(end_hover_engine.hwnd)
 print("ALL CASES PASSED")
 print("=" * 78)

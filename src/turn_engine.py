@@ -267,6 +267,8 @@ class TurnEngine:
                 or not self._end_turn_visible(frame))
 
     def reset_turn(self):
+        self._consecutive_refusals = 0
+        self.weather_played = False
         self.failed_x = set()
         self.attempted_x = set()
         self.deployed_this_turn = 0
@@ -370,6 +372,16 @@ class TurnEngine:
         if self.kredits_left < 0:
             self.kredits_left = 0
 
+    def _reconcile_failed_deploy(self, budget_before, refused_measured):
+        if refused_measured:
+            self.kredits_left = budget_before
+        else:
+            measured = self._kredits_recheck()
+            if measured is not None:
+                self.kredits_left = (min(measured, budget_before)
+                                     if budget_before is not None else measured)
+        self.afford.note_read(self.kredits_left)
+
     def _panel_at(self, x):
         """
         Capture the hover panel for hand card at client x, or None when no
@@ -432,6 +444,26 @@ class TurnEngine:
         返回一张卡 dict 或 None。会把它塞进 `self.cards` 供后续复用。
         """
         budget = self.kredits_left
+        if self._orange_enabled() and budget is not None and self._kredits_measured():
+            t0 = time.time()
+            cards = self.scanner.scan_orange(budget, exclude=set(self.attempted_x),
+                                             debug=self.debug)
+            if cards is not None:
+                self._scan_count += 1
+                self.cards = cards
+                for card in cards:
+                    card['_before'] = card.pop('panel', None)
+                detail = self.scanner.last_orange or {}
+                self.log(f"[orange] 扫描 {time.time()-t0:.2f}s: "
+                         f"候选 {detail.get('anchors', 0)}, 可出 {len(cards)}, "
+                         f"识别 {detail.get('ocr', 0)}, 缓存 {detail.get('cached', 0)}; "
+                         f"预算 {budget}; 拒识 {detail.get('rejected', [])}")
+                return cards[0] if cards else None
+            if budget == 0:
+                self.cards = []
+                self.log('[orange] 零预算候选未确认，本轮不进入全手牌/盲扫')
+                return None
+            self.log('[orange] 当前画面没有可靠橙色候选 -> 回退原扫描')
         if budget is None:
             # 费用读不到时不知道出得起什么 —— 退回全量扫描,**但一回合只扫一次**。
             # ★ 实测踩过的坑:费用读数会抖,于是每一轮 think() 都判"费用未知"
@@ -873,6 +905,8 @@ class TurnEngine:
                                   f"{again} == 账本 {self.kredits_left}"
                                   f"(数字刷新比我们读得慢)"), False
                 shown = now if again is None else again
+                if again is not None and again != now:
+                    return False, f'费用变化尚未对账({now}->{again})，不判未扣费', False
                 return False, (f"费用读数仍是 {shown}(牌回手:账本应为 "
                                f"{self.kredits_left})"), True
             else:
@@ -957,8 +991,8 @@ class TurnEngine:
         ★ 三条保守约定(都是为了"宁可多拖一次,也不要整局不出牌"):
           ① **读数不可信(None)时只信本回合部署数** —— None 的两种来源是
              "读不到我方那一行"和"数出 >4"(判据坏了),都不许当成 0 或 4;
-          ② 取 **max(场上单位数, 本回合成功部署数)** —— 后者兜住"场上少算一个";
-          ③ 本回合部署数 >= 4 直接算满(上限是硬的)。
+          ② 当前可信单位数优先：已部署单位可能已阵亡、撤退或上前线；
+          ③ 只有当前数未知时，用本回合部署数作为保守兜底。
         """
         by_field = None
         try:
@@ -969,7 +1003,7 @@ class TurnEngine:
             by_field = None
         if by_field is None:
             return self.deployed_this_turn >= SUPPORT_LINE_MAX
-        return max(int(by_field), self.deployed_this_turn) >= SUPPORT_LINE_MAX
+        return int(by_field) >= SUPPORT_LINE_MAX
 
     def _hand_count(self):
         """
@@ -1120,6 +1154,11 @@ class TurnEngine:
         # 老路径/替身没有这个字段时按"可信"处理(退回旧行为)
         return True
 
+    def _orange_enabled(self):
+        import hand_cost_filter
+        return (hand_cost_filter.ENABLED and self.lazy_scan
+                and callable(getattr(self.scanner, 'scan_orange', None)))
+
     def _deploy_capped(self):
         """
         ★ 2026-09-13 用户要求:**手牌多的时候不必把费用用完**。
@@ -1132,6 +1171,8 @@ class TurnEngine:
         ★ 张数拿不到(None)-> **不启用上限**(fail-open:宁可按老行为把费用用完,
           也不要因为读不到张数就永远只出两张)。
         """
+        if self._orange_enabled():
+            return False
         n = self._hand_count()
         if n is None or n < BIG_HAND_MIN:
             return False
@@ -1301,6 +1342,10 @@ class TurnEngine:
             return "our_turn"
 
         if self.phase == "play":
+            if getattr(self, '_consecutive_refusals', 0) >= 2:
+                self.log('[turn] 连续两张牌未确认打出，本回合停止继续拖牌；不修改可负担上限')
+                self.phase = 'end_turn'
+                return 'repeated_refusals'
             if not et:
                 # turn ended while we were deciding (timeout / opponent acted)
                 self.log("[turn] end-turn button gone mid-turn - resyncing")
@@ -1315,7 +1360,7 @@ class TurnEngine:
             if self.lazy_scan and not self.cards:
                 if (self.kredits_left is not None
                          and self.kredits_left < MIN_KREDITS_TO_SCAN
-                         and self._kredits_measured()):
+                         and self._kredits_measured() and not self._orange_enabled()):
                     # ★ 2026-09-13 用户要求:钱太少(< MIN_KREDITS_TO_SCAN)就别扫了,
                     #   省掉一次 3~9 秒的扫描 —— 代价是手里若只有 1 费牌就不出了。
                     #   ★ **只对"真读到的"读数生效**:读不到时的兜底值是
@@ -1334,6 +1379,9 @@ class TurnEngine:
                              f"按用户规则不再出牌,直接结束回合")
                 else:
                     self._lazy_find_playable()
+                    if (self._orange_enabled()
+                            and (getattr(self.scanner, 'last_orange', None) or {}).get('aborted')):
+                        return 'user_took_over'
 
             target = None
             skipped_full_line = False
@@ -1361,8 +1409,42 @@ class TurnEngine:
             ordered = sorted(
                 self.cards,
                 key=lambda c: (c.get("cost") is None, c.get("cost") or 0))
+            if self.cards and all(c.get('orange') for c in self.cards):
+                from hand_cost_filter import best_combo
+                snap = self.field_now or self.field_at_turn_start or {}
+                support = snap.get('our_support_units', (None, {}))[0]
+                slots = max(0, SUPPORT_LINE_MAX - (support if support is not None
+                                                   else self.deployed_this_turn))
+                legal = []
+                field_row = None
+                for c in self.cards:
+                    if getattr(self, 'weather_played', False) and orders.is_weather(c.get('name')):
+                        continue
+                    if c['x'] in self.failed_x or not self._budget(c.get('cost')):
+                        continue
+                    if not orders.playable(c.get('type'), c.get('name')):
+                        continue
+                    if orders.is_target(c.get('name')):
+                        if snap.get('frame') is None:
+                            continue
+                        if field_row is None:
+                            field_row = board.read_field(snap['frame'], templates=self.templates)
+                        if order_target.pick(c['name'], field_row, frame=snap['frame'],
+                                             hand_xs=self._hand_xs(exclude_x=c['x']),
+                                             hand_y=self.scanner.y) is None:
+                            continue
+                    legal.append(c)
+                ordered = best_combo(legal, self.kredits_left, slots)
+                self.log('[orange] 费用组合: ' + ', '.join(
+                    f"{c['name']}({c['cost']})" for c in ordered)
+                    + f"; 合计 {sum(c['cost'] for c in ordered)}/{self.kredits_left}; 空位 {slots}")
 
             for c in ([] if capped else ordered):
+                if getattr(self, 'weather_played', False) and orders.is_weather(c.get('name')):
+                    self.failed_x.add(c['x'])
+                    self.attempted_x.add(c['x'])
+                    self.log('[weather] 本回合已使用天气，跳过 '+c['name'])
+                    continue
                 if c["x"] in self.failed_x:
                     continue
                 cost = c.get("cost")
@@ -1426,6 +1508,16 @@ class TurnEngine:
 
             name = target.get("name") or target.get("type") or "未知牌"
             cost = target.get("cost")
+            if self._orange_enabled() and (not target.get('orange')
+                                          or (target.get('info') or {}).get('weather_id')):
+                verified, why = self.scanner.recheck_card(target)
+                if not verified:
+                    self.failed_x.add(target['x'])
+                    self.attempted_x.add(target['x'])
+                    self.cards = []
+                    self._scanned_full_this_turn = False
+                    self.log(f'[orange] 原扫描回退候选在抓点复核失败: {name}; {why}; 不拖牌')
+                    return 'target_changed'
             before = self._field(park=True)
 
             if orders.is_choice(name) or orders.is_three_order(name):
@@ -1518,9 +1610,9 @@ class TurnEngine:
                 self.log(f"[turn] target 指令「{name}」(cost {cost}) 手牌x={target['x']}"
                          f" -> 目标{got['what']}({got['x']},{got['y']}) | {got['why']}")
 
-            # ★ 不管后面判成成功还是失败,这一笔费用都要从本回合预算里扣掉:
-            #   被拒绝的牌虽然没花掉费用,但它已经浪费了一次拖拽,继续按"费用
-            #   还是满的"去决策就会一直拖(用户实测:没费用了还在部署)。
+            # Reserve cost for the verdict; confirmed refusal restores it.
+            # attempted_x/failed_x bound retries independently of money.
+            budget_before = self.kredits_left
             self._spend(cost)
             self.attempted_x.add(target["x"])
             # ★ 拖过的牌(不管成没成)本回合都不再拖第二遍 ——
@@ -1639,7 +1731,7 @@ class TurnEngine:
                         row_n = int(after.get("our_support", (0, {}))[0])
                     except Exception:
                         row_n = 0
-                if (refused_measured and row_n >= 1 and attempt < len(tries)
+                if (not is_order_like and refused_measured and row_n >= 1 and attempt < len(tries)
                         and not self._support_line_full()):
                     self.log(f"[turn] 这一次没成({note})-> 我方那一行有 {row_n} 张,"
                              f"像是砸在卡上 -> 换个空槽位再试")
@@ -1658,6 +1750,9 @@ class TurnEngine:
             #   ③ 面板对比(最后退路,而且日志里必须写明"用的是退路")
             if ok:
                 self.deployed_this_turn += 1
+                self._consecutive_refusals = 0
+                if orders.is_weather(name):
+                    self.weather_played = True
                 self.afford.note_deploy_ok(cost)
                 what = "指令打出" if is_order_like else "部署成功"
                 self.log(f"[turn] {name} {what} "
@@ -1668,9 +1763,10 @@ class TurnEngine:
                 self.memory.note_played(target.get("i"))
             else:
                 self.deploy_refused += 1
-                self.afford.note_deploy_failed(cost)
+                self._consecutive_refusals = getattr(self, '_consecutive_refusals', 0) + 1
+                self._reconcile_failed_deploy(budget_before, refused_measured)
                 # 阵线满是最常见的拒绝原因,单独提示(用户指出的头号问题)
-                reason = "支援阵线已满" if self._support_line_full() else "费用/规则不允许"
+                reason = "支援阵线已满" if not is_order_like and self._support_line_full() else "拖拽/目标/规则或费用后验待确认"
                 what = "指令没打出去" if is_order_like else "**部署被拒绝**"
                 self.log(f"[turn] {name} (cost {cost}) {what}({note})"
                          f" -> 推断原因:{reason};"
@@ -1728,7 +1824,7 @@ class TurnEngine:
             #   而 `field_at_turn_start` 是**挪之前**的快照 —— 拿它判"线满没满"
             #   会把刚空出来的位置当成还占着 -> **少出一个单位**。
             #   所以这一路真的挪动人之后,进"出牌"阶段前重新读一次战场。
-            if moved:
+            if moved or getattr(self.attacker, 'attempts', 0):
                 try:
                     snap = self._field(park=True)
                 except Exception:
@@ -1772,6 +1868,12 @@ class TurnEngine:
                     return "end_turn_click_failed"
                 self.log(f"[turn] clicked end turn at client ({cx},{cy}) "
                          f"score {s:.3f}")
+                # Leaving our own click on the button makes the next turn's
+                # hover style orange and defeats the normal-screen template.
+                if park_cursor(self.hwnd):
+                    self.log("[turn] 结束回合后已移开光标,避免悬停样式遮住下一回合识别")
+                else:
+                    self.log("[turn] 结束回合后光标未能移开;下一回合识别可能受悬停影响")
             else:
                 self.log("[turn] end-turn button vanished before we clicked it")
                 # The button disappearing is evidence that the game already

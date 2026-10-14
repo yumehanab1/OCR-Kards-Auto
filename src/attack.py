@@ -825,8 +825,10 @@ class Attacker:
                 and random.random() < BOMBER_FRONT_CHANCE):
             _units = [u for u in (field.get("frontline") or [])
                       if not u.get("is_hq")]
+            _units, _protected = self._drop_protected(_units, frame)
             if _units:
-                u = sorted(_units, key=lambda x: x["cx"])[0]
+                guards = [u for u in _units if u.get('guard')]
+                u = sorted(guards or _units, key=lambda x: x["cx"])[0]
                 self.log(f"[attack] 轰炸机掷骰命中({BOMBER_FRONT_CHANCE:.0%})"
                          f"且敌方支援线没有战斗机 -> 先打前线单位"
                          f"(用户规则;比每回合都撞总部更容易清场)")
@@ -1689,6 +1691,8 @@ class Attacker:
                                  f"打的是**单位**,读不到它的血量;"
                                  f"徽章判据也没读出来;{row_label}还是 {n_after} 张"
                                  f"(可能没打中 / 没打死 / 只是这一行读数没变)")
+                        self.log('[attack] 攻击后单位身份/位置未确认，结束本段攻击，避免按漂移坐标重试')
+                        break
                 continue
 
             # ---- 判"打中没有":优先用语义信号(敌方总部血量) ----

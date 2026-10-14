@@ -585,6 +585,8 @@ WAIST_MAX = 0.60
 #     留开关是为了能一句话对比两边,以及万一新行为在别的棋盘上翻车能立刻退回去
 #     (§7 第 59/67 条的纪律)。
 SPLIT_2D = True
+EDGE_HQ_RECOVERY = True  # closed card outline + shield, independent of table brightness
+TABLE_OUTLINE_GUARD = True
 # ★★ 把"亮部美术区"扩成"整张卡"。
 #   实测踩坑:亮度掩码只框住了卡中间的**美术图**(亮),而卡的顶部(费用条)
 #   和底部(攻/防条)是深色的,于是检测框比真卡**上下各少约 20px**。
@@ -661,6 +663,130 @@ def _snap_card_box(gray, x, y, w, h, debug=False):
     if debug:
         print(f"      snap ({x},{y},{w},{h}) -> ({nx},{ny},{nw},{nh})")
     return nx, ny, nw, nh
+
+
+def _card_outline_evidence(frame, box, estimated=False):
+    """Table markings need a card body, not just a small apparent cost digit."""
+    x,y,w,h = (int(box[k]) for k in ('x','y','w','h'))
+    x0,y0=max(0,x-8),max(0,y-8)
+    crop=frame[y0:min(frame.shape[0],y+h+22),x0:min(frame.shape[1],x+w+15)]
+    if crop.size == 0:
+        return False
+    edge=cv2.dilate(cv2.Canny(cv2.cvtColor(crop,cv2.COLOR_BGR2GRAY),35,100),
+                    np.ones((3,3),np.uint8)) > 0
+    ox,oy=x-x0,y-y0
+    def vbest(a,b):
+        band=edge[oy+20:min(edge.shape[0],oy+h-15),max(0,a):min(edge.shape[1],b)]
+        return float(band.mean(axis=0).max()) if band.size else 0
+    left=vbest(ox-4,ox+5)
+    right=vbest(ox+int(w*.70) if estimated else ox+w-5,ox+w+9)
+    width=int(w*.72) if estimated else w-16
+    cols=edge[:,ox+8:min(edge.shape[1],ox+8+width)]
+    top=cols[max(0,oy-5):oy+6]
+    bottom=cols[oy+int(h*.72) if estimated else oy+h-6:min(len(cols),oy+h+12)]
+    horizontal=max(float(top.mean(axis=1).max()) if top.size else 0,
+                   float(bottom.mean(axis=1).max()) if bottom.size else 0)
+    if min(left,right)>=.55 and horizontal>=.65:
+        return True
+    # Genuine units can have dark artwork merging into a dark table. Their
+    # aligned attack/type/defence plaques provide independent body evidence.
+    bar=frame[max(0,y+int(h*.65)):min(frame.shape[0],y+h+5),
+              max(0,x):min(frame.shape[1],x+w)]
+    if not bar.size:
+        return False
+    dark=(cv2.cvtColor(bar,cv2.COLOR_BGR2HSV)[:,:,2]<120).astype(np.uint8)
+    _,_,stats,_=cv2.connectedComponentsWithStats(dark,8)
+    plaques=[(int(a),int(b),int(c),int(d)) for a,b,c,d,area in stats[1:]
+             if 16<=c<=46 and 16<=d<=46 and area>=.5*c*d]
+    for seed in plaques:
+        row=sorted((p for p in plaques if abs(p[1]-seed[1])<=5),key=lambda p:p[0])
+        for i in range(len(row)-2):
+            triple=row[i:i+3]
+            widths=[p[2] for p in triple];heights=[p[3] for p in triple]
+            if (max(widths)-min(widths)<=9 and max(heights)-min(heights)<=7
+                    and triple[-1][0]+triple[-1][2]-triple[0][0]<=115):
+                return True
+    return False
+
+
+def _edge_hq_boxes(frame):
+    """Recover HQs swallowed by bright tables, symmetrically on both sides.
+
+    Require an upright closed card outline, a centered lower shield with
+    readable digits, and no unit cost badge. Never infer an HQ from colour.
+    """
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    edges = cv2.Canny(gray, 35, 100)
+    supported = cv2.dilate(edges, np.ones((3, 3), np.uint8)) > 0
+    rectangles = []
+    for edge in (edges, cv2.morphologyEx(edges, cv2.MORPH_CLOSE,
+                                        np.ones((3, 3), np.uint8))):
+        contours, _ = cv2.findContours(edge, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+        for contour in contours:
+            rectangles.append(cv2.boundingRect(contour))
+    # A patterned table can connect to every outer contour. A separate dark
+    # shield supplies a proposal only; all four card edges must still exist.
+    dark=(cv2.cvtColor(frame,cv2.COLOR_BGR2HSV)[:,:,2] < hq_hp.SHIELD_DARK_V).astype(np.uint8)
+    _,_,components,_=cv2.connectedComponentsWithStats(dark,8)
+    for sx,sy,sw,sh,area in components[1:]:
+        if not(28<=sw<=65 and 28<=sh<=70 and area>=.55*sw*sh
+               and FIELD_X0<=sx<=FIELD_X1-sw and FIELD_Y0<=sy<FIELD_Y1):
+            continue
+        base_w,base_h=round((sw+4)/.43),round((sh+4)/.34)
+        for w in (base_w-5,base_w,base_w+5):
+            for h in (base_h-4,base_h,base_h+4):
+                rectangles.append((round(sx+sw/2-w/2),round(sy-2-.58*h),w,h))
+    candidates = []
+    for x,y,w,h in rectangles:
+        if not (FIELD_X0 <= x and x + w <= FIELD_X1
+                and FIELD_Y0 <= y and y + h <= FIELD_Y1 + 8
+                and 90 <= w <= 175 and 130 <= h <= 190
+                and .5 <= w / h <= 1.05):
+            continue
+        # A tiny break can make a rectangle's contour double back rather
+        # than approximate to four points. Require all four actual edges,
+        # not merely its bounding rectangle or a relaxed polygon epsilon.
+        border_support = (
+            supported[y:y+3, x+5:x+w-5].any(axis=0).mean(),
+            supported[y+h-3:y+h, x+5:x+w-5].any(axis=0).mean(),
+            supported[y+5:y+h-5, x:x+3].any(axis=1).mean(),
+            supported[y+5:y+h-5, x+w-3:x+w].any(axis=1).mean(),
+        )
+        if min(border_support) < .72:
+            continue
+        if any(abs(x - b['x']) < 4 and abs(y - b['y']) < 4
+               and abs(w-b['w']) < 6 and abs(h-b['h']) < 6 for b in candidates):
+            continue
+        candidates.append(dict(x=x, y=y, w=w, h=h, cx=x+w/2, cy=y+h/2,
+                               area=w*h, from_edge=True))
+    if not candidates:
+        return []
+    badges = badge_boxes(frame, rows=rows_from_boxes(candidates))
+    found = []
+    for box in candidates:
+        if any(box['x'] - 3 <= b['badge']['x'] <= box['x'] + 24
+               and box['y'] - 3 <= b['badge']['y'] <= box['y'] + 25
+               for b in badges if b.get('badge')):
+            continue
+        _, shield = hq_hp.find_shield(frame, box)
+        if shield is None:
+            continue
+        sx, sy, sw, sh = shield
+        if not (.24 <= sw / box['w'] <= .60 and .22 <= sh / box['h'] <= .45
+                and abs(sx + sw/2 - box['cx']) <= .12 * box['w']
+                and sy >= box['y'] + .52 * box['h']):
+            continue
+        if hq_hp.read(frame, box) is not None:
+            box['hq_anchor'] = True
+            found.append(box)
+    # Prefer the full card over a nested artwork rectangle around the same
+    # shield. All alternatives have already passed the shield and edge gates.
+    unique = []
+    for box in sorted(found, key=lambda b: abs(b['w']/b['h']-.74)):
+        if not any(abs(box['cx']-b['cx']) < 24 and abs(box['cy']-b['cy']) < 28
+                   for b in unique):
+            unique.append(box)
+    return unique
 
 
 def card_boxes(frame, debug=False, snap=False):
@@ -791,6 +917,35 @@ def card_boxes(frame, debug=False, snap=False):
         if debug and len(out) != before:
             print(f"      (丢掉 {before - len(out)} 个不完整的框:"
                   f"高 < {CARD_H_MIN_COMPLETE})")
+    if TABLE_OUTLINE_GUARD:
+        out = [b for b in out if _card_outline_evidence(frame,b)]
+        costs = badge_boxes(frame, rows=rows_from_boxes(out)) if out else []
+        def has_card_content(b):
+            if any(abs(c['badge']['x']-b['x']) <= 18
+                   and -28 <= c['badge']['y']-b['y'] <= 16
+                   for c in costs if c.get('badge')):
+                return True
+            return hq_hp.read(frame,b) is not None
+        out = [b for b in out if has_card_content(b)]
+    if EDGE_HQ_RECOVERY:
+        for box in _edge_hq_boxes(frame):
+            def same_card(b):
+                iw = max(0, min(b['x']+b['w'],box['x']+box['w'])-max(b['x'],box['x']))
+                ih = max(0, min(b['y']+b['h'],box['y']+box['h'])-max(b['y'],box['y']))
+                return iw*ih >= .65 * min(b['w']*b['h'],box['w']*box['h'])
+            nearby = [b for b in out if same_card(b)]
+            # Preserve an already complete, readable legacy HQ box. A glow
+            # above an HQ must not move the row top and hide neighbouring
+            # units' cost badges from the row-band detector.
+            complete = [b for b in nearby if abs(b['w']-box['w']) <= 10
+                        and abs(b['h']-box['h']) <= 18
+                        and abs(b['cx']-box['cx']) <= 10
+                        and abs(b['cy']-box['cy']) <= 12
+                        and hq_hp.read(frame,b) is not None]
+            if complete:
+                box = dict(complete[0], from_edge=True, hq_anchor=True)
+            out = [b for b in out if b not in nearby]
+            out.append(box)
     out.sort(key=lambda b: (b["y"], b["x"]))
     if debug:
         for b in out:
@@ -925,6 +1080,38 @@ BADGE_MERGE_DX = 60      # 中心 x 差这么久以内 = 同一张卡(实测同�
 BADGE_MERGE_DY = 70      # 中心 y 差这么久以内 = 同一张卡(实测同一张 ~6px)
 
 
+def _badge_on_known_hq(badge, rows):
+    from unit_state import unit_box_from_badge
+    estimate = unit_box_from_badge(badge)
+    for row in (rows or []):
+        for box in row.get('boxes',[]):
+            if not box.get('hq_anchor'):
+                continue
+            if (box['x'] <= badge['cx'] <= box['x']+box['w']
+                    and box['y'] <= badge['cy'] <= box['y']+box['h']):
+                return True
+            # Some table marks just outside an HQ extrapolate a phantom unit
+            # over its body. Real neighbouring units do not overlap most of it.
+            x,y=estimate['x'],estimate['y']
+            iw=max(0,min(x+estimate['w'],box['x']+box['w'])-max(x,box['x']))
+            ih=max(0,min(y+estimate['h'],box['y']+box['h'])-max(y,box['y']))
+            if iw*ih >= .60*box['w']*box['h']:
+                return True
+    return False
+
+
+def _badge_has_body(frame, badge):
+    from unit_state import unit_box_from_badge
+    # Preserve isolated badges and clear, classified digits from the existing
+    # detector. Weak band guesses (table marks measured at V=120..130) need
+    # an independent card outline or aligned stat plaques.
+    if (badge.get('from') == 'cc'
+            or (badge.get('digit_v',0) >= 150
+                and badge.get('state') in ('grey','orange'))):
+        return True
+    return _card_outline_evidence(frame,unit_box_from_badge(badge),estimated=True)
+
+
 def badge_boxes(frame, rows=None, debug=False):
     """
     用**费用徽章**反推出"单位卡"的框(总部没有徽章,所以这里永远不含总部)。
@@ -942,7 +1129,11 @@ def badge_boxes(frame, rows=None, debug=False):
         return []
     out = []
     for b in find_cost_badges(frame, rows=rows, debug=debug):
+        if _badge_on_known_hq(b,rows):
+            continue
         box = unit_box_from_badge(b)
+        if TABLE_OUTLINE_GUARD and not _badge_has_body(frame,b):
+            continue
         box = {"x": box["x"], "y": box["y"], "w": box["w"], "h": box["h"],
                "cx": box["cx"], "cy": box["cy"], "area": box["w"] * box["h"],
                "from": "badge", "state": b["state"], "badge": b}
@@ -1016,7 +1207,7 @@ def _drop_badges_on_card_body(merged, debug=False):
     return out
 
 
-def merged_card_boxes(frame, debug=False, snap=False, rows=None):
+def merged_card_boxes(frame, debug=False, snap=False, rows=None, primary=None):
     """
     ★ 推荐的"场上所有卡"读法:`card_boxes`(含总部)∪ `badge_boxes`(含被
     掩码漏掉的单位卡),按 (y, x) 排序。每一张都带 `from` 字段说明来源。
@@ -1026,7 +1217,8 @@ def merged_card_boxes(frame, debug=False, snap=False, rows=None):
        (见 unit_state.find_cost_badges_band)。不传的话它自己会再算一遍
        `card_boxes`,不但白花时间,更要紧的是**两处用的行可能不一致**。
     """
-    boxes = card_boxes(frame, debug=debug, snap=snap)
+    boxes = (card_boxes(frame, debug=debug, snap=snap) if primary is None
+             else [dict(b) for b in primary])
     if rows is None:
         rows = rows_from_boxes(boxes)
     extra = badge_boxes(frame, rows=rows, debug=debug)
@@ -1148,7 +1340,11 @@ def support_line_units(frame, rows=None, badges=None, debug=False):
             return out
 
     for b in badges:
+        if _badge_on_known_hq(b,rows):
+            continue
         box = unit_box_from_badge(b)
+        if TABLE_OUTLINE_GUARD and not _badge_has_body(frame,b):
+            continue
         # 这个徽章属于哪一行:按"徽章推出来的卡中心"离哪一行的 cy 最近
         owner = min(rows, key=lambda r: abs(r["cy"] - box["cy"]))
         if owner is not our:
@@ -1280,7 +1476,7 @@ def read_field(frame, templates=None, debug=False):
     #   卡框只算一次,行结构传给徽章补检(见 merged_card_boxes)。
     boxes_raw = card_boxes(frame, debug=debug)
     rows = rows_from_boxes(boxes_raw, debug=debug)
-    boxes = merged_card_boxes(frame, debug=debug, rows=rows)
+    boxes = merged_card_boxes(frame, debug=debug, rows=rows, primary=boxes_raw)
     rows = rows_from_boxes(boxes, debug=debug)
     out = {"rows": rows, "our_support": [], "enemy_support": [],
            "frontline": [], "our_units": [], "enemy_units": [],
@@ -1457,7 +1653,13 @@ def find_enemy_hq(frame, field=None, templates=None):
     rows = field.get("rows") or []
     if not rows:
         return None
-    row = rows[0]                      # 最上面那一行 = 敌方支援线
+    # When the enemy HQ disappears, the first remaining row can be the
+    # frontline or our support. Never relabel it as an enemy HQ.
+    enemy_rows = [r for r in rows if r.get('side') == 'enemy'
+                  and float(r.get('cy', 999)) < MIDLINE_Y - 70]
+    if not enemy_rows:
+        return None
+    row = min(enemy_rows, key=lambda r: r['cy'])
     units = list(row.get("units") or [])
 
     def _ret(card, hp, state, source, shield_box=None):

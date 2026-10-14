@@ -817,6 +817,10 @@ def find_cost_badges(frame, rows=None, debug=False, stat_guard=None):
         stat_guard = STAT_GUARD
     if stat_guard:
         out = _drop_on_card_body(out, rows, debug=debug)
+    if (board.TABLE_OUTLINE_GUARD and any(b.get('hq_anchor')
+            for row in (rows or []) for b in row.get('boxes',[]))):
+        out = [b for b in out if not board._badge_on_known_hq(b,rows)
+               and board._badge_has_body(frame,b)]
     return out
 
 

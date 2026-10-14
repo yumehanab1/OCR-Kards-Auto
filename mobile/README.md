@@ -1,5 +1,7 @@
 # 手机端 / Android 发布位置
 
+[手机版源码入口](source/README.md)保留在本目录。v0.2.1 的手机版说明与独立下载包待后续补充。
+
 手游线与 PC 源码和发布包分开维护。当前公开资产位于 [v0.2.0 Release](https://github.com/yumehanab1/OCR-Kards-Auto/releases/tag/v0.2.0)：
 
 - `KARDS-AUTO-Mobile-v0.2.0.zip`

@@ -52,12 +52,31 @@ samples = [read(str(args.samples_dir / name)) for name in
 assert all(order_choice.calibrated(f) for f in samples), "缺已确认截图"
 two, first_three, second_three = samples
 assert [order_choice.detect_count(f)[0] for f in samples] == [2, 3, 3]
+three_hover_20261013 = read(str(repo / 'shots/choice/1013_154911_blocked.png'))
+if three_hover_20261013 is not None:
+    assert order_choice.detect_count(three_hover_20261013)[0] == 3
+    damaged = three_hover_20261013.copy()
+    damaged[272:508, 540:550] = 0
+    assert order_choice.detect_count(damaged)[0] != 3
 blocked_real = read(str(repo / "shots/choice/0926_192524_blocked.png"))
 assert order_choice.detect_count(blocked_real)[0] == 2
 sea_battle = read(str(args.samples_dir / "choice_two_sea_battle.png"))
 sea_blocked = read(str(args.samples_dir / "choice_two_sea_battle_blocked.png"))
 assert order_choice.detect_count(sea_battle)[0] == 2
 assert order_choice.detect_count(sea_blocked)[0] == 2
+bright_gap_path = args.samples_dir / 'choice_two_bright_gap.png'
+if bright_gap_path.exists():
+    bright_gap = read(str(bright_gap_path))
+    assert order_choice.detect_count(bright_gap)[0] == 2
+    damaged = bright_gap.copy()
+    damaged[272:502, 653+188:653+192] = 0
+    assert order_choice.detect_count(damaged)[0] is None
+    damaged = bright_gap.copy()
+    damaged[243:271, 653+2:653+30] = 200
+    assert order_choice.detect_count(damaged)[0] is None
+    damaged = bright_gap.copy()
+    damaged[272:502, 653-3:653+6] = 0
+    assert order_choice.detect_count(damaged)[0] is None
 for frame, titles in ((first_three, ("蓝天", "薄雾", "狂风")),
                       (second_three, ("雷暴", "热带风暴", "旋风"))):
     matched, seen, _ = order_choice.three_titles_match(frame)
@@ -77,6 +96,15 @@ assert not order_choice.new_three_set(order_choice.selection_image(first_three),
                                       hover_only)
 
 negatives = 0
+live_positive_frames = {
+    'shots/pc_five_weather_20261013.png': 3,
+    'shots/orange_pc_20261013/live_153033/023.png': 3,
+    'shots/orange_pc_20261013/live_153033/024.png': 3,
+    'shots/orange_pc_20261013/live_153033/025.png': 3,
+    'shots/orange_pc_20261013/live_154850/008.png': 3,
+}
+live_positive_frames.update({f'shots/orange_pc_20261013/live_160932/{i:03d}.png':3
+                             for i in range(1,11)})
 for path in glob.glob(str(repo / "shots/**/*.png"), recursive=True):
     if ("annotated" in path
             or Path(path).resolve().parent in (
@@ -88,6 +116,12 @@ for path in glob.glob(str(repo / "shots/**/*.png"), recursive=True):
         # Existing debug frame retention may prune a file after glob listed it.
         continue
     if order_choice.calibrated(frame):
+        expected_positive = live_positive_frames.get(Path(path).relative_to(repo).as_posix())
+        if expected_positive:
+            # Reveal-transition frames may remain unknown, but cannot be
+            # misclassified as two-card menus. Stable fixtures are checked above.
+            assert order_choice.detect_count(frame)[0] in (None, expected_positive), path
+            continue
         negatives += 1
         assert order_choice.detect_count(frame)[0] is None, f"误识别选牌:{path}"
 assert negatives >= 100, f"真实负帧不足:{negatives}"
@@ -110,8 +144,53 @@ assert order_choice.THREE_POINTS == {"1": (420, 375), "2": (640, 375),
 normal = read(str(args.normal_frame or args.samples_dir / "normal.png"))
 assert order_choice.calibrated(normal)
 assert order_choice.detect_count(normal)[0] is None
+weather_first = read(str(repo/'shots/choice/1013_154911_blocked.png'))
+weather_second = read(str(repo/'shots/orange_pc_20261013/live_160932/006.png'))
+if weather_first is not None and weather_second is not None:
+    assert order_choice.detect_count(weather_second)[0] == 3
+    weather_flow = order_choice.SelectionFlow('阴云密布', now=0.0)
+    weather_clicks=[]
+    for frame, at in ((weather_first,0.0),(weather_first,.3),(weather_first,.6),
+                      (weather_second,1.6),(weather_second,1.9),(weather_second,2.2)):
+        weather_status,weather_note=weather_flow.tick(
+            frame, normal_visible=lambda _:True,
+            click_client=lambda x,y:weather_clicks.append((x,y)) or True,
+            can_act=lambda:True,now=at,log=lambda _:None)
+        assert weather_status!='blocked',weather_note
+    assert weather_flow.steps==2 and len(weather_clicks)==2,weather_clicks
+    for at in (3.3,6.2):
+        weather_status,_=weather_flow.tick(normal,normal_visible=lambda _:True,
+            click_client=lambda x,y:False,can_act=lambda:True,now=at,log=lambda _:None)
+    assert weather_status=='complete'
 clicked = []
 flow = order_choice.SelectionFlow("呼叫殖民地", now=0.0)
+# Default operation must not consult OCR, even with blank weather titles.
+assert order_choice.VERIFY_THREE_TITLES is False
+weather = read(str(repo / 'shots/pc_five_weather_20261013.png'))
+for fixture in (first_three, three_unreadable, weather):
+    assert order_choice.detect_count(fixture)[0] == 3
+    layout_flow = order_choice.SelectionFlow("美国气象局", now=0)
+    clicks = Mock(return_value=True)
+    no_ocr = Mock(side_effect=AssertionError("default flow called title OCR"))
+    def layout_tick(frame, at):
+        return layout_flow.tick(frame, normal_visible=lambda _: True,
+                         click_client=clicks, can_act=lambda: True,
+                         read_three_titles=no_ocr, now=at, log=lambda _: None)[0]
+    with patch.object(orders.random, "choice", return_value="2") as draw:
+        assert layout_tick(fixture, 0.1) == "waiting"
+        assert layout_tick(fixture, 0.7) == "clicked"
+        assert layout_tick(fixture, 1.0) == "waiting"
+        assert layout_tick(second_three, 1.8) == "waiting"
+        assert layout_tick(second_three, 2.4) == "clicked"
+        assert layout_tick(normal, 3.0) == "waiting"
+        assert layout_tick(normal, 6.0) == "complete"
+        assert clicks.call_args_list == [((640, 375),), ((640, 375),)]
+        assert draw.call_count == 2
+        draw.assert_called_with(("1", "2", "3"))
+    no_ocr.assert_not_called()
+
+# Retain the legacy timing and title failure cases as opt-in diagnosis tests.
+order_choice.VERIFY_THREE_TITLES = True
 three_ok = lambda _frame: (True, ("蓝天", "薄雾", "狂风"), "test")
 
 

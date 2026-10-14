@@ -60,7 +60,7 @@ install.cmd
 | `docs/design/` | 早期设计档案 |
 | `docs/generated/` | 规则和清单生成物 |
 | `docs/reports/` | PC 与手游/Android 报告入口 |
-| `mobile/` | 手机版 Release 占位说明；手机版源码和 APK 保持独立维护 |
+| [`mobile/`](mobile/README.md) | 手机版说明与[源码入口](mobile/source/README.md)，独立维护 |
 | `dev/` | 测试、探针、标定工具 |
 | `shots/`、`logs/` | 本机材料，不提交、不发布 |
 
@@ -72,6 +72,8 @@ install.cmd
 源码采用 GPL-3.0。`ui_templates/` 中的游戏截图素材属于 1939 Games，边界见 [`NOTICE.md`](NOTICE.md)。
 
 ## 手机端 / Android
+
+[手机版源码入口](mobile/source/README.md)保留在仓库。v0.2.1 Release 已预留手机版说明区域，等待独立上传；现有 v0.2.0 下载仍可使用。
 
 手游助手与 Windows PC 端分开维护。请从 [v0.2.0 Release](https://github.com/yumehanab1/OCR-Kards-Auto/releases/tag/v0.2.0) 的 **Mobile / Android** 区域下载：
 

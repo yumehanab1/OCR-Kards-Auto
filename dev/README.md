@@ -4,6 +4,17 @@
 
 ## 离线回归
 
+- `weather_variants_test.py --assets <KARDS_Batch目录>`：27 个同名天气版本的规则、歧义拒绝、原图与 240px 缩图 OCR；不操作游戏。
+- `pending_fixes_test.py`：零费候选、费用恢复、嵌套扫描截止、总部爆炸真实帧、丛林热友方目标与无目标路径。
+
+- `special_hq_probe.py --assets <special-headquarter目录> --out <输出目录>`：保比例归一化用户 JPG，输出总部标框和 JSON，不访问游戏窗口。
+- `special_hq_test.py --assets <special-headquarter目录>`：19 张保比例实机帧、19 次总部对调、46 个素材运行布局合成、21 套空牌桌；校验敌我总部、血量、目标点、单位数和支援槽位。合成数据不算实机结论。
+- `special_hq_native_test.py`：对 `logs/pc_five_20261013_171141` 保存的原生 PC 周期帧做 A/B；输出差异图，固定检查正常单位不丢失、预览卡不计入战场、移动单位攻击数字不充当总部。
+
+- `orange_hand_test.py`：费用组合、槽位约束、真实 PC 橙/灰帧及倾斜字形检查（不输入游戏）。
+- `orange_hand_live.py`：当前 PC 对局中的有限时长验证；默认只悬停取证，`--play --seconds 180` 才运行出牌引擎，不创建下一局。每次运行证据存到独立时间目录。
+- `pc_campaign_watch.py`：使用生产 Controller 观察指定局数，记录扫描耗时、成功/拒绝出牌、选牌事件、原始截图和源码哈希；出现停手即退出。`--resume` 保留已完成局并分段恢复，需用户授权实机运行。`--minimal-shots` 仅保留首次、结算及每局每类一次异常，关闭周期/扫描/普通拖牌/攻击存图；`--game-version` 记录已核实版本，未核实默认 unverified。最新状态索引为 `logs/pc_campaign_latest.json`。
+
 在仓库根目录运行，退出码 `0` 表示通过：
 
 ```cmd
@@ -22,8 +33,8 @@
 `choice_two.png`、`choice_two_sea_battle.png`、`choice_two_sea_battle_blocked.png`、
 `three_first.png`、`three_second.png`、`three_unit.png`、`normal.png`；也可用
 `--samples-dir` 指向另一目录。测试还会扫描 `shots/` 中的真实非选牌帧。
-三牌测试核对标题能否在卡库找到、连续两帧一致才随机选边，以及动画空标题、
-陌生标题和超时停手。两组三牌截图也由面板便携 Python 验证。
+三牌默认测试验证真实天气帧、空标题也能选边、连续菜单和防重复，不调用 OCR。
+旧标题一致、空白、陌生标题和超时测试在可选诊断模式下保留。
 本机实机停手帧 `shots/choice/0926_192524_blocked.png` 和两张“海战”样本用于验证
 双牌无需 OCR 即可按规则选边、动画稳定等待、悬停边框和禁止重复点击。
 缺少本机样本时测试会报错。选牌判据改动应同时用
@@ -103,3 +114,9 @@ $env:PYTHONPATH = (Join-Path $PWD 'src')
 ## 新增脚本约定
 
 脚本必须写清用途、是否需要游戏窗口、是否会点击，以及输出目录。新增回归、探针或生成器后，把它登记在本文件，并保持根目录只放运行入口和构建文件。
+
+## 2026-10-14 天气五局专项补充
+
+- `guard_adjacency_test.py`：总部相邻守护、非邻接/前线负例和轰炸机目标过滤；可回放本机守护现场帧。
+- `weather_variants_test.py --assets <素材目录>`：27 版本、每组合最多一张天气、54 次原图/缩图 OCR；本机保存的旋风/骤雨失败裁图存在时额外回放。
+- `pc_campaign_watch.py --rounds 5 --minimal-shots --weather-audit`：训练对局天气版本审计；首次天气小裁图总量上限六个，`--resume <目录>` 保留局数与源码分段。

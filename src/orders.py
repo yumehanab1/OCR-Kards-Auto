@@ -170,6 +170,9 @@ def load(path: str = PLAN_JSON) -> None:
                            if r["mode"] in _MODE_RANK else len(_MODE_RANK))
                 _CONFLICTS.append(f"{name}: {old['mode']} vs {new['mode']} -> {pick['mode']}")
                 _CARDS[name] = pick
+        import weather_cards
+        for variant in weather_cards.records():
+            _CARDS[variant['rule_name']] = dict(variant, choice_card=False, src='weather variant')
     except Exception as e:                      # 表坏了也不该让引擎崩
         _ERR = f"{type(e).__name__}: {e}"
         _CARDS = {}
@@ -179,6 +182,9 @@ def load(path: str = PLAN_JSON) -> None:
 def mode_of(name: str) -> str:
     """这张牌(按**卡名**)该怎么打。不在表里返回空串。"""
     load()
+    import weather_cards
+    if name in weather_cards.names():
+        return MODE_UNSUPPORTED  # same-name effect not resolved from the hand
     rec = (_CARDS or {}).get((name or "").strip())
     return rec["mode"] if rec else ""
 
@@ -191,6 +197,9 @@ def rec_of(name: str) -> dict:
 def is_direct(name: str) -> bool:
     """能不能**拖到中线以下直接打出**(第一版只支持这一种)。"""
     return PLAY_ORDERS and mode_of(name) == MODE_DIRECT
+
+def is_weather(name: str) -> bool:
+    return rec_of(name).get('src') == 'weather variant'
 
 
 def target_spec(name: str) -> dict:

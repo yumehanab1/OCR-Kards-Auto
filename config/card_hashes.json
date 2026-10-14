@@ -2134,6 +2134,336 @@
    "hash": "771acf38b132c3aa63199514917a973ad72e93aa99c891b07b88e38ae5d8e69a",
    "name": "团结就是力量",
    "type": "order"
+  },
+  {
+   "hash": "7e00bc287e00ba003900cf01cc01e800e900a90099008801af03ce0a8e0afe0b",
+   "name": "空中掩护",
+   "type": "order"
+  },
+  {
+   "hash": "f3e8cfe099e08fc80bc8838895348b0c0b58c32ae388d3e8fd90e120fa68fa08",
+   "name": "丁格犬侦察车",
+   "type": "tank"
+  },
+  {
+   "hash": "dbd4a5c48f88cf4ecd8a2b83831683968d8e8faa8bc88592d1e0936cfb447e44",
+   "name": "第 41 步兵团",
+   "type": "infantry"
+  },
+  {
+   "hash": "ffdca5dc8dcc8fcfcd8ba983039e83978d8e8daa85c881b2c5e8d9e17fa17f45",
+   "name": "第 41 步兵团",
+   "type": "infantry"
+  },
+  {
+   "hash": "6322a5728f76cf44b15ec37103718f6ab131a98cd5cca90af78cdc9094bad42c",
+   "name": "阴云密布",
+   "type": "order"
+  },
+  {
+   "hash": "7b22a5708f76cf44b15cc37103788f6bb135e98ce14c83a4f5a4f494ccb28439",
+   "name": "阴云密布",
+   "type": "order"
+  },
+  {
+   "hash": "fbf88fe099e00dc801c883ac9535a90f81dbc1aae3ccfbe8f8e4ff64f76e764e",
+   "name": "丁格犬侦察车",
+   "type": "tank"
+  },
+  {
+   "hash": "dbf88fe099e00dc8098883ac9534890f81dbc1aac3ccfbe8f8e6ff64f76e764e",
+   "name": "丁格犬侦察车",
+   "type": "tank"
+  },
+  {
+   "hash": "7b79f969f965f968fd31bf60a5e4cfb4991e8366b56ce58ea1daafa4fdc6edc6",
+   "name": "美国气象局",
+   "type": "order"
+  },
+  {
+   "hash": "5f2a698efe90bf90c3628dd199b403f88538ad78996c839cadc8fcf27cf07cb8",
+   "name": "丛林热",
+   "type": "order"
+  },
+  {
+   "hash": "dfe2cb619dd199b481dc837c8518ad7aa968d1cc83d4ffc8ffb4dce69ddb9cb6",
+   "name": "丛林热",
+   "type": "order"
+  },
+  {
+   "hash": "fdeea5e68db4cfb4b136c366816e8d7db16ce196a15ac9f0fded7fed7f8e7f0c",
+   "name": "美国气象局",
+   "type": "order"
+  },
+  {
+   "hash": "e920e908e924f100fc80edc08fe099c8038897349b0ec35ac3aaf780e4608648",
+   "name": "丁格犬侦察车",
+   "type": "tank"
+  },
+  {
+   "hash": "4dcac76a9950cf5409a4d1eaf16afdc0f9cccd8c8ba081a4a5b4b596c10c1b2e",
+   "name": "空中掩护",
+   "type": "order"
+  },
+  {
+   "hash": "d5c9d969d971fb58fb61fff0afd88ff0dd94f1eaf9c8ddcc89a6a5e4f1a4ddae",
+   "name": "空中掩护",
+   "type": "order"
+  },
+  {
+   "hash": "f4e4f464f424f9c0f4a438c453e44794498e41e253ec55ce718a2f90db78db0c",
+   "name": "美国气象局",
+   "type": "order"
+  },
+  {
+   "hash": "ffaaffb4ee92fe94fc98ff98ffd6cbe19dd083fca578a96891c4fb94fee5fdb5",
+   "name": "丛林热",
+   "type": "order"
+  },
+  {
+   "hash": "fddc8fcc896983780b64c538e19a559a73aefbaa7f927dcc61ecafbd7f3afe34",
+   "name": "第 27 机枪营",
+   "type": "infantry"
+  },
+  {
+   "hash": "5fdccfdc8d6ba9710b64c938a11ed996ddaa9daaddbacd8c6dc89ddd9f3a9f36",
+   "name": "第 27 机枪营",
+   "type": "infantry"
+  },
+  {
+   "hash": "fbc9db8dfe367bf2cfca9df0cd94d9aef16bf9c8ddcc8996a1a4a5add1537774",
+   "name": "空中掩护",
+   "type": "order"
+  },
+  {
+   "hash": "7da0a9a2e6496768b5c6a5e4cfb4911683628b4ca168d596a190f5e4cf50aa94",
+   "name": "美国气象局",
+   "type": "order"
+  },
+  {
+   "hash": "7df4cbf09bb091c0cb6083c09342ed38a924d1cc83884322f580da70e9bc6abc",
+   "name": "骄阳",
+   "type": "order"
+  },
+  {
+   "hash": "7de4c9f09df09dc081e083c0856aad30a9ecd1cc83b849a27da0d664eb266ea6",
+   "name": "骄阳",
+   "type": "order"
+  },
+  {
+   "hash": "d3dc8fc8c94103700b64c718e31a7f8a7fa6fdaa9592a78887a4ddb8de3cdf1d",
+   "name": "第 27 机枪营",
+   "type": "infantry"
+  },
+  {
+   "hash": "87b00fc07f907f507f58ff907f707b787d7a7ebc7e36fe70fe703b301ff0df20",
+   "name": "RAAF 飓风 热带型",
+   "type": "fighter"
+  },
+  {
+   "hash": "e521f5a1eda1fb01ff01e700ee40ff00c6d0ee50ee00e640e650e6117d457c41",
+   "name": "RAAF 飓风 热带型",
+   "type": "fighter"
+  },
+  {
+   "hash": "b491b6d1b6d1f301fe019c00b900dc001b00b901b880b90099009d01fe05f181",
+   "name": "RAAF 飓风 热带型",
+   "type": "fighter"
+  },
+  {
+   "hash": "ed48ed49edc9fd01ff807704f608fb00e690e650e602e602f7007301bf45bc81",
+   "name": "RAAF 飓风 热带型",
+   "type": "fighter"
+  },
+  {
+   "hash": "6ed57ad4fed9ffd87fd97a387ebc7e3c7a387f71feb3fe327ef0b9f84f62cf2e",
+   "name": "热浪",
+   "type": "order"
+  },
+  {
+   "hash": "b150b994b554b394dc40de40dadc92ccd2cc80f4dbf4d2e451c67bc4e2ace2c4",
+   "name": "热带风暴",
+   "type": "order"
+  },
+  {
+   "hash": "ac20a6a4a52c8b2cfd40ad80eb78dbbc939c834a8de889c8958ccf885ac81b4c",
+   "name": "热带风暴",
+   "type": "order"
+  },
+  {
+   "hash": "ac20a6aca52c892cf540ad00eb78939c9b9c83caade899c89394cd885ac81b4c",
+   "name": "热带风暴",
+   "type": "order"
+  },
+  {
+   "hash": "6d7a25dc4d9c49cc01cc41e8477055a84de86bc441c8bf9cff98f746d7acc7ae",
+   "name": "热带风暴",
+   "type": "order"
+  },
+  {
+   "hash": "b584b1a42dd0a5c88f8c8f4a8b02030e839499048f2a8baa8716d14030e8b4cc",
+   "name": "第 41 步兵团",
+   "type": "infantry"
+  },
+  {
+   "hash": "5b12cb34997a9978837083708569ad71896cd5c883904b9c5f88e7b4e7b9a633",
+   "name": "雷暴",
+   "type": "order"
+  },
+  {
+   "hash": "19792919ad71fd00ee08ad62a570cf4493748378b379c18ca148e784e7baa62c",
+   "name": "阴云密布",
+   "type": "order"
+  },
+  {
+   "hash": "fde8f869f968ff40fb80b5dca540cf708968831e958aa9aac39ac3a4e73ce73e",
+   "name": "第 27 机枪营",
+   "type": "infantry"
+  },
+  {
+   "hash": "3c6908612e71e9a0f1edf902cfa091a0cf32ed03ac11e988bd84f7909d823990",
+   "name": "海战",
+   "type": "order"
+  },
+  {
+   "hash": "dff0a5e09da88f3ccd9803688368c32da3580daacfc28988c5948b14959b9539",
+   "name": "沉默七师",
+   "type": "infantry"
+  },
+  {
+   "hash": "d6d216d29ce2fae03af2cf6291548ba4f56afd8af9ccc98c89a4a5a8f1300f30",
+   "name": "F2A 水牛",
+   "type": "fighter"
+  },
+  {
+   "hash": "ffe2c9e19dd199b489dc837ca559ad738968d1cc8394bf8cffa4ff78fb1c5f36",
+   "name": "丛林热",
+   "type": "order"
+  },
+  {
+   "hash": "ffa2cf22b9a0d1a247b2b7a3fdc1f711bf20fdccff947d90ff96ff52fb50bb40",
+   "name": "海战",
+   "type": "order"
+  },
+  {
+   "hash": "77b2a579a577cf47b95cc37503788f69b5d5edccf1dca1947dacbcedbcbaac95",
+   "name": "阴云密布",
+   "type": "order"
+  },
+  {
+   "hash": "2de12ce56d31cc31fbc4cbe0c9f091e183e485f0a96a95cc97babfa0ccb18cf3",
+   "name": "旋风",
+   "type": "order"
+  },
+  {
+   "hash": "1ac691c692c218c2ff9077c0cbc099e18bc487f0a960d1c8839a59a09ca49ce8",
+   "name": "旋风",
+   "type": "order"
+  },
+  {
+   "hash": "e7e8a5e08db0cf3cc99c83698f69c32dc3d9f9aaebe2fdc8ffb4ff0cfd9ddd3d",
+   "name": "沉默七师",
+   "type": "infantry"
+  },
+  {
+   "hash": "eff0a5608da8cf38a5580f69cf6dc369e359f52afdb2fd88f4b0ff0df91ddd3b",
+   "name": "沉默七师",
+   "type": "infantry"
+  },
+  {
+   "hash": "efe02fc01f70cf70cb3007d2cadfc252c3b2f754ffa4fb10e9e0fe1af93ad976",
+   "name": "沉默七师",
+   "type": "infantry"
+  },
+  {
+   "hash": "bb60cb409ff099e183e283e485f1ad61a968d5cc83aae1a8bfa4fdb4e4ace4eb",
+   "name": "旋风",
+   "type": "order"
+  },
+  {
+   "hash": "cfd0cbc09df199f389e683e485f0ad6089e8d1cc83aafba8ffa0fda4e4e8e4e8",
+   "name": "旋风",
+   "type": "order"
+  },
+  {
+   "hash": "c350d152d148d300e311d292cb0291a0c322f222c201d220f3c8e394b6c64750",
+   "name": "海战",
+   "type": "order"
+  },
+  {
+   "hash": "c300d212d208d300e313b352c7189132c319d214ca3ad32ab38ae390a6c847da",
+   "name": "团结就是力量",
+   "type": "order"
+  },
+  {
+   "hash": "ae54acd6acc4ac44ff009be067c14dc1036147f149714bd143a9fdc1f260b2f4",
+   "name": "骤雨",
+   "type": "order"
+  },
+  {
+   "hash": "9b70cbc091c09d6103748370a5d9ad318968d5cc83b4f590fba4f4a164ba64ad",
+   "name": "骤雨",
+   "type": "order"
+  },
+  {
+   "hash": "9b70cbc091c09d6103748370a5d9ad318968d5cc83b4f590fba4f4a164b864a8",
+   "name": "骤雨",
+   "type": "order"
+  },
+  {
+   "hash": "57228f2295a0c1a243b2edb2ec41dc11f431f58c75c0d7b4fd94dc8ccdd2c8d9",
+   "name": "海战",
+   "type": "order"
+  },
+  {
+   "hash": "bef0cbc49b8499c483e083c8876aad3089ccd58c83bac3a23fb4c7e497271665",
+   "name": "骄阳",
+   "type": "order"
+  },
+  {
+   "hash": "b1a87d38fd3879344d31ff38cf7891e29be083c1ad39d1c8a1aafbacebe5c629",
+   "name": "骄阳",
+   "type": "order"
+  },
+  {
+   "hash": "0170cb7a9dfad9e003e083e6a550ad71a968d1cc83ac5d943fb8b4bc9f309f30",
+   "name": "季风雨",
+   "type": "order"
+  },
+  {
+   "hash": "ef70cb409dc099610364837085d8adb19968d5cc83a835a03fb8f4a0f430e930",
+   "name": "骤雨",
+   "type": "order"
+  },
+  {
+   "hash": "8698d698c6d0e694e1ccc7a2d1aadda499b2fadcf92af1b0fdc4b9d0e1de9df5",
+   "name": "拦截",
+   "type": "countermeasure"
+  },
+  {
+   "hash": "0f063a817a8179807a80ff81b300bb01f70072007381f780f300b7415363dc91",
+   "name": "拦截",
+   "type": "countermeasure"
+  },
+  {
+   "hash": "9642df609d41da40b8019d019c01d9011a001a213b003c049901b981abc2a24b",
+   "name": "拦截",
+   "type": "countermeasure"
+  },
+  {
+   "hash": "17f069f84db85de841e0036405646570497969cc418c498cf780da188d2c0b30",
+   "name": "季风雨",
+   "type": "order"
+  },
+  {
+   "hash": "ee96fe96fe86fe98ef9aef72cb789df883e085e4a979d1cc8facefa4fd22f926",
+   "name": "季风雨",
+   "type": "order"
+  },
+  {
+   "hash": "ff49ff49ff49ff4cff697971cb789df881e085e5a97991cc97acf7a4ff65bd21",
+   "name": "季风雨",
+   "type": "order"
   }
  ]
 }

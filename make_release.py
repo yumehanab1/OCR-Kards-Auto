@@ -139,6 +139,8 @@ def main() -> int:
             problems.append("zip 有损坏条目")
         if any("\\" in x for x in names):
             problems.append("条目名里有反斜杠(ZIP 规范要求正斜杠)")
+        if any("/mobile/" in x for x in names):
+            problems.append("PC 包混入了 mobile 目录")
         if any(".venv/" in x for x in names):
             problems.append("**包里混进了 .venv** —— 这会让下载的人退 103")
         if any("panel_token" in x for x in names):
@@ -173,7 +175,10 @@ def main() -> int:
                 #   在 SKIP_DIRS 里 -> 每个发布包都载入 0 个模板 -> 费用永远读不出
                 #   -> 每回合按"上一回合+1"推算 -> **没费用还去拖牌被拒绝**。
                 #   现在已经搬到 `config/kredits_digits/`,这里加一条"缺了就报"。
-                f"{BASE}/config/kredits_digits/n_00_mask.png"]
+                f"{BASE}/config/kredits_digits/n_00_mask.png",
+                f"{BASE}/config/weather_variants.json",
+                f"{BASE}/src/weather_cards.py", f"{BASE}/src/hand_cost_filter.py",
+                f"{BASE}/config/hand_cost_digits/1.png"]
         for w in need:
             if w not in names:
                 problems.append(f"缺少 {w}")
