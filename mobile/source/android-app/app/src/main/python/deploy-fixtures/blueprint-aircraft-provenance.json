@@ -1,0 +1,132 @@
+{
+  "schema_version": 1,
+  "calibration_source_frame": 49,
+  "independent_validation_frame": 50,
+  "atlas_regions": [
+    [
+      240,
+      180,
+      506,
+      325
+    ],
+    [
+      730,
+      130,
+      1000,
+      325
+    ],
+    [
+      365,
+      435,
+      575,
+      580
+    ],
+    [
+      715,
+      435,
+      1058,
+      580
+    ]
+  ],
+  "outside_mask_is_zero": true,
+  "calibration_frame_never_counted_as_validation": true,
+  "assets": [
+    {
+      "asset": "blueprint-aircraft-atlas.png",
+      "sha256": "6ec9af4d4fb9adedb906edc5124c2ef007c8965e750dc64190ceaeb2207db678",
+      "bytes": 198828,
+      "source": "repro\\apk_continuation_20261008\\blueprint-profile\\original-selected\\rounds\\001\\frames\\00049.png",
+      "source_sha256": "325733afb3e586dad9eb391145a542aea933be28d516912d19294efc8646a769",
+      "scope": "calibration, clean table regions only",
+      "box": null
+    },
+    {
+      "asset": "blueprint-aircraft-mask.png",
+      "sha256": "8374f7f1c05b4713f5eff4669ab4dcd94de9ad4e759410e44badff0b42f2c381",
+      "bytes": 4605,
+      "source": "repro\\apk_continuation_20261008\\blueprint-profile\\original-selected\\rounds\\001\\frames\\00049.png",
+      "source_sha256": "325733afb3e586dad9eb391145a542aea933be28d516912d19294efc8646a769",
+      "scope": "reviewed clean atlas geometry",
+      "box": null
+    },
+    {
+      "asset": "blueprint-independent-00050.png",
+      "sha256": "5ad1394f956da58192e0b08034be44042dea7e3a09eb0917818e77f739c415fa",
+      "bytes": 198664,
+      "source": "repro\\apk_continuation_20261008\\blueprint-profile\\original-selected\\rounds\\001\\frames\\00050.png",
+      "source_sha256": "bf63164c64a2fabc74ccc3865ccb9d8eb60b3724aa8ffb0ea4389f19ff031ac2",
+      "scope": "independent later real frame, masked to reviewed geometry",
+      "box": null
+    },
+    {
+      "asset": "blueprint-negative-blue-card.png",
+      "sha256": "3c2e0371c3d6a6086996dbced6fbf2aa402fe83de81320c72da7cf2e0456d734",
+      "bytes": 33151,
+      "source": "repro\\apk_continuation_20261008\\blueprint-profile\\original-selected\\rounds\\002\\frames\\00612.png",
+      "source_sha256": "eb29df606e9675b711fb26636ed351f39e2b743d856102333939609647392a87",
+      "scope": "real blue aircraft card crop",
+      "box": [
+        580,
+        102,
+        696,
+        247
+      ]
+    },
+    {
+      "asset": "blueprint-negative-hq.png",
+      "sha256": "4279f664dc462b51bc494539c60077a53f210f09ccc7399b503bc0eb8decba7d",
+      "bytes": 38436,
+      "source": "repro\\apk_continuation_20261008\\blueprint-profile\\original-selected\\rounds\\001\\frames\\00049.png",
+      "source_sha256": "325733afb3e586dad9eb391145a542aea933be28d516912d19294efc8646a769",
+      "scope": "real HQ crop, same calibration source; negative only",
+      "box": [
+        584,
+        435,
+        700,
+        580
+      ]
+    },
+    {
+      "asset": "blueprint-negative-green.png",
+      "sha256": "bac2d160565674a56895459bb9eb3734400473e780a08cb27c16326ca499fb00",
+      "bytes": 11537,
+      "source": "repro\\apk_continuation_20261008\\blueprint-profile\\original-selected\\rounds\\002\\frames\\00258.png",
+      "source_sha256": "21220748911bc1a16444b6172cc45706f4cea3c18aa102cfc176a2c6944f884a",
+      "scope": "real green surface crop, independent second round",
+      "box": [
+        850,
+        435,
+        966,
+        580
+      ]
+    },
+    {
+      "asset": "blueprint-negative-wood.png",
+      "sha256": "33c4135778fd85122d26b6642a5e1fe613f79e364c42b011b12662e96b13d429",
+      "bytes": 18371,
+      "source": "repro\\apk_modes_20261007\\live-ranked-03-final\\files\\battle\\1791383170261-bad85a5e\\frames\\00045.png",
+      "source_sha256": "1568e8690b99c46e06623f722d372311aabaeba9bc4fa9157290912886baa232",
+      "scope": "real wood surface crop, historical saved battle frame",
+      "box": [
+        728,
+        435,
+        844,
+        580
+      ]
+    },
+    {
+      "asset": "blueprint-negative-cloth.png",
+      "sha256": "c94ef86cd0038c88224590cc256d680a3d1fa3f056d0cb0feeadbd065d49e7be",
+      "bytes": 40440,
+      "source": "repro\\apk_battle_20261005\\code16-host-replay\\japan_standard_20\\frames\\1.png",
+      "source_sha256": "3e7396035939e0723e0eda94bf002466555c43812bd8fa04f03826884a97ed70",
+      "scope": "real Japanese cloth surface crop, historical saved frame",
+      "box": [
+        728,
+        435,
+        844,
+        580
+      ]
+    }
+  ]
+}

@@ -64,6 +64,6 @@ Release 附件上传；面板用此清单列出变更，用户点击“应用更
 
 ## 手机端 / Android 发布
 
-手游线维护在独立的 runtime-test 目录。不要把手游源码、设备日志、截图或构建目录复制进 PC 仓库。发布时生成独立的 `KARDS-AUTO-Mobile-vX.Y.Z.zip` 与同名 `.manifest.json`，写入 APK、安装说明、公开验证报告和 SHA-256/大小清单，再作为独立资产上传到已有 GitHub Release。
+手游线在独立的 runtime-test 目录维护，发布源码快照放`mobile/source/android-app/`，不能从PC源码覆盖手游运行副本。不要提交设备原始日志/截图、构建目录、运行环境或签名私钥。手机版发布将`KARDS-AUTO-Mobile-vX.Y.Z.apk`直接上传到已有同版本GitHub Release；安装说明、公开验证报告和SHA-256/大小记录放仓库手机版目录，PC资产保持独立。
 
 公开报告必须写明 APK 版本/版本号、包 SHA-256、KARDS 版本、测试系统、输入与结果证据和未覆盖路径。绝对路径、凭据、账号名、原始日志和截图不得进入公开包。

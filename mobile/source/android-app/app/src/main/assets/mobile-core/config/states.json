@@ -1,0 +1,44 @@
+{
+  "_note": "★★★ 顺序 = **优先级**(classify 取第一个命中的)。2026-09-17 踩到才明白:『开始』那一屏和主菜单**共用左侧边栏的 play_btn**,所以 main_menu 排在前面时,牌组列表会被判成 main_menu。⇒ 规矩:**具体的屏排在通用的屏前面**。 ★★ 而且 `play_btn`(侧边栏「开始」)**根本不能当判据** —— 实测它在**三个屏**上都 1.000:轮播主菜单、卡包/收藏页、牌组列表(0.825~0.968)。所以 main_menu 的判据换成了 `quest_btn`(底部「军需箱/任务」那一条):它只在这一屏出现,而且轮播换图时**差 0.00%**(实测)。 ★★ `deck_select` 里**故意没有** `versus_mode_btn`:那个只裁了「对战模式」**一行**,选中态一变(点训练模式)就从 1.000 掉到 **0.844** —— 离阈值 0.82 只剩 0.024;而裁**整块菜单**的 `mode_menu_btn` 同样情况下只从 1.000 掉到 **0.940**。⇒ **判据要用「整块」不要用「一行」**。",
+  "states": {
+    "deck_select": {
+      "any_of": [
+        "mode_menu_btn",
+        "casual_mode_btn",
+        "deck_ok_btn"
+      ]
+    },
+    "queueing": {
+      "any_of": [
+        "queue_cancel"
+      ]
+    },
+    "mulligan": {
+      "any_of": [
+        "mulligan_ok_btn"
+      ]
+    },
+    "in_game": {
+      "any_of": [
+        "end_turn_btn",
+        "end_turn_btn_white"
+      ]
+    },
+    "victory": {
+      "any_of": [
+        "victory_btn"
+      ]
+    },
+    "defeat": {
+      "any_of": [
+        "defeat_btn"
+      ]
+    },
+    "main_menu": {
+      "any_of": [
+        "quest_btn"
+      ]
+    }
+  },
+  "_note_20260919": "in_game 的判据是『结束回合按钮在不在』—— 它**只在轮到我们时显示**(用户原话)。同一个按钮有橙色/白色两种渲染,所以要 any_of 两个模板。"
+}

@@ -1,0 +1,4 @@
+android-app/app/src/main/assets/** -text
+android-app/app/src/main/python/** -text
+android-app/gradle/wrapper/gradle-wrapper.jar -text
+android-app/gradlew text eol=lf

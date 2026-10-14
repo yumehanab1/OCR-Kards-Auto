@@ -1,0 +1,12 @@
+{
+  "image_size": [1280, 720],
+  "templates": {
+    "victory_btn": {
+      "path": "ui_templates/android/victory/victory_btn.png",
+      "region": {"x": 504, "y": 402, "w": 271, "h": 174},
+      "_manual": "544,442,191,94@0027_normalized.png; Chinese victory text only, excludes nation emblem",
+      "_source": "shots/android/hand/runtime_20261003f/repro/native_f2_fetch_002/native_f2_play_002/20261003_140938_afeadb/0027_normalized.png"
+    }
+  },
+  "_note": "runtime-test 2026-10-03, KARDS Android 1.60.27292. Source self-match is not validation. Later root capture 07_f2_stop_inspect and other saved victory frames are same-match temporal holdouts, not cross-match generalization. This template records only the victory lettering, not the national emblem."
+}

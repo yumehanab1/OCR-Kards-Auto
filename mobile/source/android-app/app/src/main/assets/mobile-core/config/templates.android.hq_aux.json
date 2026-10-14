@@ -1,0 +1,46 @@
+{
+  "image_size": [
+    1280,
+    720
+  ],
+  "templates": {
+    "hq_red3_aux": {
+      "path": "ui_templates/android/hq/red3_g5_183.png",
+      "region": {
+        "x": 200,
+        "y": 70,
+        "w": 920,
+        "h": 520
+      }
+    }
+  },
+  "provenance": {
+    "source_frame": "shots/android/hand/runtime_20261003g/repro/native_g5_fetch_001/native_g5_play_001/20261003_230300_068d9c/0183_normalized.png",
+    "source_sha256": "faf5ace025132ac46c60d0e0cabf443b4418f481a9c140482e9c8f8d3f8ca7fe",
+    "source_side": "our",
+    "source_game": "G5 previous match",
+    "manually_reviewed_value": 3,
+    "color": "red",
+    "shield_box": [
+      615,
+      517,
+      54,
+      45
+    ],
+    "glyph_box_in_shield": [
+      18,
+      15,
+      20,
+      27
+    ],
+    "glyph_box_in_normalized_frame": [
+      633,
+      532,
+      20,
+      27
+    ],
+    "normalization": "BGR to grayscale, cv2.INTER_AREA to 32x32; no generated pixels beyond resize",
+    "template_sha256": "da802f84c3bec8d50d789b9509093245d5f2f17f9aa3c1f66442dbe46546bc5e",
+    "source_self_match_is_not_validation": true
+  }
+}

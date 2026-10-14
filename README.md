@@ -79,13 +79,13 @@ install.cmd
 
 ## 手机端 / Android
 
-[手机版源码入口](mobile/source/README.md)保留在仓库。v0.2.1 Release 已预留手机版说明区域，等待独立上传；现有 v0.2.0 下载仍可使用。
+[手机版源码](mobile/source/README.md)已补入仓库，Android项目与PC源码独立维护。
 
-手游助手与 Windows PC 端分开维护。请从 [v0.2.0 Release](https://github.com/yumehanab1/OCR-Kards-Auto/releases/tag/v0.2.0) 的 **Mobile / Android** 区域下载：
+请从 [v0.2.1 Release](https://github.com/yumehanab1/OCR-Kards-Auto/releases/tag/v0.2.1) 的 **Mobile / Android** 区域直接下载：
 
-- `KARDS-AUTO-Mobile-v0.2.0.zip`：APK、安装说明和公开验证报告。
-- `KARDS-AUTO-Mobile-v0.2.0.manifest.json`：包内文件的 SHA-256 与大小清单。
+- [KARDS-AUTO-Mobile-v0.2.1.apk](https://github.com/yumehanab1/OCR-Kards-Auto/releases/download/v0.2.1/KARDS-AUTO-Mobile-v0.2.1.apk)：直接安装，无需解压。
+- [安装说明](mobile/README.md)及[验证报告/SHA-256](docs/reports/mobile/APK_0.2.1_RELEASE.md)。旧0.2.0资产保留在历史Release。
 
-当前包包含 code57 / versionName 0.8.31。runtime-test 模拟器配合 KARDS 1.60.27292/code2703 完成了休闲模式连续 5 局实测：5/5 胜利，330 次战斗输入均 accepted/completed，每局胜负和回页均确认。实体手机、脱离主机和完整断线重连仍未验收，详见仓库及包内报告。
+当前包为0.2.1 / versionCode109，包含悬浮启停/阶段显示、行动后部署、特殊外观识别与350MiB截图证据预算。经过正式构建、签名、覆盖安装及Android识别/截图回放验证；十局实机及截图单局证据来自明确列出的开发版本，不称0.2.1新十局通过。实体手机、脱离主机及完整断线重连仍未验收。
 
 手机端只依赖 APK 和 Android 无障碍权限，运行时不依赖 Windows、ADB、Python 或 PC 端程序。PC 端验证结果不能替代手游验证。

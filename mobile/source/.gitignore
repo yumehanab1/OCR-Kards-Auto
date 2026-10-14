@@ -1,0 +1,14 @@
+**/.gradle/
+**/build/
+**/out/
+**/out-json/
+**/__pycache__/
+**/local.properties
+*.apk
+*.aab
+*.jks
+*.keystore
+*.log
+*.class
+!android-app/app/src/main/assets/mobile-core/shots/
+!android-app/app/src/main/assets/mobile-core/shots/**

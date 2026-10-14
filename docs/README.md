@@ -28,4 +28,4 @@
 
 手游/Android 相关状态文档属于独立维护线，不能因为 PC 目录整理而删除或覆盖；本机副本有 `MOBILE_STATE.md` 时，请放入 `reports/mobile/`。完整日志、截图、账号昵称和绝对路径留在本机 `shots/`、`logs/` 或归档副本中，不提交到公共仓库。
 
-发布页按平台分区：PC 使用根目录源码和 `kards-auto_vX.Y.Z_x86_64.zip`，手机版通过仓库根目录 [`mobile/`](../mobile/) 预留说明并在同一 Release 页面上传独立的 `KARDS-AUTO-Mobile-vX.Y.Z.zip`。两个包不互相覆盖源码或运行材料。
+发布页按平台分区：PC使用根目录源码和`kards-auto_vX.Y.Z_x86_64.zip`，手机版源码在[`mobile/source/`](../mobile/source/)，同一Release直接上传`KARDS-AUTO-Mobile-vX.Y.Z.apk`。两条维护线不互相覆盖源码或运行材料。

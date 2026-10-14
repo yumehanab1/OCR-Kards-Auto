@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "file": "native_end_turn_source.png",
+  "source_file": "android-app\\app\\src\\androidTest\\assets\\native-pipeline-probe\\frame-01.png",
+  "source_sha256": "b841a761b1d94a511e85284aada2ad025a71fedebc87c8788d37a7a0f3f15951",
+  "source_height": 822,
+  "bounds": [
+    1603,
+    545,
+    198,
+    56
+  ],
+  "asset_sha256": "a5b2b95d7d97115acbf8710179381a609945c927b5a421f71c1965ec5b505178",
+  "scope": "source_pixel_end_control_only_not_whole_board",
+  "source_is_development_template": true
+}

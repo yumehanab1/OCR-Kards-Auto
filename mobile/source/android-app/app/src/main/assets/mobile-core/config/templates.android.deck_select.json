@@ -1,0 +1,42 @@
+{
+  "image_size": [
+    1280,
+    720
+  ],
+  "templates": {
+    "mode_menu_btn": {
+      "path": "ui_templates/android/deck_select/mode_menu_btn.png",
+      "region": {
+        "x": 100,
+        "y": 35,
+        "w": 290,
+        "h": 425
+      },
+      "_from_score": null,
+      "_manual": "160,95,170,305@(=--frame)"
+    },
+    "casual_mode_btn": {
+      "path": "ui_templates/android/deck_select/casual_mode_btn.png",
+      "region": {
+        "x": 1082,
+        "y": 394,
+        "w": 192,
+        "h": 154
+      },
+      "_from_score": null,
+      "_manual": "1142,454,72,34@(=--frame)"
+    },
+    "deck_ok_btn": {
+      "path": "ui_templates/android/deck_select/deck_ok_btn.png",
+      "region": {
+        "x": 1002,
+        "y": 446,
+        "w": 278,
+        "h": 168
+      },
+      "_from_score": null,
+      "_manual": "1062,506,210,48@(=--frame)"
+    }
+  },
+  "_note": "★ 这一屏的模板**故意只有三个**,都是手动给坐标 + 在另一帧上验过。★ 删掉的两个要记住为什么:(1) `queue_cancel` 自动定位到 0.674,裁出来的其实是「开始」那块地方,会让状态机在牌组详情页**误报 queueing**(实测命中 1.000);(2) `versus_mode_btn` 只裁了「对战模式」**一行**,点一下「训练模式」让选中态一变,它就从 1.000 掉到 **0.844**(离阈值 0.82 只剩 0.024),而裁**整块菜单**的 `mode_menu_btn` 同样情况下只掉到 **0.940**。⇒ **判据要用「整块」不要用「一行」**。"
+}

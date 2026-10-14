@@ -1,0 +1,120 @@
+{
+  "image_size": [
+    1280,
+    720
+  ],
+  "templates": {
+    "end_turn_btn": {
+      "path": "ui_templates/android/ingame/end_turn_btn.png",
+      "region": {
+        "x": 1017,
+        "y": 425,
+        "w": 263,
+        "h": 158
+      },
+      "_from_score": null,
+      "_manual": "1077,485,158,38@(=--frame)"
+    },
+    "order_icon": {
+      "path": "ui_templates/android/ingame/order_icon.png",
+      "region": {
+        "x": 17,
+        "y": 483,
+        "w": 156,
+        "h": 153
+      },
+      "_from_score": 0.745,
+      "_from_scale": 1.5
+    },
+    "infantry_icon": {
+      "path": "ui_templates/android/ingame/infantry_icon.png",
+      "region": {
+        "x": 493,
+        "y": 153,
+        "w": 150,
+        "h": 150
+      },
+      "_from_score": null,
+      "_manual": "553,213,30,30@f2.png"
+    },
+    "tank_icon": {
+      "path": "ui_templates/android/ingame/tank_icon.png",
+      "region": {
+        "x": 5,
+        "y": 592,
+        "w": 144,
+        "h": 128
+      },
+      "_from_score": 0.649,
+      "_from_scale": 0.7
+    },
+    "fighter_icon": {
+      "path": "ui_templates/android/ingame/fighter_icon.png",
+      "region": {
+        "x": 17,
+        "y": 65,
+        "w": 142,
+        "h": 142
+      },
+      "_from_score": 0.684,
+      "_from_scale": 0.7
+    },
+    "bomber_icon": {
+      "path": "ui_templates/android/ingame/bomber_icon.png",
+      "region": {
+        "x": 367,
+        "y": 601,
+        "w": 147,
+        "h": 119
+      },
+      "_from_score": 0.718,
+      "_from_scale": 0.9
+    },
+    "counter_icon": {
+      "path": "ui_templates/android/ingame/counter_icon.png",
+      "region": {
+        "x": 47,
+        "y": 581,
+        "w": 146,
+        "h": 139
+      },
+      "_from_score": 0.633,
+      "_from_scale": 1.2
+    },
+    "artillery_icon": {
+      "path": "ui_templates/android/ingame/artillery_icon.png",
+      "region": {
+        "x": 369,
+        "y": 595,
+        "w": 145,
+        "h": 125
+      },
+      "_from_score": 0.644,
+      "_from_scale": 0.9
+    },
+    "cost_num": {
+      "path": "ui_templates/android/ingame/cost_num.png",
+      "region": {
+        "x": 18,
+        "y": 482,
+        "w": 148,
+        "h": 147
+      },
+      "_from_score": 0.642,
+      "_from_scale": 1.5
+    },
+    "end_turn_btn_white": {
+      "path": "ui_templates/android/ingame/end_turn_btn_white.png",
+      "region": {
+        "x": 1017,
+        "y": 415,
+        "w": 263,
+        "h": 175
+      },
+      "_from_score": null,
+      "_manual": "1113,440,158,38@live_user_says_fine.png",
+      "_why": "同一场比赛里按钮有两种配色:橙色高亮(老模板认)和白色(这个)。用户确认『显示就是轮到我、而且可以点』,所以两种都要认。"
+    }
+  },
+  "_note": "由 template_rebuild.py 从 shots/android/ingame/f0.png 重建(每个模板记着定位分数 _from_score / 缩放 _from_scale);**同一帧上的分数是自匹配,不算验证** —— 要用 --verify 另给一帧"
+}

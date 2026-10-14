@@ -1,0 +1,120 @@
+{
+  "schema_version": 1,
+  "system_id": "runtime-test",
+  "date": "2026-10-05",
+  "game_version": "1.60.27292/code2703",
+  "scope": "Single keep-all opening confirmation only. No unit identity or combat authorization.",
+  "templates": [
+    {
+      "asset": "mulligan_ok_btn.png",
+      "source_template": "ui_templates/android/mulligan/mulligan_ok_btn.png",
+      "source_sha256": "d7a0204bcf082bc1ae97af39b24dc2edd0a97c9ca308c45f8ea64c29b2ac6b6d",
+      "asset_sha256": "d7a0204bcf082bc1ae97af39b24dc2edd0a97c9ca308c45f8ea64c29b2ac6b6d"
+    },
+    {
+      "asset": "end_turn_btn.png",
+      "source_template": "ui_templates/android/ingame/end_turn_btn.png",
+      "source_sha256": "2cf275b9eb934f0211ed0ef25eb127785e6138e38a64b66c08087d0c6e1c4465",
+      "asset_sha256": "2cf275b9eb934f0211ed0ef25eb127785e6138e38a64b66c08087d0c6e1c4465"
+    },
+    {
+      "asset": "end_turn_btn_white.png",
+      "source_template": "ui_templates/android/ingame/end_turn_btn_white.png",
+      "source_sha256": "70b4682086ebbb838825280bfbb8e2bb7981939a23205c60857dabf1ef10d86b",
+      "asset_sha256": "70b4682086ebbb838825280bfbb8e2bb7981939a23205c60857dabf1ef10d86b"
+    },
+    {
+      "asset": "mulligan_title.png",
+      "source_frame": "shots/android/hand/runtime_20261003g/37_g7_opening/after_raw.png",
+      "source_sha256": "7a976b648cbd2695da3fd847c7498235894b3cbed7a4483977933b3165ca74b3",
+      "source_size": [
+        1920,
+        1080
+      ],
+      "normalized_size": [
+        1280,
+        720
+      ],
+      "normalization": "OpenCV INTER_LINEAR",
+      "crop_xywh": [
+        475,
+        45,
+        335,
+        58
+      ],
+      "asset_sha256": "3144f36fa72315e18fa8c86dd63f0c8b891c2f535c1b7497cd14248da8c3892e"
+    },
+    {
+      "asset": "mulligan_ok_btn_compact.png",
+      "layout": "compact",
+      "source_frame": "repro/apk_first_action_20261005/session-02/files/single-action/1791187875729-edb3bc7b/frame-0001.png",
+      "source_sha256": "83ce640bea7b04b4c79883a525bbfb658bf61596ce9142bb0957edf42efe27f1",
+      "source_size": [
+        1280,
+        720
+      ],
+      "normalized_size": [
+        1280,
+        720
+      ],
+      "normalization": "already normalized by Android APK frame adapter",
+      "crop_xywh": [
+        529,
+        646,
+        222,
+        51
+      ],
+      "asset_sha256": "240131802acf91900589ff7119bac9faab06e64a5d96f70cc1edaef6b51f134e",
+      "independence": "Session02 template source. Watch frames 0021..25 are same scene, not independent games."
+    },
+    {
+      "asset": "mulligan_title_compact.png",
+      "layout": "compact",
+      "source_frame": "repro/apk_first_action_20261005/session-02/files/single-action/1791187875729-edb3bc7b/frame-0001.png",
+      "source_sha256": "83ce640bea7b04b4c79883a525bbfb658bf61596ce9142bb0957edf42efe27f1",
+      "source_size": [
+        1280,
+        720
+      ],
+      "normalized_size": [
+        1280,
+        720
+      ],
+      "normalization": "already normalized by Android APK frame adapter",
+      "crop_xywh": [
+        522,
+        30,
+        239,
+        44
+      ],
+      "asset_sha256": "438da2e1900811555b64c407c9f49f5eea72433b0fe9c7d402b574d9c7adb27e",
+      "independence": "Session02 template source. Watch frames 0021..25 are same scene, not independent games."
+    }
+  ],
+  "source_notes": {
+    "mulligan_ok_btn.png": "Existing mobile template from shots/android/queue/q_c.png, original normalized crop 486,617,308,70; q_c is template-source evidence only.",
+    "end_turn_btn.png": "Existing mobile template from shots/android/ingame/f0.png crop 1077,485,158,38; f0 is source evidence only.",
+    "end_turn_btn_white.png": "Existing mobile template from shots/android/hand/live_user_says_fine.png crop 1113,440,158,38; config/templates.android.ingame.json records original source."
+  },
+  "layout_notes": {
+    "standard": "Original 308x70 confirmation at 486,617; title 335x58 at 475,45.",
+    "compact": "HUD confirmation 222x51 at 529,646; title 239x44 at 522,30; card/board geometry is unchanged. Source dimension alone does not identify layout.",
+    "template_threshold": 0.94,
+    "compact_resource_rois_xyxy": [
+      [
+        20,
+        94,
+        79,
+        148
+      ],
+      [
+        20,
+        566,
+        79,
+        621
+      ]
+    ],
+    "historic_search": "528 saved images scanned read-only; compact opening hits only source session02 plus 0021..25 same-scene host captures. No independent older compact opening positive found.",
+    "postcondition": "End-turn templates and board/resource postcondition unchanged. compact-current.png is checked with existing white end-turn template."
+  }
+}

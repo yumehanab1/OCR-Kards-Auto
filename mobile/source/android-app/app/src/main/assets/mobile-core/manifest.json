@@ -1,0 +1,1173 @@
+{
+  "schema_version": 1,
+  "source": "Shared mobile production tree; copied without modification",
+  "maintenance_line": "APK embedded mobile copy; PC source maintained independently",
+  "runtime": {
+    "python": "3.10",
+    "numpy": "1.26.2",
+    "opencv_python": "4.5.1.48"
+  },
+  "excluded_input_backends": [
+    "platform_android.py",
+    "platform_win.py",
+    "win.py",
+    "adb_local.py",
+    "main_loop.py",
+    "gui.py",
+    "ondevice.py"
+  ],
+  "required_adapter": "APK registers its own win shim and platformapi platform before core imports",
+  "content_sha256": "873af4113352507d57489a693ed1237eec4c8f169795516d4d934cdce32e96e0",
+  "files": [
+    {
+      "path": "config/board_android.json",
+      "size": 4108,
+      "sha256": "753bc60532daed8c19196debc1605ba09a32fc201f839f0a1211b6986e2ad806"
+    },
+    {
+      "path": "config/hq_hp_digits/0/0911_122530_001_r0_c0_g1.png",
+      "size": 756,
+      "sha256": "9addf22440d047cddb563b86274c1c50ed05438d793989a213dbbf0db0652a37"
+    },
+    {
+      "path": "config/hq_hp_digits/0/0911_122530_002_r0_c0_g1.png",
+      "size": 721,
+      "sha256": "7ca1f010837c8281314cb30dfc5219776926b5144c89193c9ac19a5487c970fb"
+    },
+    {
+      "path": "config/hq_hp_digits/0/0911_122530_003_r0_c0_g1.png",
+      "size": 788,
+      "sha256": "b31d69807188d7a295b6d2b039ea6aebc9480ed56d09bb0fbe109f47a55f9461"
+    },
+    {
+      "path": "config/hq_hp_digits/0/0911_122530_004_r0_c0_g1.png",
+      "size": 791,
+      "sha256": "4db03879a75617b4e0dd0f70ee33455a4490d3792540392438ec1e3f885137f6"
+    },
+    {
+      "path": "config/hq_hp_digits/0/0911_122530_005_r0_c0_g1.png",
+      "size": 788,
+      "sha256": "b31d69807188d7a295b6d2b039ea6aebc9480ed56d09bb0fbe109f47a55f9461"
+    },
+    {
+      "path": "config/hq_hp_digits/0/0912_162525_attack_r1_c3_g1.png",
+      "size": 695,
+      "sha256": "95de0d4a9b4db4c791277e01bb101d3dc3ba2f452480a25f05587c2371737c0a"
+    },
+    {
+      "path": "config/hq_hp_digits/0/0912_162537_attack_r1_c3_g1.png",
+      "size": 697,
+      "sha256": "0815fdcece93ca70a5d7754883433d4e8f5f7ce06a26ed38d8d595eb08c4e624"
+    },
+    {
+      "path": "config/hq_hp_digits/0/0912_162550_attack_r1_c3_g1.png",
+      "size": 696,
+      "sha256": "bb7542a3a169678ce06b43af0680444608fbcd512a33676dbab3567f4372b97a"
+    },
+    {
+      "path": "config/hq_hp_digits/0/0912_162750_attack_r1_c3_g1.png",
+      "size": 679,
+      "sha256": "75b27e2d3f22ca054baa808499bef7729e1b59fa51b1d254a63fba9b77e9297a"
+    },
+    {
+      "path": "config/hq_hp_digits/0/0912_162931_attack_r1_c3_g1.png",
+      "size": 694,
+      "sha256": "5574996eb7bd3fa6546b1a033b8017aa99b9d4b4eec6571e7bc76d7634979bc9"
+    },
+    {
+      "path": "config/hq_hp_digits/0/0912_163106_attack_r1_c3_g1.png",
+      "size": 702,
+      "sha256": "fe90b49dee08b04ae9988df01dd15205d2215af2715265c9a3ba87f895c6e7a7"
+    },
+    {
+      "path": "config/hq_hp_digits/0/0912_163200_attack_r1_c4_g1.png",
+      "size": 675,
+      "sha256": "ea41e6242541791db4d29902f464e2e36e7ff2b9065a3418c1cff722a1a7e14f"
+    },
+    {
+      "path": "config/hq_hp_digits/0/0912_163245_attack_r1_c4_g1.png",
+      "size": 677,
+      "sha256": "e1243c348091dcc64e62822f16c9011b38d2af7cf7de17fba5eb5386c0faec2f"
+    },
+    {
+      "path": "config/hq_hp_digits/0/0912_164939_attack_r0_c0_g1.png",
+      "size": 703,
+      "sha256": "be30004a6437708f36d889f1d155c0051d9e80ff295f74e7065500f13ab8fe21"
+    },
+    {
+      "path": "config/hq_hp_digits/0/0912_164939_attack_r1_c1_g1.png",
+      "size": 704,
+      "sha256": "d914f99b9ee1e1fb1976a9fd7caf4133fccc98e1858b820bd2773f6e041bc2a4"
+    },
+    {
+      "path": "config/hq_hp_digits/0/0912_165054_attack_r0_c1_g1.png",
+      "size": 745,
+      "sha256": "d97924e092632b61d5ba0ee05f1b0faa990c13888f2302a5673d0d918b375f0c"
+    },
+    {
+      "path": "config/hq_hp_digits/0/0912_165054_attack_r1_c2_g1.png",
+      "size": 761,
+      "sha256": "84fdbb08fe4217a178adf5d86fd3c1db43c053aef3059c8251bc508892821be9"
+    },
+    {
+      "path": "config/hq_hp_digits/0/0912_165156_attack_r0_c0_g1.png",
+      "size": 701,
+      "sha256": "eea2ea05b73bafcbe3b3c168edef8e5cbc0d9bfe188d8722cd255493da872045"
+    },
+    {
+      "path": "config/hq_hp_digits/0/0912_165156_attack_r1_c2_g1.png",
+      "size": 759,
+      "sha256": "57a43d5733f683e74e6ae7119c7bbf8ebe4b77d056ca86abb41cd133a25e89d5"
+    },
+    {
+      "path": "config/hq_hp_digits/0/0912_165207_attack_r0_c0_g1.png",
+      "size": 700,
+      "sha256": "4229fa3f5490e88bf85b5bd5c181465c66891afb6b0a0ec89162f97d78598678"
+    },
+    {
+      "path": "config/hq_hp_digits/0/0912_165207_attack_r1_c1_g1.png",
+      "size": 781,
+      "sha256": "bcb1824ab84b7fc48d3679f4f6441b5e82d2d32a57a49502293d65e7c9ddf460"
+    },
+    {
+      "path": "config/hq_hp_digits/0/0912_165313_attack_r0_c1_g1.png",
+      "size": 716,
+      "sha256": "12c40367ce1502d0874c761a67144fd119cf621298990ecc2468bbb917379c01"
+    },
+    {
+      "path": "config/hq_hp_digits/0/0912_165505_attack_r0_c2_g1.png",
+      "size": 758,
+      "sha256": "127d0e7810d8a8ffd128acaaa4063244ec423b40d3ee59556d1a75257cbd67bf"
+    },
+    {
+      "path": "config/hq_hp_digits/0/0912_165630_attack_r0_c1_g1.png",
+      "size": 692,
+      "sha256": "536db2c23149d8206e74cdf0cf7d1eb10b7832911d2916d7010ee9c2ca8c6fec"
+    },
+    {
+      "path": "config/hq_hp_digits/0/0912_165639_attack_r0_c1_g1.png",
+      "size": 690,
+      "sha256": "a743f6fdfe909dde6affb171c277d9e83bad801889395ffcc5f0c2c3d2d56b54"
+    },
+    {
+      "path": "config/hq_hp_digits/1/0911_122530_001_r1_c1_g0.png",
+      "size": 480,
+      "sha256": "c43163039987f065b4785356d1a983165469d736abbb48934df27794bcd42c3c"
+    },
+    {
+      "path": "config/hq_hp_digits/1/0911_122530_002_r1_c1_g0.png",
+      "size": 515,
+      "sha256": "1d71110121cb72dd718a424c92f8bef6bb7c762f6d0c73342d70bf04dc447ce7"
+    },
+    {
+      "path": "config/hq_hp_digits/1/0911_122530_003_r1_c1_g0.png",
+      "size": 515,
+      "sha256": "dd0b44f88da25c48669832c3659c309ca1de3bdf3a232a023af01220672c78b8"
+    },
+    {
+      "path": "config/hq_hp_digits/1/0911_122530_004_r1_c0_g0.png",
+      "size": 516,
+      "sha256": "d9788bb9fa398a10be675bc8b3e49377e7e352682e0f2c584ab2096e216a487b"
+    },
+    {
+      "path": "config/hq_hp_digits/1/0911_122530_005_r1_c1_g0.png",
+      "size": 518,
+      "sha256": "25735827dbb0e433e9e38b4f23933037405a02f5eb03494fab0ae78aea03e375"
+    },
+    {
+      "path": "config/hq_hp_digits/1/0912_162110_attack_r0_c0_g0.png",
+      "size": 493,
+      "sha256": "ccf455420e9672356b728a11e19008afd08233bf121a2431fa58c3e55909d4fa"
+    },
+    {
+      "path": "config/hq_hp_digits/1/0912_162110_attack_r1_c4_g0.png",
+      "size": 495,
+      "sha256": "1cc31797a7ad595c6664680311d49e07ed9bba38e0d79247b20f4ae7e10f38e0"
+    },
+    {
+      "path": "config/hq_hp_digits/1/0912_162327_attack_r0_c0_g0.png",
+      "size": 493,
+      "sha256": "f63493b8d09bf3e07109bf5cb2f7c2a5f1f2de733d066549b20379aeaff68b1d"
+    },
+    {
+      "path": "config/hq_hp_digits/1/0912_162327_attack_r1_c4_g0.png",
+      "size": 491,
+      "sha256": "3e98fce820ec6011f13627dc9aea54bb687f22f22f970ea1b866ca72ac8aa7b0"
+    },
+    {
+      "path": "config/hq_hp_digits/1/0912_162525_attack_r0_c1_g0.png",
+      "size": 499,
+      "sha256": "ff0d4ef78f3f254af46e6a7c6a9900c6eff1c1eb65af6bff5168c58340614907"
+    },
+    {
+      "path": "config/hq_hp_digits/1/0912_162525_attack_r1_c3_g0.png",
+      "size": 496,
+      "sha256": "d1e079a432f710f71b2e9db67478cfea06bbb25badbf7c8504457f9c730f813b"
+    },
+    {
+      "path": "config/hq_hp_digits/1/0912_162537_attack_r0_c1_g0.png",
+      "size": 499,
+      "sha256": "8819971f5d0c1220d3efde5fbc1bd1af165fb65e839f0e391b08b307c5e57264"
+    },
+    {
+      "path": "config/hq_hp_digits/1/0912_162537_attack_r1_c3_g0.png",
+      "size": 496,
+      "sha256": "603c9b049b9935d1f1197621b7e70a11969e09a08dbc92d4c2214f92fd21f5c8"
+    },
+    {
+      "path": "config/hq_hp_digits/1/0912_162550_attack_r1_c3_g0.png",
+      "size": 499,
+      "sha256": "6a12df5a8988487fa0574179dedb7e88783c0821353633b55d4797b634eeeb73"
+    },
+    {
+      "path": "config/hq_hp_digits/1/0912_162750_attack_r1_c3_g0.png",
+      "size": 478,
+      "sha256": "a5857e27d1ced5842d4e4b372bf66b66b5270b003a64404fcc0aedd843cf0866"
+    },
+    {
+      "path": "config/hq_hp_digits/1/0912_162931_attack_r1_c3_g0.png",
+      "size": 493,
+      "sha256": "2ab4c8294c523e507d721e22d82e99d9ac246e2e52e8518c376e8c860b61668b"
+    },
+    {
+      "path": "config/hq_hp_digits/1/0912_163106_attack_r1_c3_g0.png",
+      "size": 470,
+      "sha256": "bbd0b68f836a52c9273e3573aa07e0dc4b71bc00ec781e3777df51d37ff5670d"
+    },
+    {
+      "path": "config/hq_hp_digits/1/0912_163200_attack_r1_c4_g0.png",
+      "size": 496,
+      "sha256": "dd106636c7f0882b24ef606652380853c9ac3c746c4287f48cdad5570cf3815f"
+    },
+    {
+      "path": "config/hq_hp_digits/1/0912_163245_attack_r1_c4_g0.png",
+      "size": 497,
+      "sha256": "458a11ad81193f80a9a418d6bc3a5b57a7a385b4a04906d2e38a5e4c95cc0eec"
+    },
+    {
+      "path": "config/hq_hp_digits/1/0912_165313_attack_r1_c1_g0.png",
+      "size": 463,
+      "sha256": "44bdf1bbc60e54b80bb35cbcb81a9b6cca800a43c31b65773a14c78552485bbb"
+    },
+    {
+      "path": "config/hq_hp_digits/1/0912_165505_attack_r1_c3_g0.png",
+      "size": 483,
+      "sha256": "2e2d8bb8a8995174206a659627522ec664d6456739a7124270df6eb2534c51a5"
+    },
+    {
+      "path": "config/hq_hp_digits/1/0912_165630_attack_r1_c3_g0.png",
+      "size": 494,
+      "sha256": "9fed1c5357c6e6118a5a83427b77cc63185d10c1e890f1f93e7e389eb58dcb12"
+    },
+    {
+      "path": "config/hq_hp_digits/1/0912_165639_attack_r1_c2_g0.png",
+      "size": 474,
+      "sha256": "129f05f49956cd75d64982c8dbef521930fc6a167b4901e749c511cd6a47245d"
+    },
+    {
+      "path": "config/hq_hp_digits/1/0912_165809_attack_r0_c1_g0.png",
+      "size": 494,
+      "sha256": "84e3a52248cfe0151b1c701ff1115d49c5f8726428c77b30ac7b638f2df58de6"
+    },
+    {
+      "path": "config/hq_hp_digits/1/0912_165809_attack_r1_c2_g0.png",
+      "size": 477,
+      "sha256": "cd09310a042ab77d0e2ae967b0ccccdeecf2c5aeb1b7154396edc6be4213abbe"
+    },
+    {
+      "path": "config/hq_hp_digits/1/0912_165949_attack_r0_c2_g0.png",
+      "size": 481,
+      "sha256": "c4a6aad33a30f5c00c0e4c1ee10bcb7c6d062640e96b043fabb7131bc27413c1"
+    },
+    {
+      "path": "config/hq_hp_digits/1/0912_165949_attack_r1_c4_g0.png",
+      "size": 486,
+      "sha256": "2d65271297e3945151d0435efb9c61761d02bbb48a9d90054a2edba9591bd562"
+    },
+    {
+      "path": "config/hq_hp_digits/1/0912_170019_attack_r0_c2_g0.png",
+      "size": 483,
+      "sha256": "f611957c1e068620ebcd44580b384697110ccea91f7e15449a226c2ae84fd05d"
+    },
+    {
+      "path": "config/hq_hp_digits/1/0912_170019_attack_r1_c4_g0.png",
+      "size": 486,
+      "sha256": "80ae9d2871fb0d6685f0f262009f6777c92e04aaa064f3e9e151499b40409d69"
+    },
+    {
+      "path": "config/hq_hp_digits/1/0912_170047_attack_r0_c2_g0.png",
+      "size": 480,
+      "sha256": "ef657e3b89f4e99db47b5e8ee6c79e48cdc92e0694436396e93784c71f5f2b11"
+    },
+    {
+      "path": "config/hq_hp_digits/1/0912_170047_attack_r1_c4_g0.png",
+      "size": 488,
+      "sha256": "20f5d52e1795217b033b6be182aed5f39bc9888db59fa50b169e4bb35ae0906a"
+    },
+    {
+      "path": "config/hq_hp_digits/1/0912_170126_attack_r0_c0_g0.png",
+      "size": 483,
+      "sha256": "5205713310fbc8cf598280181db3e943b8ac0c5588efa843174b60f9fad43325"
+    },
+    {
+      "path": "config/hq_hp_digits/1/0912_170126_attack_r1_c4_g0.png",
+      "size": 489,
+      "sha256": "cd743324a8c3bb56880d8f61f5c5851c18a7d5c271909da5f591f1058d0174af"
+    },
+    {
+      "path": "config/hq_hp_digits/1/0912_170140_attack_r0_c0_g0.png",
+      "size": 481,
+      "sha256": "6c7f2d391eedff7bea41c355903c281eafea3c24ac72c99bf8feb746270c8083"
+    },
+    {
+      "path": "config/hq_hp_digits/1/0912_170140_attack_r1_c4_g0.png",
+      "size": 488,
+      "sha256": "20f5d52e1795217b033b6be182aed5f39bc9888db59fa50b169e4bb35ae0906a"
+    },
+    {
+      "path": "config/hq_hp_digits/1/0912_170153_attack_r0_c0_g0.png",
+      "size": 481,
+      "sha256": "6c7f2d391eedff7bea41c355903c281eafea3c24ac72c99bf8feb746270c8083"
+    },
+    {
+      "path": "config/hq_hp_digits/1/0912_170153_attack_r0_c0_g1.png",
+      "size": 505,
+      "sha256": "4e57ce62959af6def089fd1b6f8ef2b619a780bf904bb71e3babd4a3fc41533a"
+    },
+    {
+      "path": "config/hq_hp_digits/1/0912_170153_attack_r1_c4_g0.png",
+      "size": 488,
+      "sha256": "20f5d52e1795217b033b6be182aed5f39bc9888db59fa50b169e4bb35ae0906a"
+    },
+    {
+      "path": "config/hq_hp_digits/1/0912_170207_attack_r1_c4_g0.png",
+      "size": 488,
+      "sha256": "b5cb4932c0ff585890423655b6057eac6bf6b042d2ee92b157734d7a63612ad3"
+    },
+    {
+      "path": "config/hq_hp_digits/1/0912_170217_attack_r1_c3_g0.png",
+      "size": 455,
+      "sha256": "1ec4dd92b10fded569f64a1d4292b37a2226227f950a1927044dc9e8bbad5f8b"
+    },
+    {
+      "path": "config/hq_hp_digits/1/0912_170306_attack_r1_c4_g0.png",
+      "size": 491,
+      "sha256": "29dd2412b4dd3831acd395ae675f21136ccecd30f0a187fe54e9bee40c4b3a1c"
+    },
+    {
+      "path": "config/hq_hp_digits/1/0912_170317_attack_r1_c3_g0.png",
+      "size": 498,
+      "sha256": "489ba4189a41e22cdf78b54aaf353f521857a1bbb2f11164d55156f900828082"
+    },
+    {
+      "path": "config/hq_hp_digits/1/0912_170330_attack_r1_c3_g0.png",
+      "size": 489,
+      "sha256": "ee3f5a089e7c8ceac1baf7b42e1747fb0934887f6199dfd302ad6aff7ea94128"
+    },
+    {
+      "path": "config/hq_hp_digits/1/0912_170342_attack_r1_c2_g0.png",
+      "size": 489,
+      "sha256": "ee3f5a089e7c8ceac1baf7b42e1747fb0934887f6199dfd302ad6aff7ea94128"
+    },
+    {
+      "path": "config/hq_hp_digits/1/0912_170555_attack_r1_c4_g0.png",
+      "size": 486,
+      "sha256": "698aa1e4840283bc2626b4e9f6d289d053d38224f53bd0c7d0fdccd1ec81a375"
+    },
+    {
+      "path": "config/hq_hp_digits/1/0912_170610_attack_r1_c4_g0.png",
+      "size": 486,
+      "sha256": "f59154cefac40be16501e43a482d7546b30b6abfbad578d24e418f1e51f5d9f1"
+    },
+    {
+      "path": "config/hq_hp_digits/1/0912_170625_attack_r1_c4_g0.png",
+      "size": 484,
+      "sha256": "192744cc017c6ae0ad268d3d091bd7cf0f8e8b811bf6a0ff40c4637a5acab7e8"
+    },
+    {
+      "path": "config/hq_hp_digits/1/0912_170724_attack_r1_c4_g0.png",
+      "size": 487,
+      "sha256": "44c12a74fe8899c7ada57f74dbf184b38a6d2d32f6487cb420fffa38e2a25228"
+    },
+    {
+      "path": "config/hq_hp_digits/1/0912_170735_attack_r1_c3_g0.png",
+      "size": 488,
+      "sha256": "cd2426316e537554598e26459511ca7d68c81eee1de5a4036096f46c2c6df465"
+    },
+    {
+      "path": "config/hq_hp_digits/1/0912_170747_attack_r1_c3_g0.png",
+      "size": 491,
+      "sha256": "d1f20beddf0d583764ed01ad785da7512370e2a966700b1717438982cc726388"
+    },
+    {
+      "path": "config/hq_hp_digits/1/0912_170758_attack_r1_c3_g0.png",
+      "size": 490,
+      "sha256": "fc26f874b398afa0a6bb0eb1785907dac0caf05a71abeb7bcd06776be197a629"
+    },
+    {
+      "path": "config/hq_hp_digits/1/0912_170849_attack_r1_c0_g0.png",
+      "size": 481,
+      "sha256": "82abfe822f99c6b51fd68a8bab0f8c83824d60fd7a414b35f99d9690bbad6837"
+    },
+    {
+      "path": "config/hq_hp_digits/2/0911_122530_001_r0_c0_g0.png",
+      "size": 720,
+      "sha256": "122f4ed9ecfb14e0f04a12858ff031207959c5af65bbd6452a07089d92108627"
+    },
+    {
+      "path": "config/hq_hp_digits/2/0911_122530_002_r0_c0_g0.png",
+      "size": 712,
+      "sha256": "1ac61e81c7b0fc2b566caa2e90e37e503b750b4dfe85083fd26179d21c5d63e3"
+    },
+    {
+      "path": "config/hq_hp_digits/2/0911_122530_003_r0_c0_g0.png",
+      "size": 638,
+      "sha256": "6eb007533a6f172969d8d54d6e3a9c7f77238e36a65906b3499207095176674d"
+    },
+    {
+      "path": "config/hq_hp_digits/2/0911_122530_004_r0_c0_g0.png",
+      "size": 640,
+      "sha256": "75c623377c83082135bb2769a09e80f95e564e587ba2c94b074af7ee970e150d"
+    },
+    {
+      "path": "config/hq_hp_digits/2/0911_122530_004_r1_c1_g1.png",
+      "size": 554,
+      "sha256": "b2392dc020e43028bfef7f4298af7558ebe6290a2ec9717412ebb47eee8a4eb7"
+    },
+    {
+      "path": "config/hq_hp_digits/2/0911_122530_005_r0_c0_g0.png",
+      "size": 639,
+      "sha256": "7c36a2461e4a351a931a05de629f1d1210b867c086b2b4f4c580263c9aaaa588"
+    },
+    {
+      "path": "config/hq_hp_digits/2/0912_162537_attack_r0_c1_g1.png",
+      "size": 636,
+      "sha256": "fbdbf9e6052c0bf26c53504dc8dacff464ff575dabb982fd6a2f126a31547e53"
+    },
+    {
+      "path": "config/hq_hp_digits/2/0912_164939_attack_r0_c0_g0.png",
+      "size": 712,
+      "sha256": "b06985862995d64777d6b74738b2f08594cb4c0d611f05dcb04188679ff38de0"
+    },
+    {
+      "path": "config/hq_hp_digits/2/0912_164939_attack_r1_c1_g0.png",
+      "size": 737,
+      "sha256": "90a8fd60af5b32874a6ca8816a8a7ce26253e02ff5c814d1d02d2b24d53178ed"
+    },
+    {
+      "path": "config/hq_hp_digits/2/0912_165054_attack_r0_c1_g0.png",
+      "size": 661,
+      "sha256": "9af6192418758d4ac04cd978310739e10262be0ca1354f37364c88b9d21e6f04"
+    },
+    {
+      "path": "config/hq_hp_digits/2/0912_165054_attack_r1_c2_g0.png",
+      "size": 712,
+      "sha256": "fb97802bc234fb438c2468be8e9123b33e8b22fb887bb8b500a5c67d22c7789a"
+    },
+    {
+      "path": "config/hq_hp_digits/2/0912_165156_attack_r0_c0_g0.png",
+      "size": 710,
+      "sha256": "08c7787096904572543b5c6edfd43d4f6110b82b5f8cd51b3ad849a9351b2c33"
+    },
+    {
+      "path": "config/hq_hp_digits/2/0912_165156_attack_r1_c2_g0.png",
+      "size": 704,
+      "sha256": "d15960cf2772c4ce0e26179fcff8d4417dd11cbfde7562635e8cf144e76ba2ed"
+    },
+    {
+      "path": "config/hq_hp_digits/2/0912_165207_attack_r0_c0_g0.png",
+      "size": 709,
+      "sha256": "16e94d8d1a9620985d7e1244042b2ef8ec7d5e2db07a28800090555b8b5db41f"
+    },
+    {
+      "path": "config/hq_hp_digits/2/0912_165207_attack_r1_c1_g0.png",
+      "size": 701,
+      "sha256": "8bc86b964073eb8e7105a37ff64409c86f090a9845c3ddd256fb841625a96cc3"
+    },
+    {
+      "path": "config/hq_hp_digits/2/0912_165313_attack_r0_c1_g0.png",
+      "size": 677,
+      "sha256": "2ee532c31cc6e74bf9b0f71f3bab0279ca61ffabc2ad6be739be8d8be7e86da2"
+    },
+    {
+      "path": "config/hq_hp_digits/2/0912_165505_attack_r0_c2_g0.png",
+      "size": 728,
+      "sha256": "22670112ad23eff3eeca775bc1d8293e322ddf06a505705eb2797bb688a2b997"
+    },
+    {
+      "path": "config/hq_hp_digits/2/0912_165630_attack_r0_c1_g0.png",
+      "size": 724,
+      "sha256": "608113ac0bdf54f3cc025065d64c754d13e7dabe4cf6a9e727451a49ba1fc609"
+    },
+    {
+      "path": "config/hq_hp_digits/2/0912_165639_attack_r0_c1_g0.png",
+      "size": 724,
+      "sha256": "a417b4d581db677cff16ae6bcdb57e3c88a6dc73a2934068c582f8ffce14151c"
+    },
+    {
+      "path": "config/hq_hp_digits/2/0912_170747_attack_r0_c0_g0.png",
+      "size": 715,
+      "sha256": "7bb51d6276f3dc1844079cb62eae37d2b00333df65575758ff2d1558a268bd2e"
+    },
+    {
+      "path": "config/hq_hp_digits/2/0912_170758_attack_r0_c0_g0.png",
+      "size": 714,
+      "sha256": "a716fa793df105a1216f2849d0954d5ad6ce626cb85e7648632fa3f8af17f303"
+    },
+    {
+      "path": "config/hq_hp_digits/2/0912_170849_attack_r0_c0_g0.png",
+      "size": 749,
+      "sha256": "a711c1ea109ae638ab35d9631646173c318e5f1ce676ef670d26671a6cfc11df"
+    },
+    {
+      "path": "config/hq_hp_digits/2/0912_170945_attack_r0_c0_g0.png",
+      "size": 732,
+      "sha256": "fd8db6237fbf64ac6b2775d386e05b645eac2476ded2ed54737f07e191d81d79"
+    },
+    {
+      "path": "config/hq_hp_digits/3/0912_170140_attack_r0_c0_g1.png",
+      "size": 663,
+      "sha256": "d701f658253db2861fa376df43db75b0307ee43d5ec062f96decec3bf11af6db"
+    },
+    {
+      "path": "config/hq_hp_digits/4/0912_162110_attack_r0_c0_g1.png",
+      "size": 691,
+      "sha256": "101a0b67c31126c71f7c7514c63073ebe627fceb1af0ee44ee18adac0d63ae18"
+    },
+    {
+      "path": "config/hq_hp_digits/4/0912_162110_attack_r1_c4_g1.png",
+      "size": 617,
+      "sha256": "ecb272893988de72e3f240b73de8c2099390fc253968df83b9845abe429ea7e9"
+    },
+    {
+      "path": "config/hq_hp_digits/4/0912_162327_attack_r0_c0_g1.png",
+      "size": 637,
+      "sha256": "5e01e34e7f47b7e31941cc035b57325878f5601e5e7ce5195bfc585f103bf34a"
+    },
+    {
+      "path": "config/hq_hp_digits/4/0912_162327_attack_r1_c4_g1.png",
+      "size": 673,
+      "sha256": "7c9e599d5029aa56df8e1fab61a4f06ddcdc1e00ccad9dc75f6c7d09512a34ee"
+    },
+    {
+      "path": "config/hq_hp_digits/4/0912_162525_attack_r0_c1_g1.png",
+      "size": 695,
+      "sha256": "51669a39ad8a3a14ea215972094db6d72540b88af778e177f81aaf33eff637e9"
+    },
+    {
+      "path": "config/hq_hp_digits/4/0912_170610_attack_r0_c0_g0.png",
+      "size": 724,
+      "sha256": "8f5fc0227f0455aa2b3689cea610f652e5a76d37c702c8a4eac5091bbe737f37"
+    },
+    {
+      "path": "config/hq_hp_digits/4/0912_170625_attack_r0_c0_g0.png",
+      "size": 727,
+      "sha256": "80a102d57aa59810a810e5b97b648ac54a3e829aab1f357fb3437fccbee9b079"
+    },
+    {
+      "path": "config/hq_hp_digits/4/0912_170724_attack_r0_c0_g0.png",
+      "size": 732,
+      "sha256": "ec78c3e7cee91cbd71e7fe83b3f0e4a536f5ead2536846b28af8a383148fe5fa"
+    },
+    {
+      "path": "config/hq_hp_digits/4/0912_170735_attack_r0_c0_g0.png",
+      "size": 732,
+      "sha256": "785b4516204ace5299de9de5de9b0c1706df96a33773235a601fe25c71ef7bda"
+    },
+    {
+      "path": "config/hq_hp_digits/4/0912_170945_attack_r1_c0_g0.png",
+      "size": 764,
+      "sha256": "e9b3bd2081fcdda1ec5c5db9270908f335c0b79f5db57ee45d8a603f5d04ea3c"
+    },
+    {
+      "path": "config/hq_hp_digits/5/0911_122530_001_r1_c1_g1.png",
+      "size": 672,
+      "sha256": "935340169220c11d6f1b3d4b6255e71199c09cecef6c6b8df022a225d72bed64"
+    },
+    {
+      "path": "config/hq_hp_digits/5/0911_122530_002_r1_c1_g1.png",
+      "size": 665,
+      "sha256": "7801e0f3d3a6f3108065c4a8b45b2d88e7642f97ff49b21ba185578e90a4e311"
+    },
+    {
+      "path": "config/hq_hp_digits/5/0911_122530_003_r1_c1_g1.png",
+      "size": 665,
+      "sha256": "bc70a1a9d7a56061ec9ae46458678bc669cad7eeeaac12e2ffa8a9ef57ac4d10"
+    },
+    {
+      "path": "config/hq_hp_digits/5/0911_122530_005_r1_c1_g1.png",
+      "size": 668,
+      "sha256": "3647155922d26f15d5b74e7e6431ad04e7ebdfab6c53677268d0d7e6a5be6bdc"
+    },
+    {
+      "path": "config/hq_hp_digits/6/0912_170019_attack_r0_c2_g1.png",
+      "size": 677,
+      "sha256": "0a23fadc4fc85918532fcbf3fe9d7f923975386d241e3c11ea7698d3dc6258e6"
+    },
+    {
+      "path": "config/hq_hp_digits/6/0912_170047_attack_r0_c2_g1.png",
+      "size": 678,
+      "sha256": "c2b35eae5682287c16ea46b303c788fa245ffe3744ccd4b77c47e65e7d8173e9"
+    },
+    {
+      "path": "config/hq_hp_digits/6/0912_170126_attack_r0_c0_g1.png",
+      "size": 705,
+      "sha256": "834f68363f9deb17aee0c95c6b85dd8c1f0e22d11dd2b668d43bf710116e3501"
+    },
+    {
+      "path": "config/hq_hp_digits/6/0912_170342_attack_r0_c0_g0.png",
+      "size": 751,
+      "sha256": "0505aeedb011b5cea508745941b733d97473247461f494f3d68cb7e895e0600b"
+    },
+    {
+      "path": "config/hq_hp_digits/6/0912_170555_attack_r0_c0_g0.png",
+      "size": 771,
+      "sha256": "7a9edea26d345086919607ee80bd1ae00593367f5b7434b4ceb606e9af9a82bc"
+    },
+    {
+      "path": "config/hq_hp_digits/7/0912_162550_attack_r0_c1_g0.png",
+      "size": 701,
+      "sha256": "aca1a686d27ccc0e836546eaccf4af1cbc9a96f2afb8b61e303a657549e18e5a"
+    },
+    {
+      "path": "config/hq_hp_digits/7/0912_162931_attack_r0_c0_g0.png",
+      "size": 716,
+      "sha256": "ac0722d4615e74f27ea34fab3f5ba2f506fda123f893e3d61f3ca8426e75de6d"
+    },
+    {
+      "path": "config/hq_hp_digits/7/0912_163106_attack_r0_c0_g0.png",
+      "size": 744,
+      "sha256": "075d5517ef0fba5ed34256791a9a7c2176214a4dfbb1064fd8c14fe1e32b3dd0"
+    },
+    {
+      "path": "config/hq_hp_digits/7/0912_163200_attack_r0_c0_g0.png",
+      "size": 744,
+      "sha256": "1bb9d2b4313d1d2c753cec67269f5b4f2f6e52d35d4e2e06b193c7432abf9631"
+    },
+    {
+      "path": "config/hq_hp_digits/7/0912_163245_attack_r0_c0_g0.png",
+      "size": 725,
+      "sha256": "418b1a1e8d486c7f0b1bcd2ee5143d0daa564137a858ec8716666780625be70c"
+    },
+    {
+      "path": "config/hq_hp_digits/8/0912_165809_attack_r0_c1_g1.png",
+      "size": 754,
+      "sha256": "26f1b4b8a74145b9f89df63a9ecb46a84ffc75461a4d3aa9812af7295700f8d2"
+    },
+    {
+      "path": "config/hq_hp_digits/8/0912_165949_attack_r0_c2_g1.png",
+      "size": 689,
+      "sha256": "aecf122797167fbe2e684313ce675fdf9a59ef33de536caa4759190090c5cc83"
+    },
+    {
+      "path": "config/hq_hp_digits/8/0912_170207_attack_r0_c0_g0.png",
+      "size": 836,
+      "sha256": "9e3d056ecd0c0d61f912f19d3b35dad3feb6eb7a929704c70b43eed27b7e7a41"
+    },
+    {
+      "path": "config/hq_hp_digits/8/0912_170217_attack_r0_c0_g0.png",
+      "size": 836,
+      "sha256": "efcda1b282896ebd9a18892a749137a1fb60ed7f9c7a62113a8c8dbb71f14015"
+    },
+    {
+      "path": "config/hq_hp_digits/8/0912_170306_attack_r0_c0_g0.png",
+      "size": 795,
+      "sha256": "91a1b5d9357296ba036423a19839d86745487ab7d14eabc6ab6c64eb44f2cc8c"
+    },
+    {
+      "path": "config/hq_hp_digits/8/0912_170317_attack_r0_c0_g0.png",
+      "size": 795,
+      "sha256": "83fdc4a0876019839dd8838375f5247c04fcad6b398944dc0bfbd2f2687cea1b"
+    },
+    {
+      "path": "config/hq_hp_digits/8/0912_170330_attack_r0_c0_g0.png",
+      "size": 796,
+      "sha256": "31b6dcc25e2b0bb9df60a4a1e8c8037030c9e6ff016c8a8438e7ea825bdd0fcc"
+    },
+    {
+      "path": "config/hq_hp_digits/8/0912_170849_attack_r1_c0_g1.png",
+      "size": 715,
+      "sha256": "c7dfb3b231ee356c798b7e060da3edbf708e39062c431ce7f2ecaf62d479befa"
+    },
+    {
+      "path": "config/hq_hp_digits/9/0912_165313_attack_r1_c1_g1.png",
+      "size": 702,
+      "sha256": "5f4be091e78a5ee015b85bcd44dd043cdb63d65b795aadfba2a06d03f6c1ca2f"
+    },
+    {
+      "path": "config/hq_hp_digits/9/0912_165505_attack_r1_c3_g1.png",
+      "size": 641,
+      "sha256": "4ec350f99c40efab47e0a44dda430dbf10f89d1f0c785c66dc3c7baa6d83581e"
+    },
+    {
+      "path": "config/hq_hp_digits/9/0912_165630_attack_r1_c3_g1.png",
+      "size": 680,
+      "sha256": "165178e797acbbc95cc58f115b20916bf8539a787e65bb23aa6d7433f587863c"
+    },
+    {
+      "path": "config/hq_hp_digits/9/0912_165639_attack_r1_c2_g1.png",
+      "size": 687,
+      "sha256": "fc77aef02469abaf56b4cb6a3ee13af2a4f60456e4ce71963182b29bdb92ac95"
+    },
+    {
+      "path": "config/hq_hp_digits/9/0912_165809_attack_r1_c2_g1.png",
+      "size": 658,
+      "sha256": "e200731c426d7eeaa95c57ecc45e691242c7fc292d1581cb7fefb323224436bc"
+    },
+    {
+      "path": "config/hq_hp_digits/9/0912_165949_attack_r1_c4_g1.png",
+      "size": 671,
+      "sha256": "366e2fd33673b97c6299a8b4927201734327ec435f366c91201797528af7428b"
+    },
+    {
+      "path": "config/hq_hp_digits/9/0912_170019_attack_r1_c4_g1.png",
+      "size": 666,
+      "sha256": "529f549389120464086444dbdfa5f0fecbb231982b52bacb55d6923058d62496"
+    },
+    {
+      "path": "config/hq_hp_digits/9/0912_170047_attack_r1_c4_g1.png",
+      "size": 671,
+      "sha256": "6f582e3be6a0b9e8c9335e71365768d6827e43f9e94da55d275d2b4f8d0f0830"
+    },
+    {
+      "path": "config/hq_hp_digits/9/0912_170126_attack_r1_c4_g1.png",
+      "size": 675,
+      "sha256": "9330473f0620237973e26a668602f62d17d48a3e6642a6d413ed8c81e21d35b4"
+    },
+    {
+      "path": "config/hq_hp_digits/9/0912_170140_attack_r1_c4_g1.png",
+      "size": 671,
+      "sha256": "6f582e3be6a0b9e8c9335e71365768d6827e43f9e94da55d275d2b4f8d0f0830"
+    },
+    {
+      "path": "config/hq_hp_digits/9/0912_170153_attack_r1_c4_g1.png",
+      "size": 671,
+      "sha256": "6f582e3be6a0b9e8c9335e71365768d6827e43f9e94da55d275d2b4f8d0f0830"
+    },
+    {
+      "path": "config/hq_hp_digits/9/0912_170207_attack_r1_c4_g1.png",
+      "size": 674,
+      "sha256": "672f91a503326a9ff00db8ecf323e1747bbb967092a2c5404b65888f901cc711"
+    },
+    {
+      "path": "config/hq_hp_digits/9/0912_170217_attack_r1_c3_g1.png",
+      "size": 677,
+      "sha256": "c8985bd8db034c1c2465d72b4042532d7ea962741bd52a6e16363a30c7e9de95"
+    },
+    {
+      "path": "config/hq_hp_digits/9/0912_170306_attack_r1_c4_g1.png",
+      "size": 665,
+      "sha256": "a07fe927bf9761e909a98e776003e0d77049e33900f418e098dc833cdd1da8ab"
+    },
+    {
+      "path": "config/hq_hp_digits/9/0912_170317_attack_r1_c3_g1.png",
+      "size": 681,
+      "sha256": "860896ba0e09bc549fd53d4df40d1592e2d8f0cc449add618ee2e200127af38f"
+    },
+    {
+      "path": "config/hq_hp_digits/9/0912_170330_attack_r1_c3_g1.png",
+      "size": 679,
+      "sha256": "25fd962881cc47ad27d5909f3796e78da65278cfaf01c71b9fc76905b314f741"
+    },
+    {
+      "path": "config/hq_hp_digits/9/0912_170342_attack_r1_c2_g1.png",
+      "size": 679,
+      "sha256": "25fd962881cc47ad27d5909f3796e78da65278cfaf01c71b9fc76905b314f741"
+    },
+    {
+      "path": "config/hq_hp_digits/9/0912_170555_attack_r1_c4_g1.png",
+      "size": 697,
+      "sha256": "42cc327b5573c5cb2b791ff4b7b8d8e087545dc2017fad4cff4b344796b64683"
+    },
+    {
+      "path": "config/hq_hp_digits/9/0912_170610_attack_r1_c4_g1.png",
+      "size": 699,
+      "sha256": "ba73f08255f2fad4f28c2dc43f02ed6485fbc0000753d9025bcdcaef5098bb15"
+    },
+    {
+      "path": "config/hq_hp_digits/9/0912_170625_attack_r1_c4_g1.png",
+      "size": 697,
+      "sha256": "849f4b20def11567bbcf4ddf3941a419a4faf5e9faf158d54963ef983f2c8396"
+    },
+    {
+      "path": "config/hq_hp_digits/9/0912_170724_attack_r1_c4_g1.png",
+      "size": 676,
+      "sha256": "2975e55516f27c39baafdfdd2e727c7e51e9576e73f009bd7cbaa4e5041800a4"
+    },
+    {
+      "path": "config/hq_hp_digits/9/0912_170735_attack_r1_c3_g1.png",
+      "size": 672,
+      "sha256": "4e092c2541f29d83b45fac2960460c02eb4d2536b0167e59f48c2c6ef7134d32"
+    },
+    {
+      "path": "config/hq_hp_digits/9/0912_170747_attack_r1_c3_g1.png",
+      "size": 672,
+      "sha256": "c5d1d1368948308c91ebb851af4a63af3574ad269f8fed261b321de771dc28bb"
+    },
+    {
+      "path": "config/hq_hp_digits/9/0912_170758_attack_r1_c3_g1.png",
+      "size": 676,
+      "sha256": "bc4db3fa3a3ab3be6f3671f9e133c20af48fb411b0ebb8b95aa66c55e6a9892e"
+    },
+    {
+      "path": "config/hq_hp_digits/BORROWED.txt",
+      "size": 63,
+      "sha256": "45a0e36749ddcf3cd5d8d95dcc884723c7c05635fc9aa57afdf65dda73f11838"
+    },
+    {
+      "path": "config/states.json",
+      "size": 1858,
+      "sha256": "d20cc852709f1d0dcbf6ca1a52daad8a297ea9cfceb5c9c6a64824af56c54749"
+    },
+    {
+      "path": "config/templates.android.combat.json",
+      "size": 3938,
+      "sha256": "516619a4c39285be62baca928fff4f660c4a05d0e31ea89a76012550e562f8c7"
+    },
+    {
+      "path": "config/templates.android.deck_select.json",
+      "size": 1520,
+      "sha256": "7c6af7f3fa8a18c421351e53c3891848a060c87586a7b990ba74da7dd0b347df"
+    },
+    {
+      "path": "config/templates.android.defeat.json",
+      "size": 571,
+      "sha256": "1fafff920975468874c38ee53070cf50ed722232254962914d6061a2b6450885"
+    },
+    {
+      "path": "config/templates.android.hq_aux.json",
+      "size": 1140,
+      "sha256": "1a21108f9ae84ac7269f82a79bb92d384bc232ca82132029953989d94be47d2e"
+    },
+    {
+      "path": "config/templates.android.ingame.json",
+      "size": 3078,
+      "sha256": "8bcadeb55aaa292b840616b700e5bef7c84b72cccd67a38f6c25a780f9a1b64b"
+    },
+    {
+      "path": "config/templates.android.main_menu.json",
+      "size": 2345,
+      "sha256": "8489cdb2acdac21e8ec34198981c99a59636c49cbfd04f410127b9a3c261e1fe"
+    },
+    {
+      "path": "config/templates.android.mulligan.json",
+      "size": 584,
+      "sha256": "6720cf6bec961214a2a6e013697ea2c4be7fd98de86684c0a0bafe66735df0eb"
+    },
+    {
+      "path": "config/templates.android.queueing.json",
+      "size": 578,
+      "sha256": "f259631218df828e90c969f8b896523984442f409721baae91751d1d06500c78"
+    },
+    {
+      "path": "config/templates.android.victory.json",
+      "size": 763,
+      "sha256": "7ed3c60abf653a21ce1a56b1d2dfcb8ba99da0edac008e7ffbb96452add7d86b"
+    },
+    {
+      "path": "shots/kredits/samples_r1/n_00_mask.png",
+      "size": 215,
+      "sha256": "da9739498396c931b00efb6a5505996ae89ade9e9b1a0c4b381a30ed73cc20e6"
+    },
+    {
+      "path": "shots/kredits/samples_r1/n_01_mask.png",
+      "size": 148,
+      "sha256": "8ad43cd5e48b1cc077bb7ba13fe4385f78056848dee5da11468ee15c5131c475"
+    },
+    {
+      "path": "shots/kredits/samples_r1/n_02_mask.png",
+      "size": 204,
+      "sha256": "1806064f5616e529d60d4c66e0596dd3633911c139b5f1f35a574cf2a40af409"
+    },
+    {
+      "path": "shots/kredits/samples_r1/n_03_mask.png",
+      "size": 202,
+      "sha256": "fe54d1a07931dbb04281c10a1466560140d243cee7dcd3e96dd10ef2aa0e0f45"
+    },
+    {
+      "path": "shots/kredits/samples_r1/n_04_mask.png",
+      "size": 216,
+      "sha256": "b625ca3d466221170c8503028737a21681cac869fe8c8fefd40f72b530964bea"
+    },
+    {
+      "path": "shots/kredits/samples_r1/n_06_mask.png",
+      "size": 201,
+      "sha256": "43b0ae19a8e75406ef31f05232a25af21860945d18e93ebab5e32e4393f862c2"
+    },
+    {
+      "path": "shots/kredits/samples_r1/n_07_mask.png",
+      "size": 209,
+      "sha256": "bd53332af32b53c6e2b8c4bdca224d2618199fc4404a4691bd4f7c75bf009c00"
+    },
+    {
+      "path": "shots/kredits/samples_r1/n_08_mask.png",
+      "size": 199,
+      "sha256": "4e413a50954c0dc2a874da8f55c535b49f6842c6556c35acc81c41c373bca941"
+    },
+    {
+      "path": "shots/kredits/samples_r1/n_09_mask.png",
+      "size": 216,
+      "sha256": "80dbbfc90427d4a7d17e3dd1c59a0684594a2c4e41bce558ae9612ab9298989f"
+    },
+    {
+      "path": "shots/kredits/samples_r1/n_10_mask.png",
+      "size": 214,
+      "sha256": "1d8993fc81340a21b1f5ffacde088e81ade5ec0a41f73d6f07ba26cded5e8f3e"
+    },
+    {
+      "path": "src/actions.py",
+      "size": 13009,
+      "sha256": "3c9c5627023627f3ef7ac0aab8ed9ce56a2e7a2a6fb886ba9c94f6b7a2d14db3"
+    },
+    {
+      "path": "src/board.py",
+      "size": 78862,
+      "sha256": "9672df51144be6264ebaae4a3515f37f8e71c4d9574047e69076f5de5564a628"
+    },
+    {
+      "path": "src/cv_io.py",
+      "size": 5640,
+      "sha256": "f85ae963c3c7bb50d688a52e27d6085bdfd228b9e9f9e6ae1b69b0f4b0515722"
+    },
+    {
+      "path": "src/hq_hp.py",
+      "size": 14807,
+      "sha256": "e159457e6a6ba92d61d8156fbb50ad40cbd103df524f5c3585262796e78ac980"
+    },
+    {
+      "path": "src/kredits.py",
+      "size": 43776,
+      "sha256": "fbcf69109399f78669b5f539364acf97f2c84509d351c918e9dd09b71c6dc23e"
+    },
+    {
+      "path": "src/kredits_templates.py",
+      "size": 10558,
+      "sha256": "e34283ff6df0ce747736e2cbf70ea5f3ae8fb18e1543f47597613be72bd9254f"
+    },
+    {
+      "path": "src/mobile_attack.py",
+      "size": 32492,
+      "sha256": "8cc47627388392b861503e684a302dcd1be0f68c89b03820ed068177404300de"
+    },
+    {
+      "path": "src/mobile_board.py",
+      "size": 47504,
+      "sha256": "bd0808570d7bd2da52ca3f0dd9267df1f17acf7e32547f085e784e694731d9b5"
+    },
+    {
+      "path": "src/mobile_combat_policy.py",
+      "size": 6838,
+      "sha256": "6a5401e6d78ae37c2a5eb3d054b34c8e4d54b1a0fe6dc88eee351a54ff0f3841"
+    },
+    {
+      "path": "src/mobile_combat_vision.py",
+      "size": 11485,
+      "sha256": "ad8959ccda553ec8c02ec2a9cfe2d91279b0e0ce26a1a6dc349a41b9fa4360f3"
+    },
+    {
+      "path": "src/mobile_end_button.py",
+      "size": 4404,
+      "sha256": "64b4d1439663bc32419f9af46b30f70847d1b3714ebc7dc566d2ed3d98bf4845"
+    },
+    {
+      "path": "src/mobile_hand.py",
+      "size": 81009,
+      "sha256": "7672183f984c872f0ecb4ab6216678798670214a64859f2550471585111c6617"
+    },
+    {
+      "path": "src/mobile_trace.py",
+      "size": 23010,
+      "sha256": "de5c111f35448e91c5a0a644e6b1f5cfc99b26ebe197f9f4f200dee0b296ae0f"
+    },
+    {
+      "path": "src/platformapi.py",
+      "size": 8601,
+      "sha256": "6372e53a8c7c80a13dc04b4ff834a02c23fac8807ad8b4ae61eda733a4addc57"
+    },
+    {
+      "path": "src/turn_engine_mobile.py",
+      "size": 29532,
+      "sha256": "93b23ca6f4be8699a0506acdbbeac91dacc4f787d5a2841976f23cb56ba02274"
+    },
+    {
+      "path": "src/ui_state.py",
+      "size": 16909,
+      "sha256": "dce80aa03f4d62fe860b1e0ad5ceb8bea62e770521678cb0bf913339d2c6580e"
+    },
+    {
+      "path": "src/unit_state.py",
+      "size": 53598,
+      "sha256": "2b85d9bf81cea20868f0f22a128203327b0341ed95312bc1596bede73fc1f789"
+    },
+    {
+      "path": "ui_templates/android/combat/artillery.png",
+      "size": 1536,
+      "sha256": "c12d19ea9cab5550d40dbfff8c833ad84e9781fe9f65c5ebf898d420b9c1d7fb"
+    },
+    {
+      "path": "ui_templates/android/combat/bomber.png",
+      "size": 1479,
+      "sha256": "cb1307c3c5d1ab7814fee06e1de653b761105069deca68ed8050fdc9a303e832"
+    },
+    {
+      "path": "ui_templates/android/combat/fighter.png",
+      "size": 1474,
+      "sha256": "26054d046b1a11bfdd0127338131bf384562d3d4a3a7c6a6826fdfb6492a2983"
+    },
+    {
+      "path": "ui_templates/android/combat/guard_hq.png",
+      "size": 1144,
+      "sha256": "71d746523f40db89235e9da88a76c4243d0524c2cce531f2beda1b6517902c87"
+    },
+    {
+      "path": "ui_templates/android/combat/guard_unit.png",
+      "size": 901,
+      "sha256": "8a09f5d419320b1f1ec1a4f7cee54bed0ccd6291a549eabb3bae989ea2f66999"
+    },
+    {
+      "path": "ui_templates/android/combat/infantry.png",
+      "size": 1593,
+      "sha256": "af7085a4fa28b33c2504cdd8905e1ad5e427a11b4ee8cdae6f4838424f0e2895"
+    },
+    {
+      "path": "ui_templates/android/combat/marker_skull.png",
+      "size": 1007,
+      "sha256": "b5e37b43546ce5103891cf1122321e73fbf727f3c0a94273ab9eb1174faf5f98"
+    },
+    {
+      "path": "ui_templates/android/combat/tank.png",
+      "size": 1310,
+      "sha256": "a3d2d9a92ce20595ccc592da25fbd51da35606d73175fe73d63fb23d6f677376"
+    },
+    {
+      "path": "ui_templates/android/deck_select/casual_mode_btn.png",
+      "size": 1637,
+      "sha256": "ca29785d4b44498e6277b24bb443dfda8cff99bb4ed619ab05026960f03c0590"
+    },
+    {
+      "path": "ui_templates/android/deck_select/deck_ok_btn.png",
+      "size": 15340,
+      "sha256": "5031a4e63511e05d858cf881c0268a133d5f0175d0c76210c6a47500a715b143"
+    },
+    {
+      "path": "ui_templates/android/deck_select/mode_menu_btn.png",
+      "size": 73537,
+      "sha256": "3836672a85b7d680783b3dc9842d95140e74f92a5f91f43368b2b29adb64437b"
+    },
+    {
+      "path": "ui_templates/android/defeat/defeat_btn.png",
+      "size": 32900,
+      "sha256": "d534fe63119e7c1a2b7ca66b881237bef53c0935f9d8c631f3ca311240e138f8"
+    },
+    {
+      "path": "ui_templates/android/hq/red3_g5_183.png",
+      "size": 612,
+      "sha256": "da802f84c3bec8d50d789b9509093245d5f2f17f9aa3c1f66442dbe46546bc5e"
+    },
+    {
+      "path": "ui_templates/android/ingame/artillery_icon.png",
+      "size": 1352,
+      "sha256": "430bc240002b1315f62d0109dbe5df7bb0dd3e8c924175e18b0a4a87e6416627"
+    },
+    {
+      "path": "ui_templates/android/ingame/bomber_icon.png",
+      "size": 1486,
+      "sha256": "4d15ce06c77703fc0103cd73b01161ff472a57b90b94f287ecc14b81905f65e5"
+    },
+    {
+      "path": "ui_templates/android/ingame/cost_num.png",
+      "size": 580,
+      "sha256": "7f8b22badcc92428567a4b3e607da4a5514b890f285bff06dfb56c8807532fb7"
+    },
+    {
+      "path": "ui_templates/android/ingame/counter_icon.png",
+      "size": 1693,
+      "sha256": "1090e39f611680938ca796a44398512e74b44d5bc358d1874f371856fad6a5be"
+    },
+    {
+      "path": "ui_templates/android/ingame/end_turn_btn.png",
+      "size": 9865,
+      "sha256": "2cf275b9eb934f0211ed0ef25eb127785e6138e38a64b66c08087d0c6e1c4465"
+    },
+    {
+      "path": "ui_templates/android/ingame/end_turn_btn_white.png",
+      "size": 10447,
+      "sha256": "70b4682086ebbb838825280bfbb8e2bb7981939a23205c60857dabf1ef10d86b"
+    },
+    {
+      "path": "ui_templates/android/ingame/fighter_icon.png",
+      "size": 377,
+      "sha256": "a75ea022f92200a0492d55061aedd10a970001be0a9a8c00b23a237481c622ef"
+    },
+    {
+      "path": "ui_templates/android/ingame/infantry_icon.png",
+      "size": 1927,
+      "sha256": "59153c938d0efb1cb2a60854613d68d445dba50acebe25a7671e371ce734d649"
+    },
+    {
+      "path": "ui_templates/android/ingame/order_icon.png",
+      "size": 1007,
+      "sha256": "ba232dd4ed7520c6af40be37368d8b69d48f0a73d4204f448b6cb70735b5bd7e"
+    },
+    {
+      "path": "ui_templates/android/ingame/tank_icon.png",
+      "size": 968,
+      "sha256": "05903174d78a46ec3e49409cd5f072912a1ad53f60851a115f51560d9c31e02d"
+    },
+    {
+      "path": "ui_templates/android/main_menu/bomber_icon.png",
+      "size": 784,
+      "sha256": "56f7901184ccb6f165d3647c1f6d992230a08da9c4148b6b751ba2d2b8ee7e49"
+    },
+    {
+      "path": "ui_templates/android/main_menu/cost_num.png",
+      "size": 456,
+      "sha256": "7c07f9a185781e9113fc9c4c88dc6278fbfd03d8ff72d252fb7e954be61cfd70"
+    },
+    {
+      "path": "ui_templates/android/main_menu/counter_icon.png",
+      "size": 645,
+      "sha256": "c566e88bc0a621a102f17b18081c695d1ff7b19e555c9b688cef93224cd0d762"
+    },
+    {
+      "path": "ui_templates/android/main_menu/fighter_icon.png",
+      "size": 1207,
+      "sha256": "9c2db0426236111e9ec18b15fb2e744a711f8df38b238d864c2c37c16fe9675d"
+    },
+    {
+      "path": "ui_templates/android/main_menu/infantry_icon.png",
+      "size": 878,
+      "sha256": "5c5957f4a9bbc37b0600b7be3b1d2f22779b151ba527b2c0abc8f280648177b9"
+    },
+    {
+      "path": "ui_templates/android/main_menu/order_icon.png",
+      "size": 858,
+      "sha256": "290902eb2cf2439bf02e695dbd66c33bed7b3ffa4073a5300f971fb5617b82cf"
+    },
+    {
+      "path": "ui_templates/android/main_menu/play_btn.png",
+      "size": 13695,
+      "sha256": "07b51210605d98ccf62716f01587802c74b236fe2a9a1777a4f3bd2288a76a8a"
+    },
+    {
+      "path": "ui_templates/android/main_menu/quest_btn.png",
+      "size": 80341,
+      "sha256": "08f8a5b6ffe9831c930cd39755195c5456b3cf5f20b19db0a7db56d9714e1ecc"
+    },
+    {
+      "path": "ui_templates/android/mulligan/mulligan_ok_btn.png",
+      "size": 31778,
+      "sha256": "d7a0204bcf082bc1ae97af39b24dc2edd0a97c9ca308c45f8ea64c29b2ac6b6d"
+    },
+    {
+      "path": "ui_templates/android/queueing/queue_cancel.png",
+      "size": 17245,
+      "sha256": "901fbbcd05e614ecb2e9becbe0834e02f3c268b0e7784cfbb21db040ce0ae3d7"
+    },
+    {
+      "path": "ui_templates/android/victory/victory_btn.png",
+      "size": 27777,
+      "sha256": "499c38f96f9e9f1aed20f16d2a62812b5ac0275eb39bc36a1e46efa9d8a94493"
+    }
+  ]
+}

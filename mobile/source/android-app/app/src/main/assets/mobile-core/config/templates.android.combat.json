@@ -1,0 +1,171 @@
+{
+  "image_size": [
+    1280,
+    720
+  ],
+  "templates": {
+    "combat_infantry": {
+      "path": "ui_templates/android/combat/infantry.png",
+      "region": {
+        "x": 200,
+        "y": 40,
+        "w": 920,
+        "h": 570
+      }
+    },
+    "combat_tank": {
+      "path": "ui_templates/android/combat/tank.png",
+      "region": {
+        "x": 200,
+        "y": 40,
+        "w": 920,
+        "h": 570
+      }
+    },
+    "combat_artillery": {
+      "path": "ui_templates/android/combat/artillery.png",
+      "region": {
+        "x": 200,
+        "y": 40,
+        "w": 920,
+        "h": 570
+      }
+    },
+    "combat_fighter": {
+      "path": "ui_templates/android/combat/fighter.png",
+      "region": {
+        "x": 200,
+        "y": 40,
+        "w": 920,
+        "h": 570
+      }
+    },
+    "combat_bomber": {
+      "path": "ui_templates/android/combat/bomber.png",
+      "region": {
+        "x": 200,
+        "y": 40,
+        "w": 920,
+        "h": 570
+      }
+    },
+    "combat_guard_unit": {
+      "path": "ui_templates/android/combat/guard_unit.png",
+      "region": {
+        "x": 200,
+        "y": 40,
+        "w": 920,
+        "h": 570
+      }
+    },
+    "combat_guard_hq": {
+      "path": "ui_templates/android/combat/guard_hq.png",
+      "region": {
+        "x": 200,
+        "y": 40,
+        "w": 920,
+        "h": 570
+      }
+    },
+    "combat_marker_skull": {
+      "path": "ui_templates/android/combat/marker_skull.png",
+      "region": {
+        "x": 200,
+        "y": 40,
+        "w": 920,
+        "h": 570
+      }
+    }
+  },
+  "provenance": [
+    {
+      "name": "infantry",
+      "source": "shots/android/hand/live_now2.png",
+      "box": [
+        918,
+        550,
+        28,
+        28
+      ],
+      "sha256": "af7085a4fa28b33c2504cdd8905e1ad5e427a11b4ee8cdae6f4838424f0e2895"
+    },
+    {
+      "name": "tank",
+      "source": "shots/android/hand/live_hand_now.png",
+      "box": [
+        774,
+        549,
+        28,
+        28
+      ],
+      "sha256": "a3d2d9a92ce20595ccc592da25fbd51da35606d73175fe73d63fb23d6f677376"
+    },
+    {
+      "name": "artillery",
+      "source": "shots/android/hand/live_why_idle.png",
+      "box": [
+        626,
+        213,
+        28,
+        28
+      ],
+      "sha256": "c12d19ea9cab5550d40dbfff8c833ad84e9781fe9f65c5ebf898d420b9c1d7fb"
+    },
+    {
+      "name": "fighter",
+      "source": "shots/android/hand/live_now2.png",
+      "box": [
+        628,
+        548,
+        28,
+        29
+      ],
+      "sha256": "26054d046b1a11bfdd0127338131bf384562d3d4a3a7c6a6826fdfb6492a2983"
+    },
+    {
+      "name": "bomber",
+      "source": "shots/android/hand/live_now2.png",
+      "box": [
+        484,
+        549,
+        28,
+        29
+      ],
+      "sha256": "cb1307c3c5d1ab7814fee06e1de653b761105069deca68ed8050fdc9a303e832"
+    },
+    {
+      "name": "guard_unit",
+      "source": "shots/android/hand/live_hand_now.png",
+      "box": [
+        625,
+        109,
+        23,
+        27
+      ],
+      "sha256": "8a09f5d419320b1f1ec1a4f7cee54bed0ccd6291a549eabb3bae989ea2f66999"
+    },
+    {
+      "name": "guard_hq",
+      "source": "shots/android/hand/live_hand_now.png",
+      "box": [
+        482,
+        109,
+        23,
+        27
+      ],
+      "sha256": "71d746523f40db89235e9da88a76c4243d0524c2cce531f2beda1b6517902c87"
+    },
+    {
+      "name": "marker_skull",
+      "source": "shots/android/hand/runtime_20261003f/repro/native_fetch_001/native_f_play_001/20261003_132806_cdc8e7/0058_normalized.png",
+      "box": [
+        701,
+        278,
+        23,
+        27
+      ],
+      "sha256": "b5e37b43546ce5103891cf1122321e73fbf727f3c0a94273ab9eb1174faf5f98"
+    }
+  ],
+  "note": "Annotated mobile type glyphs and guard glyphs; source self-matches are not independent validation."
+}

@@ -1,0 +1,20 @@
+{
+  "image_size": [
+    1280,
+    720
+  ],
+  "templates": {
+    "defeat_btn": {
+      "path": "ui_templates/android/defeat/defeat_btn.png",
+      "region": {
+        "x": 488,
+        "y": 340,
+        "w": 302,
+        "h": 251
+      },
+      "_from_score": null,
+      "_manual": "548,400,182,131@(=--frame)"
+    }
+  },
+  "_note": "由 template_rebuild.py 从 shots\\android\\end\\d_a.png 重建(每个模板记着定位分数 _from_score / 缩放 _from_scale);**同一帧上的分数是自匹配,不算验证** —— 要用 --verify 另给一帧"
+}

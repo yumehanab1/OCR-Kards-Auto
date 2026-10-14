@@ -1,0 +1,1299 @@
+{
+  "schema": 1,
+  "system_id": "runtime-test",
+  "date": "2026-10-08",
+  "game_version": "1.60.27292/2703",
+  "normalized_size": [
+    1280,
+    720
+  ],
+  "deck": "first_list_slot",
+  "templates": {
+    "defeat_banner": {
+      "file": "defeat_banner.png",
+      "bounds": [
+        569,
+        415,
+        143,
+        75
+      ],
+      "source": "repro/apk_modes_20261007/settle-points/defeat-banner-crop.png",
+      "source_size": [
+        143,
+        75
+      ],
+      "source_bounds": [
+        0,
+        0,
+        143,
+        75
+      ],
+      "source_sha256": "641b2d60b4f509dab632978f6eabefdafce630f64d4e14c513caf43165fe3bb0",
+      "sha256": "641b2d60b4f509dab632978f6eabefdafce630f64d4e14c513caf43165fe3bb0",
+      "meaning": "normalised asset; not a scaled crop"
+    },
+    "card_tab": {
+      "file": "card_tab.png",
+      "bounds": [
+        130,
+        8,
+        130,
+        50
+      ],
+      "source": "repro/apk_modes_20261007/settle-points/card-tab-crop.png",
+      "source_size": [
+        130,
+        50
+      ],
+      "source_bounds": [
+        0,
+        0,
+        130,
+        50
+      ],
+      "source_sha256": "96a076254c568a91b6c0b96f97b77a065c0334c4c3ba6f67f4fa9e4ebd031f17",
+      "sha256": "96a076254c568a91b6c0b96f97b77a065c0334c4c3ba6f67f4fa9e4ebd031f17",
+      "meaning": "normalised asset; not a scaled crop"
+    },
+    "home_play": {
+      "file": "home_play.png",
+      "bounds": [
+        25,
+        101,
+        67,
+        80
+      ],
+      "source": "repro/apk_modes_20261007/home.png",
+      "source_size": [
+        1920,
+        1080
+      ],
+      "source_bounds": [
+        38,
+        151,
+        101,
+        120
+      ],
+      "source_sha256": "37739894d52a7ff825b9c039b6a67fdca1bf0e8c02812fe5dd3f24d49a9357a6",
+      "sha256": "c7f81c87cca7c592fb7253d7d961a93b20b5c3aeabdc5fe47a7c2b27e6f4f37e"
+    },
+    "home_play_selected": {
+      "file": "home_play_selected.png",
+      "bounds": [
+        25,
+        101,
+        67,
+        80
+      ],
+      "source": "repro/apk_modes_20261007/return-live-9-deckselection-before.png",
+      "source_size": [
+        1920,
+        1080
+      ],
+      "source_bounds": [
+        38,
+        151,
+        101,
+        120
+      ],
+      "source_sha256": "b0610da9ad43ff777ea562e366c732413dc3e176c11c55bfd17fb89989a5a337",
+      "sha256": "41501faa1b161824b8bb3f99fe88c03fcda365633dfe94a66d7c7734c86b2ec5"
+    },
+    "home_tasks": {
+      "file": "home_tasks.png",
+      "bounds": [
+        540,
+        559,
+        110,
+        55
+      ],
+      "source": "repro/apk_modes_20261007/home.png",
+      "source_size": [
+        1920,
+        1080
+      ],
+      "source_bounds": [
+        810,
+        839,
+        165,
+        82
+      ],
+      "source_sha256": "37739894d52a7ff825b9c039b6a67fdca1bf0e8c02812fe5dd3f24d49a9357a6",
+      "sha256": "d189640c4c6265e918e67e1cd144e7d7ee0d6b033d6592b5f11c538c78ba7c65"
+    },
+    "battle_selected": {
+      "file": "battle_selected.png",
+      "bounds": [
+        177,
+        112,
+        95,
+        29
+      ],
+      "source": "repro/apk_modes_20261007/deck-list.png",
+      "source_size": [
+        1920,
+        1080
+      ],
+      "source_bounds": [
+        266,
+        168,
+        143,
+        44
+      ],
+      "source_sha256": "f487207e5d907740ffc67c14c40b51b6d6f7e482ebec8fb26c1b3cd843465f38",
+      "sha256": "cf80a05b30499f5e364f1b5744aa5684d7a23a1c3af9d2889ea50b26b6d4ccb3"
+    },
+    "training_unselected": {
+      "file": "training_unselected.png",
+      "bounds": [
+        177,
+        159,
+        95,
+        29
+      ],
+      "source": "repro/apk_modes_20261007/deck-list.png",
+      "source_size": [
+        1920,
+        1080
+      ],
+      "source_bounds": [
+        266,
+        239,
+        143,
+        44
+      ],
+      "source_sha256": "f487207e5d907740ffc67c14c40b51b6d6f7e482ebec8fb26c1b3cd843465f38",
+      "sha256": "f288298f619591358521ac6b188e53c1e452d8f21fdd2c34b60d7be44399e3e0"
+    },
+    "battle_unselected": {
+      "file": "battle_unselected.png",
+      "bounds": [
+        177,
+        112,
+        95,
+        29
+      ],
+      "source": "android-app/app/src/androidTest/assets/mulligan-replay/training_list.png",
+      "source_size": [
+        1920,
+        1080
+      ],
+      "source_bounds": [
+        266,
+        168,
+        143,
+        44
+      ],
+      "source_sha256": "5438e435b06ffac0c7ca173fc0f9ea6df2843227d662234dcc15989f4236bf35",
+      "sha256": "8976330ef8753d22145e074805af6626abe4b38bebf84b6404cba1a6bc8dacd0"
+    },
+    "training_selected": {
+      "file": "training_selected.png",
+      "bounds": [
+        177,
+        159,
+        95,
+        29
+      ],
+      "source": "android-app/app/src/androidTest/assets/mulligan-replay/training_list.png",
+      "source_size": [
+        1920,
+        1080
+      ],
+      "source_bounds": [
+        266,
+        239,
+        143,
+        44
+      ],
+      "source_sha256": "5438e435b06ffac0c7ca173fc0f9ea6df2843227d662234dcc15989f4236bf35",
+      "sha256": "92bf2f1c7d55f036ff14df6163e3814484554cfabe2a5773ae55b8144a8702c5"
+    },
+    "detail_battle": {
+      "file": "detail_battle.png",
+      "bounds": [
+        177,
+        112,
+        95,
+        29
+      ],
+      "source": "repro/apk_modes_20261007/german-ranked-selected.png",
+      "source_size": [
+        1920,
+        1080
+      ],
+      "source_bounds": [
+        266,
+        168,
+        143,
+        44
+      ],
+      "source_sha256": "f32be56c0f1a1c6876c056627981fdef9d92d13c0ca734a3c954eb47ecf10d12",
+      "sha256": "832811d57e0e4c8b151d1445f9d8cfd309e5b4fa2b634d5eecdefd30f0274ce8"
+    },
+    "detail_training": {
+      "file": "detail_training.png",
+      "bounds": [
+        177,
+        159,
+        95,
+        29
+      ],
+      "source": "repro/apk_modes_20261007/german-ranked-selected.png",
+      "source_size": [
+        1920,
+        1080
+      ],
+      "source_bounds": [
+        266,
+        239,
+        143,
+        44
+      ],
+      "source_sha256": "f32be56c0f1a1c6876c056627981fdef9d92d13c0ca734a3c954eb47ecf10d12",
+      "sha256": "24e706a6245a34fba29d10e42b065f453831e4500c728872599819aed0f193ea"
+    },
+    "selector_ranked": {
+      "file": "selector_ranked.png",
+      "bounds": [
+        1068,
+        457,
+        206,
+        37
+      ],
+      "source": "repro/apk_modes_20261007/german-ranked-selected.png",
+      "source_size": [
+        1920,
+        1080
+      ],
+      "source_bounds": [
+        1602,
+        686,
+        309,
+        55
+      ],
+      "source_sha256": "f32be56c0f1a1c6876c056627981fdef9d92d13c0ca734a3c954eb47ecf10d12",
+      "sha256": "8470b34ed1d884c576c500901e76158d2cfe0b8448432c3a2d0f89a76398af1f"
+    },
+    "selector_casual": {
+      "file": "selector_casual.png",
+      "bounds": [
+        1068,
+        457,
+        206,
+        37
+      ],
+      "source": "repro/apk_modes_20261007/german-detail-casual.png",
+      "source_size": [
+        1920,
+        1080
+      ],
+      "source_bounds": [
+        1602,
+        686,
+        309,
+        55
+      ],
+      "source_sha256": "121d88d1baa6023100bdf1aef5c40a8efe063b1065db05eeda7ff0d2252fcaf7",
+      "sha256": "850ca1b252f73fb41ee526aa95b4484e4e27bf593d1ed50a59f58d179b112fd1"
+    },
+    "detail_start": {
+      "file": "detail_start.png",
+      "bounds": [
+        1070,
+        513,
+        203,
+        45
+      ],
+      "source": "repro/apk_modes_20261007/german-ranked-selected.png",
+      "source_size": [
+        1920,
+        1080
+      ],
+      "source_bounds": [
+        1605,
+        769,
+        304,
+        68
+      ],
+      "source_sha256": "f32be56c0f1a1c6876c056627981fdef9d92d13c0ca734a3c954eb47ecf10d12",
+      "sha256": "6311a4558614008b1977de699229d485d6902c1413500f6ba7bfef766dc5a691"
+    },
+    "login_title": {
+      "file": "login_title.png",
+      "bounds": [
+        538,
+        125,
+        204,
+        37
+      ],
+      "source": "repro/apk_modes_20261007/game-ready.png",
+      "source_size": [
+        1920,
+        1080
+      ],
+      "source_bounds": [
+        807,
+        187,
+        306,
+        56
+      ],
+      "source_sha256": "897f65a8e7af23bcbdbcc651f6cf528f2136b4c2bef4aa3659c95c7c6dda50b9",
+      "sha256": "68005844176b2674eab74631c12e019f459736176f546c15b0591ae7d6c71e4a"
+    },
+    "login_continue": {
+      "file": "login_continue.png",
+      "bounds": [
+        537,
+        567,
+        203,
+        25
+      ],
+      "source": "repro/apk_modes_20261007/game-ready.png",
+      "source_size": [
+        1920,
+        1080
+      ],
+      "source_bounds": [
+        805,
+        851,
+        305,
+        37
+      ],
+      "source_sha256": "897f65a8e7af23bcbdbcc651f6cf528f2136b4c2bef4aa3659c95c7c6dda50b9",
+      "sha256": "9150e0ba336833b29418eb94b5883b66c091ae272397cc1c6efec0ed5e2fa077"
+    },
+    "login_claim": {
+      "file": "login_claim.png",
+      "bounds": [
+        537,
+        567,
+        203,
+        25
+      ],
+      "source": "repro/apk_modes_20261007/live-ranked-01-watch/0002.png",
+      "source_size": [
+        1920,
+        1080
+      ],
+      "source_bounds": [
+        805,
+        851,
+        305,
+        37
+      ],
+      "source_sha256": "c230fc536e3767a56326e1d7ba2767e8e0c1a1d651ccafd4b16c4419918f521b",
+      "sha256": "fcebe893b9e0648aedd3e7bbac856063222d41e2de87b3576a7741e06ef934e1"
+    },
+    "disconnect_title": {
+      "file": "disconnect_title.png",
+      "bounds": [
+        577,
+        240,
+        125,
+        33
+      ],
+      "source": "repro/apk_modes_20261007/game-resume.png",
+      "source_size": [
+        1920,
+        1080
+      ],
+      "source_bounds": [
+        866,
+        360,
+        187,
+        49
+      ],
+      "source_sha256": "958784d476dc7dd490cdc597d1ccc3748ca75a507c42c9d9780360915edea501",
+      "sha256": "e576500872e1438daea91af9855298e66d750c67d6167b67291f6197ea32796d"
+    },
+    "reconnect": {
+      "file": "reconnect.png",
+      "bounds": [
+        548,
+        386,
+        185,
+        42
+      ],
+      "source": "repro/apk_modes_20261007/game-resume.png",
+      "source_size": [
+        1920,
+        1080
+      ],
+      "source_bounds": [
+        822,
+        579,
+        277,
+        63
+      ],
+      "source_sha256": "958784d476dc7dd490cdc597d1ccc3748ca75a507c42c9d9780360915edea501",
+      "sha256": "e60ac996f7b3b29e950c20a6834c30b4ea45284ec6c9bdb9965fc92d90ca267a"
+    },
+    "queue_cancel": {
+      "file": "queue_cancel.png",
+      "bounds": [
+        541,
+        581,
+        230,
+        52
+      ],
+      "source": "android-app/app/src/androidTest/assets/mulligan-replay/queue_submarine.png",
+      "source_size": [
+        1920,
+        1080
+      ],
+      "source_bounds": [
+        811,
+        872,
+        345,
+        78
+      ],
+      "source_sha256": "5fcc2e5b80ba77682cc4ae5aa675430e018aa0ff5f03b8b77e6b9c04439eb725",
+      "sha256": "db1a614fc89a11b8b26d7b4e5301467323c0dcd1994c9afdd37a5b57c665268c"
+    },
+    "task_title": {
+      "file": "task_title.png",
+      "bounds": [
+        577,
+        105,
+        128,
+        36
+      ],
+      "source": "repro/apk_battle_20261005/live15-main-menu.png",
+      "source_size": [
+        1920,
+        1080
+      ],
+      "source_bounds": [
+        866,
+        157,
+        192,
+        54
+      ],
+      "source_sha256": "9b26c0b69112b32378f9e3e89b516b0e437c11f36043f21124dbb66252b53feb",
+      "sha256": "14939b16d864fb3bb10f3fc3a5c458bb271e6a7666764a63a67cb50dc131cbd2"
+    },
+    "task_subtitle": {
+      "file": "task_subtitle.png",
+      "bounds": [
+        536,
+        161,
+        150,
+        22
+      ],
+      "source": "repro/apk_battle_20261005/live15-main-menu.png",
+      "source_size": [
+        1920,
+        1080
+      ],
+      "source_bounds": [
+        804,
+        241,
+        225,
+        33
+      ],
+      "source_sha256": "9b26c0b69112b32378f9e3e89b516b0e437c11f36043f21124dbb66252b53feb",
+      "sha256": "241a27265ede63d8a738c5bdf6f50a56e58acadbf1da05a56edaa20272ce0146"
+    },
+    "task_subtitle_pass_backdrop": {
+      "file": "task_subtitle_pass_backdrop.png",
+      "bounds": [
+        536,
+        161,
+        150,
+        22
+      ],
+      "source": "repro/apk_modes_20261007/live-casual-02-final/files/battle/1791345172870-a8bd9486/frames/00022.png",
+      "source_size": [
+        1280,
+        720
+      ],
+      "source_bounds": [
+        536,
+        161,
+        150,
+        22
+      ],
+      "source_sha256": "eaf17068587df7cbb88ea52f57c1ac66faba31612cf0f35e184f6bd9ce0ae247",
+      "sha256": "49305cd5a8423c4f45c2667b2041c81709733fd4427b8483b0deb481f83c1547"
+    },
+    "task_subtitle_cards_backdrop": {
+      "file": "task_subtitle_cards_backdrop.png",
+      "bounds": [
+        536,
+        161,
+        150,
+        22
+      ],
+      "source": "repro/apk_modes_20261007/live-casual-02-final/files/battle/1791345172870-a8bd9486/frames/00033.png",
+      "source_size": [
+        1280,
+        720
+      ],
+      "source_bounds": [
+        536,
+        161,
+        150,
+        22
+      ],
+      "source_sha256": "95be79990e329a08b67db5777b6cd2465babc5247c6689d3628fb820f2a41aea",
+      "sha256": "7d4546f4566f1c3782c07547da6c8e7bf3d1c9f131f9904db6e9927c566b54e2"
+    },
+    "pass_title": {
+      "file": "pass_title.png",
+      "bounds": [
+        340,
+        220,
+        250,
+        70
+      ],
+      "source": "repro/apk_battle_20261005/live15-task-dismiss-after.png",
+      "source_size": [
+        1920,
+        1080
+      ],
+      "source_bounds": [
+        510,
+        330,
+        375,
+        105
+      ],
+      "source_sha256": "f6916f48c945de9514be7fb68c39e3169ca9b046fd42c538a817533513bde59b",
+      "sha256": "9dc1d7a822325fef9817de60ea0772d61047b4c99c9241998a0faaa132c24945"
+    },
+    "pass_close": {
+      "file": "pass_close.png",
+      "bounds": [
+        932,
+        199,
+        31,
+        29
+      ],
+      "source": "repro/apk_battle_20261005/live15-task-dismiss-after.png",
+      "source_size": [
+        1920,
+        1080
+      ],
+      "source_bounds": [
+        1398,
+        299,
+        47,
+        44
+      ],
+      "source_sha256": "f6916f48c945de9514be7fb68c39e3169ca9b046fd42c538a817533513bde59b",
+      "sha256": "9d75c0e334e56a51276173e13752253d8ce3bb1908de2308b2c6a8ff1d636330"
+    },
+    "box_title": {
+      "file": "box_title.png",
+      "bounds": [
+        340,
+        235,
+        257,
+        72
+      ],
+      "source": "repro/apk_battle_20261005/live15-ad-close-after.png",
+      "source_size": [
+        1920,
+        1080
+      ],
+      "source_bounds": [
+        510,
+        353,
+        385,
+        108
+      ],
+      "source_sha256": "637f72658eebb5d16ff9a6318f8de3a25a89594c258ebcd99216dab9aa477063",
+      "sha256": "5e705cfc383e200d19da91fff5ca7e7715466ba6f5364b85122bfbe675609b71"
+    },
+    "box_close": {
+      "file": "box_close.png",
+      "bounds": [
+        932,
+        199,
+        31,
+        29
+      ],
+      "source": "repro/apk_battle_20261005/live15-ad-close-after.png",
+      "source_size": [
+        1920,
+        1080
+      ],
+      "source_bounds": [
+        1398,
+        299,
+        47,
+        44
+      ],
+      "source_sha256": "637f72658eebb5d16ff9a6318f8de3a25a89594c258ebcd99216dab9aa477063",
+      "sha256": "7a9d385234179c2e98b3fd23c82e5c3b78a87bc962783c7f8e7cff9dd0794216"
+    },
+    "store_title": {
+      "file": "store_title.png",
+      "bounds": [
+        453,
+        237,
+        400,
+        65
+      ],
+      "source": "repro/apk_modes_20261007/live-ranked-02-watch/0002.png",
+      "source_size": [
+        1920,
+        1080
+      ],
+      "source_bounds": [
+        680,
+        356,
+        600,
+        98
+      ],
+      "source_sha256": "7ffec04e39855eb2fe80b3c57b2e72a17e1800ee76431b636652fce43ddcf9af",
+      "sha256": "b3afbcefdba9b9f63d9410fbcc6fedaaa587b32629808db5092c18f3c12b577e"
+    },
+    "store_close": {
+      "file": "store_close.png",
+      "bounds": [
+        937,
+        201,
+        25,
+        25
+      ],
+      "source": "repro/apk_modes_20261007/live-ranked-02-watch/0002.png",
+      "source_size": [
+        1920,
+        1080
+      ],
+      "source_bounds": [
+        1406,
+        302,
+        38,
+        38
+      ],
+      "source_sha256": "7ffec04e39855eb2fe80b3c57b2e72a17e1800ee76431b636652fce43ddcf9af",
+      "sha256": "7baabeb9ad76c27f37658a05b77a89bceea68fd2978a37764c63317e10c83820"
+    },
+    "airdrop_title": {
+      "file": "airdrop_title.png",
+      "bounds": [
+        340,
+        237,
+        255,
+        83
+      ],
+      "source": "repro/apk_iteration_20261008/code33-casual-cold-watch/0001.png",
+      "source_size": [
+        1920,
+        1080
+      ],
+      "source_sha256": "a8bc0986188d5d8a4aaa3cecea0b1d35aef07bede425bcb4dc38156aa57681a3",
+      "sha256": "dd19e3f2636e649b0c6dab93548a06aa840821f79f6867dd08d7784a4e280825",
+      "normalization": "cv2.INTER_AREA to 1280x720, then exact crop",
+      "meaning": "Full two-line title; excludes changing timer and price."
+    },
+    "airdrop_close": {
+      "file": "airdrop_close.png",
+      "bounds": [
+        938,
+        202,
+        25,
+        25
+      ],
+      "source": "repro/apk_iteration_20261008/code33-casual-cold-watch/0001.png",
+      "source_size": [
+        1920,
+        1080
+      ],
+      "source_sha256": "a8bc0986188d5d8a4aaa3cecea0b1d35aef07bede425bcb4dc38156aa57681a3",
+      "sha256": "b4f6253dec94b117848bbae06f50fb8a81d5a5efe6db69ebb0fd7dac92961050",
+      "normalization": "cv2.INTER_AREA to 1280x720, then exact crop",
+      "meaning": "Observed white close X; the only allowed target."
+    },
+    "airdrop_edge_top": {
+      "file": "airdrop_edge_top.png",
+      "bounds": [
+        310,
+        194,
+        660,
+        6
+      ],
+      "source": "repro/apk_iteration_20261008/code33-casual-cold-watch/0001.png",
+      "source_size": [
+        1920,
+        1080
+      ],
+      "source_sha256": "a8bc0986188d5d8a4aaa3cecea0b1d35aef07bede425bcb4dc38156aa57681a3",
+      "sha256": "f6578c3dfbbf8413fb23b18890083e9f22d6bcbbe754220821584004d4721717",
+      "normalization": "cv2.INTER_AREA to 1280x720, then exact crop",
+      "meaning": "Entire independent panel border strip; never a click target."
+    },
+    "airdrop_edge_bottom": {
+      "file": "airdrop_edge_bottom.png",
+      "bounds": [
+        310,
+        520,
+        660,
+        7
+      ],
+      "source": "repro/apk_iteration_20261008/code33-casual-cold-watch/0001.png",
+      "source_size": [
+        1920,
+        1080
+      ],
+      "source_sha256": "a8bc0986188d5d8a4aaa3cecea0b1d35aef07bede425bcb4dc38156aa57681a3",
+      "sha256": "1c0c1e8a413df7499272102dc7314fdb60b313dbb1c67802ebdd116adbedec85",
+      "normalization": "cv2.INTER_AREA to 1280x720, then exact crop",
+      "meaning": "Entire independent panel border strip; never a click target."
+    },
+    "airdrop_edge_left": {
+      "file": "airdrop_edge_left.png",
+      "bounds": [
+        310,
+        200,
+        6,
+        320
+      ],
+      "source": "repro/apk_iteration_20261008/code33-casual-cold-watch/0001.png",
+      "source_size": [
+        1920,
+        1080
+      ],
+      "source_sha256": "a8bc0986188d5d8a4aaa3cecea0b1d35aef07bede425bcb4dc38156aa57681a3",
+      "sha256": "f06a7328ec5ae1fd3304071a980ae01dab39140f67c3fb715580ef27579e4cd8",
+      "normalization": "cv2.INTER_AREA to 1280x720, then exact crop",
+      "meaning": "Entire independent panel border strip; never a click target."
+    },
+    "airdrop_edge_right": {
+      "file": "airdrop_edge_right.png",
+      "bounds": [
+        963,
+        200,
+        7,
+        320
+      ],
+      "source": "repro/apk_iteration_20261008/code33-casual-cold-watch/0001.png",
+      "source_size": [
+        1920,
+        1080
+      ],
+      "source_sha256": "a8bc0986188d5d8a4aaa3cecea0b1d35aef07bede425bcb4dc38156aa57681a3",
+      "sha256": "d1679723f6f0220726019bcaeee82fb7daf88880278b76ac3a479cc75427f664",
+      "normalization": "cv2.INTER_AREA to 1280x720, then exact crop",
+      "meaning": "Entire independent panel border strip; never a click target."
+    },
+    "starter_title": {
+      "file": "starter_title.png",
+      "bounds": [
+        341,
+        237,
+        188,
+        50
+      ],
+      "source": "repro/apk_iteration_20261008/code33-home-reviewed-post-promo.png",
+      "source_size": [
+        1920,
+        1080
+      ],
+      "source_sha256": "e6cfd8e20304061fef11a83a5340b16315b6d04b63c8d377ab96b288483f7991",
+      "sha256": "fd638c6b13fcba6b9a2984646524a239110359c433fdb6842ded961975a997af",
+      "normalization": "cv2.INTER_AREA to 1280x720, then exact crop",
+      "meaning": "Observed title; excludes changing timer and price."
+    },
+    "starter_close": {
+      "file": "starter_close.png",
+      "bounds": [
+        938,
+        202,
+        25,
+        25
+      ],
+      "source": "repro/apk_iteration_20261008/code33-home-reviewed-post-promo.png",
+      "source_size": [
+        1920,
+        1080
+      ],
+      "source_sha256": "e6cfd8e20304061fef11a83a5340b16315b6d04b63c8d377ab96b288483f7991",
+      "sha256": "2373238a5141fdd2bed0fc7c60b3efe006c221e8c79e014ca68164e184fff427",
+      "normalization": "cv2.INTER_AREA to 1280x720, then exact crop",
+      "meaning": "Observed white close X; the only allowed target."
+    },
+    "starter_edge_top": {
+      "file": "starter_edge_top.png",
+      "bounds": [
+        310,
+        194,
+        660,
+        6
+      ],
+      "source": "repro/apk_iteration_20261008/code33-home-reviewed-post-promo.png",
+      "source_size": [
+        1920,
+        1080
+      ],
+      "source_sha256": "e6cfd8e20304061fef11a83a5340b16315b6d04b63c8d377ab96b288483f7991",
+      "sha256": "648620f03aad5fc0394c843e24fda17aff2466186fd72823480f8a0765421057",
+      "normalization": "cv2.INTER_AREA to 1280x720, then exact crop",
+      "meaning": "Entire independent panel border strip; never a click target."
+    },
+    "starter_edge_bottom": {
+      "file": "starter_edge_bottom.png",
+      "bounds": [
+        310,
+        520,
+        660,
+        7
+      ],
+      "source": "repro/apk_iteration_20261008/code33-home-reviewed-post-promo.png",
+      "source_size": [
+        1920,
+        1080
+      ],
+      "source_sha256": "e6cfd8e20304061fef11a83a5340b16315b6d04b63c8d377ab96b288483f7991",
+      "sha256": "ac494c2861442ed78d1859d7b0a834853394eadcf96e4707d883d9369aed7132",
+      "normalization": "cv2.INTER_AREA to 1280x720, then exact crop",
+      "meaning": "Entire independent panel border strip; never a click target."
+    },
+    "starter_edge_left": {
+      "file": "starter_edge_left.png",
+      "bounds": [
+        310,
+        200,
+        6,
+        320
+      ],
+      "source": "repro/apk_iteration_20261008/code33-home-reviewed-post-promo.png",
+      "source_size": [
+        1920,
+        1080
+      ],
+      "source_sha256": "e6cfd8e20304061fef11a83a5340b16315b6d04b63c8d377ab96b288483f7991",
+      "sha256": "0531544abe1cd01a507fb2d5ba9c801926cfd210a05ab05aea1e1b4726e3a095",
+      "normalization": "cv2.INTER_AREA to 1280x720, then exact crop",
+      "meaning": "Entire independent panel border strip; never a click target."
+    },
+    "starter_edge_right": {
+      "file": "starter_edge_right.png",
+      "bounds": [
+        963,
+        200,
+        7,
+        320
+      ],
+      "source": "repro/apk_iteration_20261008/code33-home-reviewed-post-promo.png",
+      "source_size": [
+        1920,
+        1080
+      ],
+      "source_sha256": "e6cfd8e20304061fef11a83a5340b16315b6d04b63c8d377ab96b288483f7991",
+      "sha256": "8ef86ee6d1f6a1ba4a7950b4ec3134c1cc9af5a4933cb5702c409988c2bc78a5",
+      "normalization": "cv2.INTER_AREA to 1280x720, then exact crop",
+      "meaning": "Entire independent panel border strip; never a click target."
+    },
+    "weekend_title": {
+      "file": "weekend_title.png",
+      "bounds": [
+        340,
+        237,
+        166,
+        78
+      ],
+      "source": "repro/apk_continuation_20261009/code48-weekend-menu/exact/files/battle/1791562116793-0f838a74/frames/00026.png",
+      "source_frame_id": 26,
+      "source_size": [
+        1280,
+        720
+      ],
+      "source_sha256": "fb35c264dc36d7ebcd417e84c3698e741313c2e38335bb9adef7ba52590f3eb3",
+      "sha256": "765165d4642f96f7d080f71badb91f2b57e8dbcd65871d64469d6b387bc10e3b",
+      "normalization": "exact archived normalized BGR PNG; no resize; exact crop",
+      "meaning": "Complete two-line weekend title, excludes More Information button and offer artwork.",
+      "role": "training crop from code47 source26; validation uses held-out source36/source46 captures of same popup/session; no cross-session claim"
+    },
+    "weekend_close": {
+      "file": "weekend_close.png",
+      "bounds": [
+        938,
+        202,
+        25,
+        25
+      ],
+      "source": "repro/apk_continuation_20261009/code48-weekend-menu/exact/files/battle/1791562116793-0f838a74/frames/00026.png",
+      "source_frame_id": 26,
+      "source_size": [
+        1280,
+        720
+      ],
+      "source_sha256": "fb35c264dc36d7ebcd417e84c3698e741313c2e38335bb9adef7ba52590f3eb3",
+      "sha256": "46dc98dd5384670c547f254368d1f1d21be15d72db0cecd15abd8e2c79823b25",
+      "normalization": "exact archived normalized BGR PNG; no resize; exact crop",
+      "meaning": "Observed close X; only allowed target.",
+      "role": "training crop from code47 source26; validation uses held-out source36/source46 captures of same popup/session; no cross-session claim"
+    },
+    "weekend_edge_top": {
+      "file": "weekend_edge_top.png",
+      "bounds": [
+        310,
+        194,
+        660,
+        6
+      ],
+      "source": "repro/apk_continuation_20261009/code48-weekend-menu/exact/files/battle/1791562116793-0f838a74/frames/00026.png",
+      "source_frame_id": 26,
+      "source_size": [
+        1280,
+        720
+      ],
+      "source_sha256": "fb35c264dc36d7ebcd417e84c3698e741313c2e38335bb9adef7ba52590f3eb3",
+      "sha256": "2b5ada55eb9fbe82f81be4e5839468e0f3f04b73ebc2df2b6068ee6fa75af569",
+      "normalization": "exact archived normalized BGR PNG; no resize; exact crop",
+      "meaning": "Complete independent panel border strip; never a click target.",
+      "role": "training crop from code47 source26; validation uses held-out source36/source46 captures of same popup/session; no cross-session claim"
+    },
+    "weekend_edge_bottom": {
+      "file": "weekend_edge_bottom.png",
+      "bounds": [
+        310,
+        520,
+        660,
+        7
+      ],
+      "source": "repro/apk_continuation_20261009/code48-weekend-menu/exact/files/battle/1791562116793-0f838a74/frames/00026.png",
+      "source_frame_id": 26,
+      "source_size": [
+        1280,
+        720
+      ],
+      "source_sha256": "fb35c264dc36d7ebcd417e84c3698e741313c2e38335bb9adef7ba52590f3eb3",
+      "sha256": "f25fa407dd36fd5436e4c7a010a6b0af809f98a86b130c1f7990a0f9a17a2538",
+      "normalization": "exact archived normalized BGR PNG; no resize; exact crop",
+      "meaning": "Complete independent panel border strip; never a click target.",
+      "role": "training crop from code47 source26; validation uses held-out source36/source46 captures of same popup/session; no cross-session claim"
+    },
+    "weekend_edge_left": {
+      "file": "weekend_edge_left.png",
+      "bounds": [
+        310,
+        200,
+        6,
+        320
+      ],
+      "source": "repro/apk_continuation_20261009/code48-weekend-menu/exact/files/battle/1791562116793-0f838a74/frames/00026.png",
+      "source_frame_id": 26,
+      "source_size": [
+        1280,
+        720
+      ],
+      "source_sha256": "fb35c264dc36d7ebcd417e84c3698e741313c2e38335bb9adef7ba52590f3eb3",
+      "sha256": "bd2380d637a4aac76d2d0d5d788469a34e5f38a5ded1bc587f7d48a4ee68be0c",
+      "normalization": "exact archived normalized BGR PNG; no resize; exact crop",
+      "meaning": "Complete independent panel border strip; never a click target.",
+      "role": "training crop from code47 source26; validation uses held-out source36/source46 captures of same popup/session; no cross-session claim"
+    },
+    "weekend_edge_right": {
+      "file": "weekend_edge_right.png",
+      "bounds": [
+        963,
+        200,
+        7,
+        320
+      ],
+      "source": "repro/apk_continuation_20261009/code48-weekend-menu/exact/files/battle/1791562116793-0f838a74/frames/00026.png",
+      "source_frame_id": 26,
+      "source_size": [
+        1280,
+        720
+      ],
+      "source_sha256": "fb35c264dc36d7ebcd417e84c3698e741313c2e38335bb9adef7ba52590f3eb3",
+      "sha256": "0107881662a53bed69af48dfaeea42bdf3810438b06a6fc1b61018666d450bc1",
+      "normalization": "exact archived normalized BGR PNG; no resize; exact crop",
+      "meaning": "Complete independent panel border strip; never a click target.",
+      "role": "training crop from code47 source26; validation uses held-out source36/source46 captures of same popup/session; no cross-session claim"
+    },
+    "native_battle_label": {
+      "file": "native_battle_label.png",
+      "bounds": [
+        297,
+        183,
+        162,
+        54
+      ],
+      "source": "repro\\aspect_dynamic_experiment_20261011\\native69-deck-current.png",
+      "source_sha256": "55f1faff76a4ac505ae79a38dff55d960aee50865ddd8ddb32276483aa8bcc26",
+      "source_height": 1240,
+      "template_height_basis": 720,
+      "ocr_text": "对战模式",
+      "ocr_score": 0.9967492967844009
+    },
+    "native_training_label": {
+      "file": "native_training_label.png",
+      "bounds": [
+        298,
+        265,
+        161,
+        54
+      ],
+      "source": "repro\\aspect_dynamic_experiment_20261011\\native69-deck-current.png",
+      "source_sha256": "55f1faff76a4ac505ae79a38dff55d960aee50865ddd8ddb32276483aa8bcc26",
+      "source_height": 1240,
+      "template_height_basis": 720,
+      "ocr_text": "训练模式",
+      "ocr_score": 0.993674099445343
+    },
+    "native_casual_label": {
+      "file": "native_casual_label.png",
+      "bounds": [
+        2637,
+        792,
+        78,
+        50
+      ],
+      "source": "repro\\aspect_dynamic_experiment_20261011\\native70-current.png",
+      "source_sha256": "c563f06ee97e82955beb65cbf346828f156afe4fdebce38b834a6894a18ec068",
+      "source_height": 1240,
+      "template_height_basis": 720,
+      "ocr_text": "休闲",
+      "ocr_score": 0.9968666434288025
+    },
+    "native_ranked_label": {
+      "file": "native_ranked_label.png",
+      "bounds": [
+        2458,
+        789,
+        84,
+        55
+      ],
+      "source": "repro\\aspect_dynamic_experiment_20261011\\native70-current.png",
+      "source_sha256": "c563f06ee97e82955beb65cbf346828f156afe4fdebce38b834a6894a18ec068",
+      "source_height": 1240,
+      "template_height_basis": 720,
+      "ocr_text": "排位",
+      "ocr_score": 0.9999568462371826
+    },
+    "native_queue_start": {
+      "file": "native_queue_start.png",
+      "bounds": [
+        2535,
+        885,
+        104,
+        65
+      ],
+      "source": "repro\\aspect_dynamic_experiment_20261011\\native70-current.png",
+      "source_sha256": "c563f06ee97e82955beb65cbf346828f156afe4fdebce38b834a6894a18ec068",
+      "source_height": 1240,
+      "template_height_basis": 720,
+      "ocr_text": "开始",
+      "ocr_score": 0.9997444152832031
+    },
+    "native_daily_title": {
+      "file": "native_daily_title.png",
+      "bounds": [
+        1282,
+        260,
+        206,
+        62
+      ],
+      "sha256": "b3504f0191955c7d11a3dc3b59d9c5a03d81e88ad58247e02ab7aa7bf49dcc66",
+      "source_sha256": "e9da2b1b5f69f70a4369c249f921001e4d6db909aaa26a51ad32bbb9835afc9e",
+      "source_height": 1240,
+      "source_width": 2772,
+      "source_text": "每日任务",
+      "source_ocr_score": 0.9967130571603775
+    },
+    "native_daily_refuse": {
+      "file": "native_daily_refuse.png",
+      "bounds": [
+        1049,
+        834,
+        79,
+        43
+      ],
+      "sha256": "7b4abfe9b2031a74ebaf92860cc787bdafa04cd6eff993c86b66d1a8027acc4f",
+      "source_sha256": "e9da2b1b5f69f70a4369c249f921001e4d6db909aaa26a51ad32bbb9835afc9e",
+      "source_height": 1240,
+      "source_width": 2772,
+      "source_text": "拒绝",
+      "source_ocr_score": 0.9995672404766083
+    },
+    "native_daily_refuse0": {
+      "file": "native_daily_refuse0.png",
+      "bounds": [
+        1049,
+        834,
+        79,
+        43
+      ],
+      "sha256": "7b4abfe9b2031a74ebaf92860cc787bdafa04cd6eff993c86b66d1a8027acc4f",
+      "source_ocr_score": 0.9995672404766083
+    },
+    "native_daily_refuse1": {
+      "file": "native_daily_refuse1.png",
+      "bounds": [
+        1346,
+        834,
+        80,
+        43
+      ],
+      "sha256": "db66a5fc26f53addfd7ef413f31b60166529ea06c76b0c1a7ae693029aa1f5a7",
+      "source_ocr_score": 0.9989571571350098
+    },
+    "native_daily_refuse2": {
+      "file": "native_daily_refuse2.png",
+      "bounds": [
+        1643,
+        833,
+        83,
+        46
+      ],
+      "sha256": "1b4ea95b83c9c7681022053c4262e1b028821f8399148b43ae7a73b0ee8325e6",
+      "source_ocr_score": 0.9993939101696014
+    },
+    "result_continue_label": {
+      "file": "result_continue_label.png",
+      "sha256": "c29fe3f1e07128602b344446e0439c011582642814f3d451808e4e1e1f064fb2",
+      "reference_height": 720,
+      "purpose": "result proof only; current white continue glyph under merged OCR",
+      "source": "native84-terminal00129.png exact verified continue label"
+    }
+  },
+  "deck_targets": {
+    "first_slot": {
+      "bounds": [
+        358,
+        87,
+        177,
+        250
+      ],
+      "source": "repro/apk_modes_20261007/first-deck-list-sample.png",
+      "meaning": "First top card slot; border geometry only."
+    },
+    "close_detail": {
+      "bounds": [
+        840,
+        586,
+        28,
+        28
+      ],
+      "source": "repro/apk_modes_20261007/second-deck-neutral-close-before.png",
+      "source_point": [
+        1280,
+        900
+      ],
+      "after_source": "repro/apk_modes_20261007/second-deck-neutral-close-after.png",
+      "meaning": "Neutral tabletop below first row, outside the side panel."
+    }
+  },
+  "dismiss_targets": {
+    "task_popup": {
+      "bounds": [
+        890,
+        585,
+        32,
+        30
+      ],
+      "source": "repro/apk_battle_20261005/host-setup-inputs.jsonl",
+      "source_action": "live15-task-dismiss-before.png",
+      "source_point": [
+        1360,
+        900
+      ],
+      "meaning": "Neutral background below the task/reward cards; no task action."
+    },
+    "pass_popup": {
+      "template": "pass_close",
+      "meaning": "Observed close X, never promotional content."
+    },
+    "box_popup": {
+      "template": "box_close",
+      "meaning": "Observed close X, never promotional content."
+    },
+    "airdrop_popup": {
+      "template": "airdrop_close",
+      "required_anchors": [
+        "airdrop_title",
+        "airdrop_close",
+        "airdrop_edge_top",
+        "airdrop_edge_bottom",
+        "airdrop_edge_left",
+        "airdrop_edge_right"
+      ],
+      "meaning": "Close only after exact title, white X and all four panel edges agree."
+    },
+    "starter_popup": {
+      "template": "starter_close",
+      "required_anchors": [
+        "starter_title",
+        "starter_close",
+        "starter_edge_top",
+        "starter_edge_bottom",
+        "starter_edge_left",
+        "starter_edge_right"
+      ],
+      "meaning": "Close only after exact title, white X and all four panel edges agree."
+    },
+    "weekend_popup": {
+      "template": "weekend_close",
+      "required_anchors": [
+        "weekend_title",
+        "weekend_close",
+        "weekend_edge_top",
+        "weekend_edge_bottom",
+        "weekend_edge_left",
+        "weekend_edge_right"
+      ],
+      "meaning": "Close only after exact weekend title, observed X and all four complete panel edges agree; never More Information or offer artwork."
+    }
+  },
+  "reward_wait": {
+    "schema": 1,
+    "markers": {
+      "diamond_label": {
+        "file": "settle_diamond_label.png",
+        "bounds": [
+          616,
+          630,
+          80,
+          40
+        ],
+        "sha256": "bf1e535962dd4cc48cf1ee1e41db9aee84f50914f839c55283535211e2e7c3f5",
+        "source": "repro/apk_continuation_20261009/code45-settle-diagnosis/frames/01116.png",
+        "source_frame_id": 1116,
+        "source_sha256": "cfb7b4f8f641f32ef0844721f5fb87ecfab90af886ebd675f26ef330e95e5562",
+        "source_size": [
+          1280,
+          720
+        ],
+        "source_bounds": [
+          616,
+          630,
+          80,
+          40
+        ],
+        "role": "training crop from code44 round2 same reward sequence; excludes changing amount/artwork; not independent validation"
+      },
+      "tap_claim": {
+        "file": "settle_tap_claim.png",
+        "bounds": [
+          588,
+          674,
+          109,
+          29
+        ],
+        "sha256": "6e9cd1a3df73e9e974b6e4f2f4bedff609144758b10696bce27e584eb98c376a",
+        "source": "repro/apk_continuation_20261009/code45-settle-diagnosis/frames/01116.png",
+        "source_frame_id": 1116,
+        "source_sha256": "cfb7b4f8f641f32ef0844721f5fb87ecfab90af886ebd675f26ef330e95e5562",
+        "source_size": [
+          1280,
+          720
+        ],
+        "source_bounds": [
+          588,
+          674,
+          109,
+          29
+        ],
+        "role": "training crop from code44 round2 same reward sequence; excludes changing amount/artwork; not independent validation"
+      }
+    },
+    "phase_timeout_seconds": 8.0,
+    "meaning": "optional narrow diamond/claim wait after explicit result or debug component admission; never menu/action identity"
+  }
+}

@@ -1,0 +1,97 @@
+{
+  "image_size": [
+    1280,
+    720
+  ],
+  "templates": {
+    "play_btn": {
+      "path": "ui_templates/android/main_menu/play_btn.png",
+      "region": {
+        "x": 0,
+        "y": 31,
+        "w": 224,
+        "h": 214
+      },
+      "_from_score": 0.874,
+      "_from_scale": 0.9
+    },
+    "order_icon": {
+      "path": "ui_templates/android/main_menu/order_icon.png",
+      "region": {
+        "x": 243,
+        "y": 370,
+        "w": 139,
+        "h": 138
+      },
+      "_from_score": 0.719,
+      "_from_scale": 0.8
+    },
+    "infantry_icon": {
+      "path": "ui_templates/android/main_menu/infantry_icon.png",
+      "region": {
+        "x": 697,
+        "y": 534,
+        "w": 146,
+        "h": 146
+      },
+      "_from_score": 0.587,
+      "_from_scale": 0.8
+    },
+    "fighter_icon": {
+      "path": "ui_templates/android/main_menu/fighter_icon.png",
+      "region": {
+        "x": 1029,
+        "y": 357,
+        "w": 142,
+        "h": 142
+      },
+      "_from_score": 0.663,
+      "_from_scale": 0.7
+    },
+    "bomber_icon": {
+      "path": "ui_templates/android/main_menu/bomber_icon.png",
+      "region": {
+        "x": 712,
+        "y": 550,
+        "w": 141,
+        "h": 140
+      },
+      "_from_score": 0.727,
+      "_from_scale": 0.7
+    },
+    "counter_icon": {
+      "path": "ui_templates/android/main_menu/counter_icon.png",
+      "region": {
+        "x": 697,
+        "y": 537,
+        "w": 140,
+        "h": 140
+      },
+      "_from_score": 0.624,
+      "_from_scale": 0.9
+    },
+    "cost_num": {
+      "path": "ui_templates/android/main_menu/cost_num.png",
+      "region": {
+        "x": 815,
+        "y": 407,
+        "w": 133,
+        "h": 133
+      },
+      "_from_score": 0.649,
+      "_from_scale": 0.7
+    },
+    "quest_btn": {
+      "path": "ui_templates/android/main_menu/quest_btn.png",
+      "region": {
+        "x": 90,
+        "y": 475,
+        "w": 610,
+        "h": 235
+      },
+      "_from_score": null,
+      "_manual": "150,535,490,115@(=--frame)"
+    }
+  },
+  "_note": "由 template_rebuild.py 从 shots\\android\\menu\\home_a.png 重建(每个模板记着定位分数 _from_score / 缩放 _from_scale);**同一帧上的分数是自匹配,不算验证** —— 要用 --verify 另给一帧"
+}

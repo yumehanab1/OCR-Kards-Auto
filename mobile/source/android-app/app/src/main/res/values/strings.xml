@@ -1,0 +1,26 @@
+<resources>
+    <style name="AppTheme" parent="android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:colorAccent">#36513A</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
+        <item name="android:statusBarColor">#F5F5EF</item>
+        <item name="android:navigationBarColor">#F5F5EF</item>
+        <item name="android:windowBackground">#F5F5EF</item>
+    </style>
+    <string name="app_name">KARDS 对战助手</string>
+    <string name="match_count_label">局数</string>
+    <string name="match_count_hint">0 为无限循环，直到你停止。</string>
+    <string name="match_count_accessibility">对战局数，0 为无限循环</string>
+    <string name="match_count_invalid">请输入 0 或正整数，最大 2147483647。</string>
+    <string name="replay_png">回放保存 PNG（只读 JSON）</string>
+    <string name="replay_loading">状态：正在回放 PNG（只读）…</string>
+    <string name="replay_result">回放结果：%1$s\n原图：%2$d×%3$d → 1280×720\n候选数：%4$d；动作授权：否\n单帧观察，单位与前线归属尚未确认。\nJSON 已保存：%5$s</string>
+    <string name="replay_failure">回放失败：%1$s：%2$s\n动作授权：否</string>
+    <string name="readonly_failure">%1$s\n动作授权：否</string>
+    <string name="mulligan_unavailable">请先启用无障碍服务并安装 KARDS。</string>
+    <string name="mulligan_start_failed">单次测试未启动：%1$s</string>
+    <string name="mulligan_launch_failed">无法打开 KARDS，单次测试已停止。</string>
+    <string name="observation_running">只读观察运行中\n状态：%1$s\n动作授权：否\n每次均重新截图，未知字段保持 unknown/null</string>
+    <string name="accessibility_service_description">选择休闲或排位，填写局数后启动辅助。0 为无限循环，正整数为本次局数。可自动打开 KARDS，也可通过手动入口待命后自行打开游戏。游戏进入前台后，选择列表中第一个牌组，执行对战准备、出牌、移动和攻击。每局确认胜负并回到对战菜单后继续。返回助手、离开游戏、达到局数、点击停止或无法确认画面时停止。仅用于确认游戏前台、截图和执行手势，不读取窗口文字。</string>
+</resources>

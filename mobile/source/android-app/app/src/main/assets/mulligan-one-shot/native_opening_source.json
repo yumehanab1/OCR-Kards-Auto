@@ -1,0 +1,27 @@
+{
+  "source_height": 822,
+  "source_sha256": "f9073234b3fc612eb6a53a4d7da564571bd34e63ab767de42307c5f4578a7065",
+  "development_frame": true,
+  "labels": [
+    {
+      "text": "选择要替换的卡牌",
+      "bounds": [
+        757,
+        62,
+        325,
+        37
+      ],
+      "file": "native_opening_title_source.png"
+    },
+    {
+      "text": "确认",
+      "bounds": [
+        874,
+        720,
+        92,
+        52
+      ],
+      "file": "native_opening_confirm_source.png"
+    }
+  ]
+}

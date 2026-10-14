@@ -1,0 +1,11 @@
+<resources>
+    <item name="panel_training_debug_start" type="id" />
+    <item type="id" name="panel_start" />
+    <item type="id" name="panel_stop" />
+    <item type="id" name="panel_permissions" />
+    <item type="id" name="panel_service_state" />
+    <item type="id" name="panel_result_title" />
+    <item type="id" name="panel_details" />
+    <item type="id" name="panel_diagnostics_toggle" />
+    <item type="id" name="panel_diagnostics" />
+</resources>

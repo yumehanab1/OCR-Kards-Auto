@@ -1,0 +1,50 @@
+{
+  "repository": "https://api.github.com/repos/lightbringer/clipper-java",
+  "commit": "5ef8c0a467023c495e44e582e9cbd8ca7308a590",
+  "files": [
+    {
+      "file": "Clipper.java",
+      "sha256": "d463987032c73c6dcc982a90ecb768c594214f05dd800262950e9d64c98fa28f"
+    },
+    {
+      "file": "ClipperBase.java",
+      "sha256": "145907a66fc1438256070603877d2fdc16409bc7289b3029e24f3ef5d0eccdeb"
+    },
+    {
+      "file": "ClipperOffset.java",
+      "sha256": "cdade5cae7ea70cfd230d9134ce4f2e4407b864359c9f9ba9d0ae6de0ef6cf0e"
+    },
+    {
+      "file": "DefaultClipper.java",
+      "sha256": "80f666bb94ecdc4b68f36b8dd5fc58d3e6bbca7791ef1d0ecf460b16bb46f2f2"
+    },
+    {
+      "file": "Edge.java",
+      "sha256": "05c7fe06f505bed375625dcdd56f69bbdf3cbc7e3272b38c10bb29b78f56884c"
+    },
+    {
+      "file": "LongRect.java",
+      "sha256": "7ec0fa84decb6d15e525ffdc872429de031f385a409ededb10a9a4b32c790f4c"
+    },
+    {
+      "file": "Path.java",
+      "sha256": "ab5e1a63707e2a21cb8309e451048007bce730864f21bf2cf9fabf50cdd6ae7a"
+    },
+    {
+      "file": "Paths.java",
+      "sha256": "5d4757692ea0fdd33904efc424383d0cd5d48799bf76180a9e085784d542c3c7"
+    },
+    {
+      "file": "Point.java",
+      "sha256": "4d399a9fac02d3d9403c6b8aad1b2630e6257fb176222ff950055d1f465e9c78"
+    },
+    {
+      "file": "PolyNode.java",
+      "sha256": "f5e15da1395b5f1af4d82340b0ad9108e7b2cdbad6bc2bf69d421eb759ecfe5b"
+    },
+    {
+      "file": "PolyTree.java",
+      "sha256": "7c2c7af75e347acebe24afbd7e1e58d193177fba70b8939fac2d96e7e9db15a1"
+    }
+  ]
+}
