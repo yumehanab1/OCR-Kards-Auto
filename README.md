@@ -85,6 +85,7 @@ install.cmd
 
 - [KARDS-AUTO-Mobile-v0.2.1.apk](https://github.com/yumehanab1/OCR-Kards-Auto/releases/download/v0.2.1/KARDS-AUTO-Mobile-v0.2.1.apk)：直接安装，无需解压。
 - [安装说明](mobile/README.md)及[验证报告/SHA-256](docs/reports/mobile/APK_0.2.1_RELEASE.md)。旧0.2.0资产保留在历史Release。
+- 游戏设置：画质不限，内容比例设为“原生”，UI 比例调为 1。
 
 当前包为0.2.1 / versionCode109，包含悬浮启停/阶段显示、行动后部署、特殊外观识别与350MiB截图证据预算。经过正式构建、签名、覆盖安装及Android识别/截图回放验证；十局实机及截图单局证据来自明确列出的开发版本，不称0.2.1新十局通过。实体手机、脱离主机及完整断线重连仍未验收。
 
