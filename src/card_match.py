@@ -148,11 +148,12 @@ _NAME_NORM = None
 #: 卡库缺失不会让引擎崩,只会让它悄悄退化成"费用全靠徽章 OCR 兜底",
 #: 而那正是"整回合一张牌不出"的根(见 2026-09-19 实机)。
 _DB_ERROR = ""
+_RETIRED_HASH_NAMES = set()
 
 
 def load_db(path: str = DATA_JSON):
     """载入卡名集合、按长度降序的卡名表、卡名 -> 卡数据。"""
-    global _NAME_SET, _NAME_LIST, _CARD_BY_NAME, _DB_ERROR, _NAME_NORM
+    global _NAME_SET, _NAME_LIST, _CARD_BY_NAME, _DB_ERROR, _NAME_NORM, _RETIRED_HASH_NAMES
     if _NAME_SET is not None:
         return
     names = set()
@@ -161,6 +162,7 @@ def load_db(path: str = DATA_JSON):
     try:
         with open(path, "r", encoding="utf-8") as f:
             data = json.load(f)
+        _RETIRED_HASH_NAMES = set(data.get('metadata', {}).get('retired_hash_names', []))
         for c in data.get("cards", []):
             j = c.get("json", {})
             zh = (j.get("title") or {}).get("zh-Hans", "")
@@ -171,6 +173,7 @@ def load_db(path: str = DATA_JSON):
                 "kredits": j.get("kredits"),
                 "type": j.get("type"),
                 "cardId": c.get("cardId"),
+                "displayed_kredits": c.get('runtime', {}).get('displayed_kredits', []),
             })
     except Exception as e:                       # 数据库缺失不该让扫描崩掉
         _DB_ERROR = f"{type(e).__name__}: {e}"
@@ -492,14 +495,28 @@ class CardHashDB:
         if bits is None or not name:
             return False
         hexstr = hash_to_hex(bits)
-        same = [e for e in self.entries if e.get("name") == name]
+        same = [e for e in self.entries if e.get("name") == name and self._entry_current(e)]
         for e in same:
             if hamming(e["hash"], hexstr) <= 2:
                 return False                       # 已经有一模一样的了
         if len(same) >= max_per_name:
             return False
-        self.entries.append({"hash": hexstr, "name": name, "type": type_})
+        entry = {"hash": hexstr, "name": name, "type": type_}
+        card = card_by_name(name)
+        if card:
+            entry['cardId'] = card['cardId']
+        self.entries.append(entry)
         return True
+
+    @staticmethod
+    def _entry_current(entry):
+        load_db()
+        if entry.get('name') not in _RETIRED_HASH_NAMES:
+            return True
+        # A renamed title may now belong to a different card (第30步兵团).
+        # Keep legacy files intact, but do not trust these old name-only IDs.
+        current = card_by_name(entry.get('name')) or {}
+        return bool(entry.get('cardId') and entry['cardId'] == current.get('cardId'))
 
     def lookup(self, bits):
         """返回 (name, type, distance) 或 (None, None, None)。"""
@@ -508,6 +525,8 @@ class CardHashDB:
         hexstr = hash_to_hex(bits)
         best, best_d = None, 10 ** 6
         for e in self.entries:
+            if not self._entry_current(e):
+                continue
             d = hamming(e["hash"], hexstr)
             if d < best_d:
                 best, best_d = e, d

@@ -4,6 +4,8 @@
 
 ## 离线回归
 
+- `card_db_update_test.py`：1646条卡库/1588个卡名、12张平衡补丁、按cardId同步规则、补丁幂等与拒绝未知上游变化、旧改名指纹隔离、突发交战2费/5费与旧3费拒绝；不操作游戏。
+- `update_card_db.py --snapshot <官网快照> [--write]`：根据已审阅快照哈希与card_db/patches/2026-10-15.json构建卡库，默认仅核对；不联网、不修改指令权限。改库后运行order_plan.py --write及order_list_doc.py刷新规则资料和清单。
 - `gui_bridge_test.py`：使用真实pywebview桥接初始化与调用，验证仅公开七个操作方法、不遍历原生窗口/进程属性；不创建窗口或操作游戏。
 - `gui_long_log_test.py`：128MiB日志、超长单行/UTF-8、单次限量读取、缓存与增量传输、轮询并发约束、保留原文归档、查看器追加/截短/轮换跟随；只操作临时文件。
 

@@ -1,0 +1,215 @@
+{
+  "effective_date": "2026-10-15",
+  "base_game_version_id": 218,
+  "snapshot_source": "https://herokuapi.kards.com/graphql",
+  "snapshot_sha256": "f6492a250b566ab2e2d1643b272eaf90478eda3100daec52d3c5df873ea31b30",
+  "announcement": "https://www.kards.com/zh/news/october-2026-balance-patch-announcement",
+  "live_notice": "https://www.kards.com/zh/news/kards-update-october-2026",
+  "image_base": "https://www.datocms-assets.com/120590/1791969311-",
+  "note": "Reviewed official Chinese before/after images and English effect text; never infer permissions from this data.",
+  "cards": [
+    {
+      "cardId": "2nd_west_africa",
+      "image": "cn_october_26_balance_change_1.png",
+      "fields": {
+        "kredits": {
+          "before": 1,
+          "after": 2
+        },
+        "defense": {
+          "before": 2,
+          "after": 3
+        }
+      }
+    },
+    {
+      "cardId": "3_panzergrenadier",
+      "image": "cn_october_26_balance_change_2.png",
+      "fields": {
+        "text.zh-Hans": {
+          "before": "友方德国单位行动后，本单位获得 +1+1。",
+          "after": "其他友方德国单位行动后，本单位获得 +1+1。"
+        },
+        "text.en-EN": {
+          "before": "Gets +1+1 after you operate a German unit.",
+          "after": "Gets +1+1 after you operate another German unit."
+        }
+      }
+    },
+    {
+      "cardId": "238th_regiment",
+      "image": "cn_october_26_balance_change_3.png",
+      "fields": {
+        "defense": {
+          "before": 3,
+          "after": 2
+        }
+      }
+    },
+    {
+      "cardId": "yokosuka_e14y",
+      "image": "cn_october_26_balance_change_4.png",
+      "fields": {
+        "text.zh-Hans": {
+          "before": "部署：预报。若指挥点数为 0，抽 1 张牌。",
+          "after": "部署：预报。"
+        },
+        "text.en-EN": {
+          "before": "Deployment: Forecast. Draw a card if you have 0 kredits.",
+          "after": "Deployment: Forecast."
+        }
+      }
+    },
+    {
+      "cardId": "cruiser_scouts",
+      "image": "cn_october_26_balance_change_5.png",
+      "fields": {
+        "kredits": {
+          "before": 2,
+          "after": 3
+        },
+        "attributes": {
+          "before": null,
+          "after": [
+            "intel3"
+          ]
+        },
+        "text.zh-Hans": {
+          "before": "压制 1 个单位并预报。若指挥点数为 0，具有情报 3。",
+          "after": "压制 1 个单位并预报。"
+        },
+        "text.en-EN": {
+          "before": "Pin a unit and Forecast. Also Intel 3 if you have 0 kredits.",
+          "after": "Pin a unit and Forecast."
+        }
+      }
+    },
+    {
+      "cardId": "special_attack",
+      "image": "cn_october_26_balance_change_6.png",
+      "fields": {
+        "kredits": {
+          "before": 2,
+          "after": 3
+        }
+      }
+    },
+    {
+      "cardId": "tactical_retreat",
+      "image": "cn_october_26_balance_change_7.png",
+      "fields": {
+        "type": {
+          "before": "countermeasure",
+          "after": "order"
+        },
+        "text.zh-Hans": {
+          "before": "友方单位被攻击时，在伤害造成前将其返回手中。",
+          "after": "使 1 个花费不大于 4 的友方德国单位撤退。将 1 张复制加入手中。"
+        },
+        "text.en-EN": {
+          "before": "When a friendly unit is attacked, send it to hand before damage.",
+          "after": "Retreat a friendly German unit with cost 4 or less. Add a copy to hand."
+        }
+      }
+    },
+    {
+      "cardId": "16th_rifles",
+      "image": "cn_october_26_balance_change_8.png",
+      "fields": {
+        "attributes": {
+          "before": [
+            "smokescreen"
+          ],
+          "after": [
+            "smokescreen",
+            "shock"
+          ]
+        }
+      }
+    },
+    {
+      "cardId": "tupolev_tu2",
+      "image": "cn_october_26_balance_change_9.png",
+      "fields": {
+        "kredits": {
+          "before": 4,
+          "after": 3
+        },
+        "defense": {
+          "before": 4,
+          "after": 3
+        }
+      }
+    },
+    {
+      "cardId": "surprise_engagement",
+      "image": "cn_october_26_balance_change_10.png",
+      "fields": {
+        "text.zh-Hans": {
+          "before": "若本回合使用过降雨牌，具有 -2 花费。随机消灭 1 个敌方单位。抽 1 张卡组顶的单位。",
+          "after": "若本回合使用过降雨牌，具有 -3 花费。随机消灭 1 个敌方单位。抽 1 张卡组顶的单位。"
+        },
+        "text.en-EN": {
+          "before": "Costs 2 less if Rain was played this turn. Destroy a random enemy unit. Draw the top unit of your deck.",
+          "after": "Costs 3 less if Rain was played this turn. Destroy a random enemy unit. Draw the top unit of your deck."
+        }
+      },
+      "runtime": {
+        "displayed_kredits": [
+          2,
+          5
+        ]
+      }
+    },
+    {
+      "cardId": "3rd_carpathian",
+      "image": "cn_october_26_balance_change_11.png",
+      "fields": {
+        "attack": {
+          "before": 4,
+          "after": 2
+        },
+        "text.zh-Hans": {
+          "before": "部署：将 1 个友方单位转换为“第 24 乌兰骑兵团”。",
+          "after": "部署：将 1 个友方单位转换为“钢铁师”。"
+        },
+        "text.en-EN": {
+          "before": "Deployment: Convert a friendly unit into 24th UŁAN.",
+          "after": "Deployment: Convert a friendly unit into IRON DIVISION."
+        },
+        "can_create": {
+          "before": [
+            "24th_uan"
+          ],
+          "after": [
+            "iron_division"
+          ]
+        }
+      }
+    },
+    {
+      "cardId": "raaf_lightning_f4",
+      "image": "cn_october_26_balance_change_12.png",
+      "fields": {
+        "defense": {
+          "before": 4,
+          "after": 5
+        }
+      }
+    }
+  ],
+  "retired_hash_names": [
+    "步兵第二十联队",
+    "第 30 步兵团",
+    "步兵第三十四联队",
+    "银轮第四十一联队",
+    "为了天皇",
+    "天皇诏令",
+    "鹿儿岛联队",
+    "熊本联队",
+    "奈良联队",
+    "八纮一宇",
+    "大和魂",
+    "若松联队"
+  ]
+}

@@ -513,6 +513,19 @@ def build_plan() -> tuple[dict, dict]:
         plan[cid] = {"name": name, "cost": j.get("kredits"), "mode": "unsupported",
                      "kind": "", "rows": "", "note": why, "text": text, "src": "其余"}
 
+    # Historical A/B documents preserve the user's permissions, but their
+    # names, fees and descriptions must not overwrite the current card DB.
+    for cid, rec in plan.items():
+        info = idx.get(cid)
+        if not info:
+            continue
+        rec.update(name=info['name'], cost=info['cost'], text=info['text'])
+        if cid == 'tactical_retreat':
+            rec.update(mode='unsupported', kind='', rows='', follow='',
+                       note='限定目标尚未实现:仅花费不大于4的友方德国单位')
+        elif rec['mode'] == 'unsupported' and '没有中文描述' in rec.get('note', '') and info['text']:
+            rec['note'] = '资料已补齐，尚未核定出牌规则'
+
     stats = Counter(r["mode"] for r in plan.values())
     return plan, stats
 

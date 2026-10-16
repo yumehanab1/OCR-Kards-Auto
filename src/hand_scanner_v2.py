@@ -952,9 +952,13 @@ class HandScannerV2:
                     continue
                 cost = 0
             if info.get('cost') != cost and len(hcf._templates()) < 10:
-                self.last_orange['rejected'].append(dict(anchor, reason='incomplete bank cost conflict'))
-                uncertain = True
-                continue
+                # Reviewed conditional fees still require matching orange fan
+                # and enlarged digits. Never accept arbitrary DB mismatches.
+                entry = _card_by_name(info.get('name')) or {}
+                if cost not in entry.get('displayed_kredits', []):
+                    self.last_orange['rejected'].append(dict(anchor, reason='incomplete bank cost conflict'))
+                    uncertain = True
+                    continue
             info = dict(info, cost=cost, cost_source='pc orange numeral template')
             self.last_orange['records'].append(dict(x=px, name=info.get('name'),
                                                     type=info.get('type'), cost=cost))

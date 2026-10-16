@@ -16,6 +16,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 import order_choice  # noqa: E402
 import orders  # noqa: E402
+import weather_cards  # noqa: E402
 
 PLAN = ROOT / "config/order_plays.json"
 PLAYABLE_DOC = ROOT / "docs/generated/指令卡清单.md"
@@ -35,6 +36,8 @@ UNAVAILABLE = {
     "follow": ("两步指令", "打出后还须再选一次目标，后续动作未实现。"),
     "ignored": ("明确不处理", "规则备注要求忽略。"),
     "no_text": ("资料不全", "卡库缺少中文描述，无法确认操作。"),
+    "unreviewed": ("规则待核定", "资料已识别，目标条件或打法尚未实现；不自动打出。"),
+    "weather_unresolved": ("天气版本未确定", "同名天气需先读取手牌描述，确定版本后再按对应规则出牌。"),
 }
 TARGET_TEXT = {
     "1": "敌方单位", "2": "敌方单位或总部", "3": "敌方总部",
@@ -68,6 +71,8 @@ def target_rule(name: str) -> str:
 
 def category(name: str, note: str) -> tuple[str, bool]:
     rec = orders.rec_of(name)
+    if name in weather_cards.names():
+        return 'weather_unresolved', False
     if orders.playable("order", name):
         if orders.is_direct(name):
             return "direct", True
@@ -96,6 +101,7 @@ def category(name: str, note: str) -> tuple[str, bool]:
             return "ignored", False
         if "没有中文描述" in note:
             return "no_text", False
+        return "unreviewed", False
     raise ValueError(f"未放行原因不明：{name} ({rec['mode']}, {note})")
 
 
@@ -113,6 +119,8 @@ def inventory() -> tuple[dict[str, list[str]], dict[str, list[str]], dict[str, s
         if name:
             notes.setdefault(name, card.get("note") or "")
     orders.load()
+    for variant in weather_cards.records():
+        notes[variant['rule_name']] = '同名天气独立版本'
     if not orders._CARDS or set(notes) != set(orders._CARDS):
         raise ValueError("规则表未载入，或按卡名折叠的结果与原始数据不一致")
 
@@ -126,7 +134,7 @@ def inventory() -> tuple[dict[str, list[str]], dict[str, list[str]], dict[str, s
             names.sort(key=sort_key)
     if sum(map(len, playable.values())) + sum(map(len, unavailable.values())) != len(notes):
         raise AssertionError("分类数量不等于卡名总数")
-    return playable, unavailable, notes, len(cards)
+    return playable, unavailable, notes, len(cards) + len(weather_cards.records())
 
 
 def header(title: str, n_cards: int, n_names: int) -> list[str]:
