@@ -29,6 +29,8 @@ import hashlib
 import json
 import os
 import re
+from html.parser import HTMLParser
+from urllib.parse import quote, urljoin, urlsplit
 import urllib.error
 import urllib.request
 # ★ 放在**模块顶层**而不是函数里:面板要打成 onefile exe(见 build_gui.bat),
@@ -43,9 +45,10 @@ DEFAULT_API = ("https://api.github.com/repos/yumehanab1/OCR-Kards-Auto"
 #:   为什么必须有它:实测第一次真去查就撞上 `HTTP 403`(未登录调用每小时只有 60 次,
 #:   而且这个额度是**按 IP** 算的 —— 共用出口/公司网络的用户很容易直接用光)。
 #:   只有 API 一条路的话,那类用户点"检测更新"永远只会看到"查不到"。
-#:   代价:atom 里**没有附件清单**(没有包名和大小)—— 所以"有新版本"照样能报,
-#:   只是不给"包 132.6 MB"这种细节。先 API、不行再退这条。
+#:   Atom没有附件，取得tag后再读公开expanded_assets列表，补齐PC包/清单链接和公布的哈希；
+#:   不猜测附件存在，不要求用户登录。先API、不行再退这条。
 DEFAULT_FEED = "https://github.com/yumehanab1/OCR-Kards-Auto/releases.atom"
+DEFAULT_ASSETS = "https://github.com/yumehanab1/OCR-Kards-Auto/releases/expanded_assets/"
 #: 用不了 API 时,人能自己去看的地方
 RELEASES_PAGE = "https://github.com/yumehanab1/OCR-Kards-Auto/releases"
 #: 超时给短一点:面板上点一下按钮,卡 30 秒是不可接受的
@@ -266,9 +269,71 @@ def parse_feed(xml_bytes) -> dict:
         "published_at": (entry.findtext("a:updated", default="", namespaces=ns)
                          or entry.findtext("a:published", default="",
                                            namespaces=ns) or ""),
-        "asset": None,                   # atom 里没有附件清单
+        "asset": None,                   # 之后由公开附件列表补齐
         "manifest_asset": None,
     }
+
+
+class _ReleaseLinks(HTMLParser):
+    """Read GitHub's attachment links and optional published digests."""
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.links = []
+        self.digests = {}
+
+    def handle_starttag(self, tag, attrs):
+        attrs = dict(attrs)
+        if tag == 'a' and attrs.get('href'):
+            self.links.append(attrs['href'])
+        if tag == 'clipboard-copy':
+            label = attrs.get('aria-label', '')
+            prefix = 'Copy to clipboard digest for '
+            digest = attrs.get('value', '')
+            if label.startswith(prefix) and re.fullmatch(r'sha256:[0-9a-f]{64}', digest):
+                self.digests[label[len(prefix):]] = digest
+
+
+def parse_release_assets(raw, tag):
+    """Accept only the paired PC attachments actually linked for this tag."""
+    if not re.fullmatch(r'[vV]?[0-9]+(?:\.[0-9]+)+', tag or ''):
+        return {}
+    parser = _ReleaseLinks()
+    parser.feed(raw.decode('utf-8', 'replace'))
+    stem = 'kards-auto_v' + tag.lstrip('vV') + '_x86_64'
+    expected = {stem + '.zip': 'asset', stem + '.manifest.json': 'manifest_asset'}
+    prefix = '/yumehanab1/OCR-Kards-Auto/releases/download/' + quote(tag, safe='') + '/'
+    result = {}
+    for href in parser.links:
+        url = urljoin('https://github.com', href)
+        parts = urlsplit(url)
+        if (parts.scheme != 'https' or parts.netloc != 'github.com'
+                or parts.query or parts.fragment or not parts.path.startswith(prefix)):
+            continue
+        name = parts.path[len(prefix):]
+        if name not in expected:
+            continue
+        asset = dict(name=name, browser_download_url=url)
+        if name in parser.digests:
+            asset['digest'] = parser.digests[name]
+        result[expected[name]] = asset
+    return result
+
+
+def _feed_assets(rel, fetch, timeout):
+    """The feed has no assets; fetch the public HTML list without API quota."""
+    tag = rel.get('tag', '')
+    if not re.fullmatch(r'[vV]?[0-9]+(?:\.[0-9]+)+', tag):
+        return dict(rel, asset_error='备用源版本号无效，无法读取附件列表')
+    url = DEFAULT_ASSETS + quote(tag, safe='')
+    try:
+        code, raw = fetch(url, timeout)
+        if code != 200:
+            return dict(rel, asset_error=f'发布页附件列表读取失败(HTTP {code})')
+        assets = parse_release_assets(raw, tag)
+    except Exception as error:
+        return dict(rel, asset_error=f'发布页附件列表读取失败({type(error).__name__}: {error})')
+    error = '' if assets.get('manifest_asset') and assets.get('asset') else '发布页附件列表未找到配套PC包和文件清单'
+    return dict(rel, **assets, asset_source=url, asset_error=error)
 
 
 def _http_get(url: str, timeout: float):
@@ -348,7 +413,7 @@ def check(local_version: str, api_url: str | None = None,
     except Exception as e:                              # 兜底:绝不让面板崩
         why = f"请求出错({type(e).__name__}: {e})"
 
-    # ---- 第二路:备用源(实测 API 会被限流;atom 不限流,但没有附件清单) ----
+    # ---- 第二路:Atom版本 + 公开附件列表(不消耗API配额) ----
     #   ★ 只在用**默认源**时才退这一路:换了 update_url 就说明是别人发的包,
     #     我们不知道人家的 atom 在哪,乱试一个地址不如如实报错。
     #   ★ 注意 API 在 `api.github.com`、feed 在 `github.com` —— **两个域名**,
@@ -360,7 +425,7 @@ def check(local_version: str, api_url: str | None = None,
             if code2 == 200:
                 rel2 = parse_feed(raw2)
                 if rel2.get("tag"):
-                    rel, via = rel2, "feed"
+                    rel, via = _feed_assets(rel2, fetch, timeout), "feed"
         except Exception:
             pass                                        # 备用也失败 -> 保留第一路的 why
 
@@ -371,8 +436,9 @@ def check(local_version: str, api_url: str | None = None,
     out = dict(base, ok=True, remote=rel["version"] or rel["tag"],
                url=rel["url"], asset=rel["asset"],
                manifest_asset=rel.get("manifest_asset"),
-               notes=rel["notes"], via=via)
-    tail = "" if via == "api" else "(备用源;附件信息查不到)"
+               notes=rel["notes"], via=via, asset_error=rel.get('asset_error', ''),
+               asset_source=rel.get('asset_source', ''), api_error=why if via == 'feed' else '')
+    tail = '' if via == 'api' else ('(备用源)' if not out['asset_error'] else '(备用源;附件信息未取全)')
     if is_newer(rel["tag"], local):
         size = ""
         if rel["asset"] and rel["asset"].get("size"):

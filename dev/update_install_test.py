@@ -158,13 +158,16 @@ print(k.WaitForSingleObject(k.CreateMutexW(None,True,'kards_auto_main_loop'),0))
         shutil.copy2(Path(ui.__file__),self.root/'src/update_install.py')
         marker=self.root/'restarted.txt'
         parent=subprocess.Popen([sys.executable,'-c','import time;time.sleep(.8)'])
-        command=[sys.executable,'-c',f'from pathlib import Path;Path({str(marker)!r}).write_text("restarted")']
+        command=[sys.executable,'-c',f'import os;from pathlib import Path;Path({str(marker)!r}).write_text(str(os.getpid()))']
         helper=ui.launch_helper(job,sys.executable,parent.pid,{'argv':command,'cwd':str(self.root)})
         self.assertEqual(helper.wait(timeout=15),0);parent.wait(timeout=5)
         for _ in range(30):
             if marker.exists():break
             time.sleep(.1)
         self.assertTrue(marker.exists())
+        # The restart marker is written before Python exits. Wait for that
+        # process too, otherwise its cwd can still lock the temporary root.
+        ui.wait_parent(int(marker.read_text()), 5)
         self.assertEqual((self.root/'src/a.txt').read_bytes(),b'new A')
     def test_gui_blocks_running_engine_and_duplicate_update(self):
         api=gui.Api(); api.proc=type('Proc',(),{'poll':lambda self:None})()

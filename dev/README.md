@@ -83,6 +83,7 @@ $env:PYTHONPATH = (Join-Path $PWD 'src')
 | `gui_options_test.py` | 配置持久化、无效输入和写入失败 |
 | `actions_test.py` | 鼠标动作失败处理 |
 | `update_check_test.py` | 更新检查、Release 附件和文件清单哈希比对 |
+| `update_feed_assets_test.py` | API限流/超时后读取公开附件、配套清单校验、GUI文件比对与错误提示 |
 
 依赖真实截图的用例在没有 `shots/` 时可能跳过或报缺样本，这是预期行为。
 

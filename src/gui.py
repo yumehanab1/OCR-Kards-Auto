@@ -789,9 +789,10 @@ class Api:
             else:
                 r["msg"] += f"；{diff.get('msg', '文件清单不可用')}"
         elif r.get("ok"):
+            reason = r.get('asset_error') or '该 Release 没有文件清单附件'
             r["file_changes"] = {"ok": False, "changed": [], "missing": [],
-                                  "same": 0, "msg": "该 Release 没有文件清单附件"}
-            r["msg"] += "；该 Release 没有文件清单，无法列出文件差异"
+                                  "same": 0, "msg": reason}
+            r["msg"] += f"；{reason}，无法列出文件差异"
         # 记住发布页地址:第二次点按钮就是"打开发布页"(用系统默认浏览器)
         self._release_url = r.get("url") or update_check.RELEASES_PAGE
         self._has_update = bool(r.get("has_update"))
@@ -1245,6 +1246,7 @@ def main() -> int:
             #   ⇒ 自检里写死一个只有新代码才有的字段,`--selftest` 一跑就知道。
             "update_check": {"api": update_check.DEFAULT_API,
                              "feed": update_check.DEFAULT_FEED,
+                             "feed_assets": callable(update_check.parse_release_assets),
                              "timeout": update_check.TIMEOUT},
             "incremental_update": {"available": callable(update_install.stage_update),
                                    "helper_exists": os.path.isfile(os.path.join(SRC, 'update_install.py')),
