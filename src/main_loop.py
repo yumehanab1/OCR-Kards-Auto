@@ -1306,6 +1306,14 @@ def main() -> int:
             log("   确认机器上确实没有别的实例、且锁机制坏掉时,才用 "
                 "--allow-multi-instance 绕过。")
             return 2
+        # Rotate only after acquiring the lock; a rejected second instance
+        # must never rename the active engine's log.
+        try:
+            from log_io import archive_large
+            archived = archive_large(LOG)
+            if archived: log(f'[日志] 旧对局日志已归档：{archived}')
+        except OSError as error:
+            log(f'[日志] 旧日志暂不能归档，继续追加：{error}')
         log("单实例锁已取得(main_loop 是唯一的实例)")
 
     # ★★★ 2026-09-19(实机):**开局第一行就报"卡库在不在"。**

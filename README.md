@@ -16,6 +16,9 @@ Windows 64 位 KARDS 画面自动化工具：只读屏幕、模拟鼠标，不�
 
 游戏窗口必须可见且在前台。日志在 `logs/main_loop.log`；遇到问题请附日志，不要附账号信息或完整截图。
 
+面板只读取日志末尾，并限制超长行的显示长度；完整内容仍在日志文件中。
+单个日志达到8MiB后，下次启动时会归档到 `logs/archive/`，历史日志保留。
+
 ## 检测更新
 
 面板的“检测更新”会先读取 GitHub Release，再下载一个很小的
@@ -80,6 +83,8 @@ install.cmd
 ## 手机端 / Android
 
 [手机版源码](mobile/source/README.md)已补入仓库，Android项目与PC源码独立维护。
+
+[v0.2.2 Release](https://github.com/yumehanab1/OCR-Kards-Auto/releases/tag/v0.2.2) 已预留手机版区域，0.2.2 APK待补充；当前手机版仍使用下方0.2.1下载。
 
 请从 [v0.2.1 Release](https://github.com/yumehanab1/OCR-Kards-Auto/releases/tag/v0.2.1) 的 **Mobile / Android** 区域直接下载：
 

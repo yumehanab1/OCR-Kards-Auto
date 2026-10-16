@@ -19,7 +19,8 @@ e.kredits_left=3;e._kredits_recheck=Mock(return_value=None)
 e._reconcile_failed_deploy(9,False);assert e.kredits_left==3
 # Unconfirmed zero budget never enters the legacy blind scanner.
 e.kredits_left=0;e._orange_enabled=lambda:True;e._kredits_measured=lambda:True
-e.attempted_x=set();e.debug=False;e.log=print
+e.attempted_x=set();e.failed_x=set();e.debug=False;e.log=print
+e.deployed_this_turn=0;e.field_now=None;e.field_at_turn_start=None
 e.scanner=SimpleNamespace(scan_orange=Mock(return_value=None),measure_edges=Mock(side_effect=AssertionError('blind scan')))
 assert e._lazy_find_playable() is None
 # No numeral bank entry for 0: hover an unknown orange cost and confirm zero.

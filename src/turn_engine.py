@@ -402,6 +402,10 @@ class TurnEngine:
 
     def _scan(self):
         """Scan the hand once and cache it for this turn."""
+        if self.kredits_left == 0:
+            self.cards = []
+            self.log('[turn] 零预算禁止全量/盲扫；仅橙色路径可确认零费牌')
+            return self.cards
         self._scan_count += 1
         t0 = time.time()
         if self.use_fast:
@@ -444,10 +448,12 @@ class TurnEngine:
         返回一张卡 dict 或 None。会把它塞进 `self.cards` 供后续复用。
         """
         budget = self.kredits_left
-        if self._orange_enabled() and budget is not None and self._kredits_measured():
+        if self._orange_enabled():
             t0 = time.time()
-            cards = self.scanner.scan_orange(budget, exclude=set(self.attempted_x),
-                                             debug=self.debug)
+            cards = self.scanner.scan_orange(budget, exclude=set(self.attempted_x) | set(self.failed_x),
+                                             debug=self.debug, first_only=True,
+                                             allow_units=not self._support_line_full(),
+                                             weather_played=getattr(self, 'weather_played', False))
             if cards is not None:
                 self._scan_count += 1
                 self.cards = cards
@@ -457,13 +463,19 @@ class TurnEngine:
                 self.log(f"[orange] 扫描 {time.time()-t0:.2f}s: "
                          f"候选 {detail.get('anchors', 0)}, 可出 {len(cards)}, "
                          f"识别 {detail.get('ocr', 0)}, 缓存 {detail.get('cached', 0)}; "
-                         f"预算 {budget}; 拒识 {detail.get('rejected', [])}")
+                         f"预算 {budget}; 首张即停; "
+                         f"费用模板 {detail.get('cost_s', 0):.2f}s, "
+                         f"悬停 {detail.get('hover_s', 0):.2f}s, "
+                         f"身份 {detail.get('identity_s', 0):.2f}s; "
+                         f"拒识 {detail.get('rejected', [])}")
                 return cards[0] if cards else None
-            if budget == 0:
-                self.cards = []
-                self.log('[orange] 零预算候选未确认，本轮不进入全手牌/盲扫')
-                return None
-            self.log('[orange] 当前画面没有可靠橙色候选 -> 回退原扫描')
+            self.cards = []
+            self.log('[orange] 当前画面没有可靠橙色候选，本轮结束出牌，不回退全手牌/盲扫')
+            return None
+        if budget == 0:
+            self.cards = []
+            self.log('[turn] 零预算且橙色筛选不可用，不进入全手牌/盲扫')
+            return None
         if budget is None:
             # 费用读不到时不知道出得起什么 —— 退回全量扫描,**但一回合只扫一次**。
             # ★ 实测踩过的坑:费用读数会抖,于是每一轮 think() 都判"费用未知"
@@ -1409,35 +1421,8 @@ class TurnEngine:
             ordered = sorted(
                 self.cards,
                 key=lambda c: (c.get("cost") is None, c.get("cost") or 0))
-            if self.cards and all(c.get('orange') for c in self.cards):
-                from hand_cost_filter import best_combo
-                snap = self.field_now or self.field_at_turn_start or {}
-                support = snap.get('our_support_units', (None, {}))[0]
-                slots = max(0, SUPPORT_LINE_MAX - (support if support is not None
-                                                   else self.deployed_this_turn))
-                legal = []
-                field_row = None
-                for c in self.cards:
-                    if getattr(self, 'weather_played', False) and orders.is_weather(c.get('name')):
-                        continue
-                    if c['x'] in self.failed_x or not self._budget(c.get('cost')):
-                        continue
-                    if not orders.playable(c.get('type'), c.get('name')):
-                        continue
-                    if orders.is_target(c.get('name')):
-                        if snap.get('frame') is None:
-                            continue
-                        if field_row is None:
-                            field_row = board.read_field(snap['frame'], templates=self.templates)
-                        if order_target.pick(c['name'], field_row, frame=snap['frame'],
-                                             hand_xs=self._hand_xs(exclude_x=c['x']),
-                                             hand_y=self.scanner.y) is None:
-                            continue
-                    legal.append(c)
-                ordered = best_combo(legal, self.kredits_left, slots)
-                self.log('[orange] 费用组合: ' + ', '.join(
-                    f"{c['name']}({c['cost']})" for c in ordered)
-                    + f"; 合计 {sum(c['cost'] for c in ordered)}/{self.kredits_left}; 空位 {slots}")
+            # Orange scanning returns only the first usable candidate. Do not
+            # inventory the hand or solve a spending combination before playing.
 
             for c in ([] if capped else ordered):
                 if getattr(self, 'weather_played', False) and orders.is_weather(c.get('name')):

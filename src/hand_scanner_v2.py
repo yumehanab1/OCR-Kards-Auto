@@ -31,6 +31,8 @@ from ui_state import match_one
 from win import capture_client_bgr, client_to_screen
 
 SCAN_TIME_LIMIT_S = 12.0  # cooperative deadline; one in-flight OCR may finish
+ORANGE_FIRST_TIME_LIMIT_S = 4.0  # first usable orange card, no whole-hand fallback
+ORANGE_HOVER_EDGE_FIX = os.environ.get('KARDS_ORANGE_HOVER_EDGE_FIX', '1') != '0'
 
 class ScanDeadline(Exception):
     pass
@@ -823,27 +825,33 @@ class HandScannerV2:
             info["ocr_lines"] = [ln["text"] for ln in lines][:6]
         return info
 
-    def scan_orange(self, budget, exclude=None, debug=False):
+    def scan_orange(self, budget, exclude=None, debug=False, first_only=False,
+                    allow_units=True, weather_played=False):
         """Identify orange candidates once; reuse identity only on matching panels.
 
-        None means the prefilter was unavailable and callers should use the
-        established scanner. Empty list means observed candidates were rejected.
+        first_only returns the first allowed candidate and never requests a
+        whole-hand fallback. Full inventory is retained only for offline tools.
         Never put this partial inventory into the positional HandMemory.
         """
         import hand_cost_filter as hcf
+        import orders
         # Combat uses the same cursor between scans. The previous scan's last
         # cursor position cannot establish takeover at a new scan's entry.
         self._last_cursor = None
         self.last_reason = None
+        started = time.perf_counter()
+        self.last_orange = {'anchors': 0, 'ocr': 0, 'cached': 0,
+                            'rejected': [], 'records': [], 'probed': 0,
+                            'cost_s': 0.0, 'hover_s': 0.0, 'identity_s': 0.0,
+                            'first_only': first_only}
         base = self._baseline()
         if base is None:
             return None
         anchors = hcf.candidates(base)
-        self.last_orange = {'anchors': len(anchors), 'ocr': 0, 'cached': 0,
-                            'rejected': [], 'records': []}
+        self.last_orange['anchors'] = len(anchors)
         if not anchors:
-            if budget == 0:
-                self.last_orange['zero_budget_no_anchors'] = True
+            if budget == 0 or first_only:
+                self.last_orange['zero_budget_no_anchors'] = budget == 0
                 return []
             # Only classify absence on a visible cost-plate fan. Empty or
             # unrecognized hands keep the established scanner as fallback.
@@ -855,6 +863,10 @@ class HandScannerV2:
         uncertain = False
         exclude = exclude or set()
         for anchor in anchors:
+            if first_only and time.perf_counter()-started >= ORANGE_FIRST_TIME_LIMIT_S:
+                self.last_orange['deadline'] = True
+                self.last_reason = '橙色候选扫描达到4秒协作式截止，不再追加悬停'
+                break
             if self.user_took_over():
                 self.last_reason = 'orange scan interrupted by user cursor movement'
                 self.last_orange['aborted'] = True
@@ -862,14 +874,20 @@ class HandScannerV2:
             px = anchor['probe_x']
             if px in exclude:
                 continue
+            t0 = time.perf_counter()
             cost = hcf.read_candidate_cost(base, anchor)
+            self.last_orange['cost_s'] += time.perf_counter()-t0
             zero_probe = budget == 0 and cost is None
-            if (cost is None and not zero_probe) or (cost is not None and cost > budget):
+            if ((cost is None and not zero_probe and not first_only)
+                    or (cost is not None and budget is not None and cost > budget)):
                 self.last_orange['rejected'].append(dict(anchor, reason='cost unknown/over budget'))
                 uncertain |= cost is None
                 continue
+            t0 = time.perf_counter()
             neutral = self._baseline()
             hover = self._hover_frame(px)
+            self.last_orange['hover_s'] += time.perf_counter()-t0
+            self.last_orange['probed'] += 1
             box = diff_bbox(neutral, hover)
             if box is None:
                 self.last_orange['rejected'].append(dict(anchor, reason='no hover panel'))
@@ -879,12 +897,30 @@ class HandScannerV2:
             enlarged = hcf.candidates(hover, zone=(max(340, px-140), 50,
                                                   min(960, px-30), 600),
                                       height_range=(20, 50))
+            # Left fan cards can enlarge with the fee only 9-26px left of
+            # the probe. The old right boundary also clips the required K.
+            # Keep existing matches unchanged; extend this same hover frame
+            # only when the narrow region contains no fee candidate.
+            if not enlarged and ORANGE_HOVER_EDGE_FIX:
+                enlarged = hcf.candidates(hover, zone=(max(340, px-140), 50,
+                                                      min(960, px+30), 600),
+                                          height_range=(20, 50))
             # The enlarged card must still be orange and show the same fee;
             # this also rejects an anchor that hovered the adjacent grey card.
             primary = max(enlarged, key=lambda c: c['h'], default=None)
-            if primary is None or (not zero_probe and hcf.read_candidate_cost(hover, primary) != cost):
-                self.last_orange['rejected'].append(dict(anchor, reason='hover cost/color mismatch'))
+            t0 = time.perf_counter()
+            hover_cost = hcf.read_candidate_cost(hover, primary) if primary is not None else None
+            self.last_orange['cost_s'] += time.perf_counter()-t0
+            if (primary is None or (not zero_probe and cost is not None and hover_cost != cost)
+                    or (cost is None and not zero_probe and hover_cost is None)):
+                self.last_orange['rejected'].append(dict(anchor, reason='hover cost/color mismatch',
+                    fan_cost=cost, hover_cost=hover_cost, hover_fee=primary))
                 uncertain = True
+                continue
+            if cost is None and not zero_probe:
+                cost = hover_cost  # Resolve a tilted/ambiguous fan digit on its orange enlarged card.
+            if cost is not None and budget is not None and cost > budget:
+                self.last_orange['rejected'].append(dict(anchor, reason='hover cost over budget'))
                 continue
             # Anchor the identity crop on the enlarged numeral, not diff_bbox:
             # ambient effects and adjacent tooltips can enlarge the diff box.
@@ -892,6 +928,7 @@ class HandScannerV2:
             ix, iy = max(0, primary['x']-12), max(0, primary['y']-10)
             identity_crop = hover[iy+45:min(720,iy+300), ix:min(1280,ix+220)]
             fingerprint = cv2.resize(identity_crop, (80, 100))
+            t0 = time.perf_counter()
             info = None
             for saved, saved_info in self.orange_cache:
                 if saved_info.get('weather_id') or saved_info.get('weather_unresolved'):
@@ -906,6 +943,7 @@ class HandScannerV2:
                 self.last_orange['ocr'] += 1
                 if info.get('name') and not (info.get('weather_id') or info.get('weather_unresolved')):
                     self.orange_cache.append((fingerprint, dict(info)))
+            self.last_orange['identity_s'] += time.perf_counter()-t0
             if zero_probe:
                 # The neutral 0 template is not yet calibrated. Hover only
                 # the orange numeral anchors and require an actual 0 cost.
@@ -922,13 +960,19 @@ class HandScannerV2:
                                                     type=info.get('type'), cost=cost))
             if not info.get('name') or not is_playable(info.get('type'), info.get('name')):
                 continue
+            if (not allow_units and info.get('type') != 'order') or (
+                    weather_played and orders.is_weather(info.get('name'))):
+                self.last_orange['rejected'].append(dict(anchor, reason='line full or weather already played'))
+                continue
             cards.append(dict(x=px, i=None, name=info['name'], type=info['type'],
                               cost=cost, info=info, panel=panel, orange=True))
+            if first_only:
+                break
         self._move(*self.safe)
         time.sleep(SAFE_SETTLE)
         # A rejected artwork fragment must not discard correctly identified
         # candidates and send the whole hand through ambiguous legacy probes.
-        return None if uncertain and not cards and budget != 0 else cards
+        return None if uncertain and not cards and budget != 0 and not first_only else cards
 
     def recheck_card(self, card):
         """Verify a legacy fallback's identity at its final grab coordinate."""

@@ -28,14 +28,14 @@ def main():
     class Scanner:
         last_orange={'anchors':2,'ocr':2,'cached':0,'rejected':[]}
         def scan_orange(self,*args,**kwargs):
-            return [dict(card(500,3),orange=True,panel=np.zeros((20,20,3),np.uint8)),
-                    dict(card(600,4),orange=True,panel=np.zeros((20,20,3),np.uint8))]
+            assert kwargs['first_only'] is True
+            return [dict(card(500,3),orange=True,panel=np.zeros((20,20,3),np.uint8))]
     engine.scanner=Scanner()
     engine.kredits_left=7
     engine.kredits_info={'measured':True}
     engine.log=lambda message:None
     engine._lazy_find_playable()
-    assert [c['cost'] for c in engine.cards]==[3,4]
+    assert [c['cost'] for c in engine.cards]==[3]
     assert all(c['_before'] is not None for c in engine.cards)
     engine.deployed_this_turn=2
     engine.hand_count_this_turn=7

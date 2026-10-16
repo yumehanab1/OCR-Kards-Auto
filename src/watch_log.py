@@ -22,6 +22,8 @@ import os
 import sys
 import time
 
+import log_io
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LOG = os.path.join(PROJECT_ROOT, "logs", "main_loop.log")
@@ -72,34 +74,53 @@ def follow(path, tail, only_key, poll=0.4):
         print(f"等不到日志文件:{path}")
         return 1
 
-    # ★ 用**二进制**打开再自己解码:文本模式 + 从中间 seek 会把多字节字符切断
-    #   (第一版就是在这里抛的 TypeError,顺手也避开了"半个汉字"的坑)。
-    #   日志才几百 KB,直接整读一遍取末尾 N 行最简单,不用手写分块回退。
-    with open(path, "rb") as f:
-        head = f.read().decode("utf-8", "replace").splitlines()
-        for ln in head[-max(0, tail):] if tail > 0 else []:
-            if not only_key or any(w in ln for w in KEY_WORDS):
-                # ★ 每一行都 flush:输出被重定向到文件时 stdout 是**块缓冲**,
-                #   不 flush 的话前面这段历史要等缓冲区满才出现(实测"预览是空的")。
-                print(ln, flush=True)
-        f.seek(0, os.SEEK_END)
+    print("-" * 70, flush=True)
+    print(f"实时跟随中:{path}   (Ctrl+C 退出)", flush=True)
+    print("-" * 70, flush=True)
+    for line in iter_follow(path, tail, poll):
+        if not only_key or any(w in line for w in KEY_WORDS):
+            print(line, flush=True)
 
-        print("-" * 70, flush=True)
-        print(f"实时跟随中:{path}   (Ctrl+C 退出)", flush=True)
-        print("-" * 70, flush=True)
-        buf = b""
-        while True:
-            chunk = f.read()
-            if chunk:
-                buf += chunk
-                # 只按完整的行输出,最后一段残行留到下一次(避免打出半个字符)
-                *lines, buf = buf.split(b"\n")
-                for raw in lines:
-                    line = raw.decode("utf-8", "replace").rstrip("\r")
-                    if not only_key or any(w in line for w in KEY_WORDS):
-                        print(line, flush=True)
-            else:
-                time.sleep(poll)
+
+def iter_follow(path, tail=30, poll=0.4, sleep=time.sleep):
+    """Read short-lived handles so Windows writers can archive old sessions."""
+    with open(path, 'rb') as stream:
+        head = log_io.tail_stream(stream, tail)
+        offset = stream.tell()
+        stat = os.fstat(stream.fileno())
+        identity = (stat.st_dev, stat.st_ino)
+    yield from head
+    buf = b''
+    while True:
+        rotated = False
+        try:
+            with open(path, 'rb') as stream:
+                stat = os.fstat(stream.fileno())
+                current = (stat.st_dev, stat.st_ino)
+                if current != identity or stat.st_size < offset:
+                    head = log_io.tail_stream(stream, tail)
+                    offset = stream.tell()
+                    identity = current
+                    buf = b''
+                    rotated = True
+                else:
+                    stream.seek(offset)
+                    chunk = stream.read(log_io.READ_BLOCK_BYTES)
+                    offset = stream.tell()
+        except FileNotFoundError:
+            sleep(poll)
+            continue
+        if rotated:
+            yield from head
+        elif chunk:
+            buf += chunk
+            *lines, buf = buf.split(b'\n')
+            for raw in lines:
+                yield log_io.display_line(raw.decode('utf-8', 'replace').rstrip('\r'))
+            if len(buf) > log_io.MAX_TAIL_BYTES:
+                buf = buf[-log_io.MAX_TAIL_BYTES:]
+        else:
+            sleep(poll)
 
 
 def main():

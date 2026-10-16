@@ -66,6 +66,14 @@ def _templates():
     return bank
 
 
+@lru_cache(maxsize=1)
+def _normalized_templates():
+    from kredits_templates import normalize_glyph
+    return {digit: [n for template in templates
+                    if (n := normalize_glyph(template)) is not None]
+            for digit, templates in _templates().items()}
+
+
 def read_candidate_cost(frame, candidate, ocr=None):
     if candidate.get('compound'):
         return None  # A two-digit fee must never be truncated to its last digit.
@@ -83,12 +91,10 @@ def read_candidate_cost(frame, candidate, ocr=None):
         glyph = normalize_glyph(rotated)
         if glyph is None:
             continue
-        for digit, templates in _templates().items():
-            for template in templates:
-                normalized = normalize_glyph(template)
-                if normalized is not None:
-                    score = score_against(glyph, normalized)
-                    scores[digit] = max(scores.get(digit, -1), score)
+        for digit, templates in _normalized_templates().items():
+            for normalized in templates:
+                score = score_against(glyph, normalized)
+                scores[digit] = max(scores.get(digit, -1), score)
     ranked = sorted(scores.items(), key=lambda p: -p[1])
     candidate['digit_scores'] = {str(d): round(s, 3) for d, s in ranked}
     if not ranked or ranked[0][1] < .72:

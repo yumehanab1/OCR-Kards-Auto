@@ -187,6 +187,7 @@ def main() -> int:
                 f"{BASE}/config/weather_variants.json",
                 f"{BASE}/src/weather_cards.py", f"{BASE}/src/hand_cost_filter.py",
                 f"{BASE}/src/update_install.py",
+                f"{BASE}/src/log_io.py",
                 f"{BASE}/config/hand_cost_digits/1.png"]
         for w in need:
             if w not in names:

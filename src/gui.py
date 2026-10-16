@@ -41,6 +41,7 @@ import sys
 import tempfile
 import threading
 import time
+from types import SimpleNamespace
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 if hasattr(sys.stdout, "reconfigure"):
@@ -53,6 +54,7 @@ if hasattr(sys.stderr, "reconfigure"):
 from watch_log import KEY_WORDS  # noqa: E402  (关键行只有一份,别抄第二遍)
 import update_check  # noqa: E402  (只依赖标准库,用例 import 本模块时不需要联网)
 import update_install  # noqa: E402
+import log_io  # noqa: E402
 
 
 def project_root() -> str:
@@ -268,18 +270,7 @@ def tail_lines(path: str, n: int = 400) -> list[str]:
     ★ 用二进制读再自己解码:文本模式从中间 seek 会把多字节汉字切断
       (`watch_log.py` 里踩过同一个坑,那里留了说明)。
     """
-    if not os.path.exists(path):
-        return []
-    with open(path, "rb") as f:
-        f.seek(0, os.SEEK_END)
-        size = f.tell()
-        back = min(size, max(4096, n * 240))
-        f.seek(size - back)
-        data = f.read()
-    lines = data.decode("utf-8", "replace").splitlines()
-    if back < size and lines:
-        lines = lines[1:]          # 第一行多半是半截的
-    return lines[-n:]
+    return log_io.tail_lines(path, n)
 
 
 def log_rev(path: str) -> str:
@@ -294,11 +285,7 @@ def log_rev(path: str) -> str:
       ⇒ 教训:**行数是会饱和的量,不能拿它判"变了没有"**。要用文件本身的变化。
       (这条和 §7 第 96 条那种"判据链退化"是同一类错:判据在边界外悄悄失效。)
     """
-    try:
-        st = os.stat(path)
-    except OSError:
-        return ""
-    return f"{st.st_size}:{st.st_mtime_ns}"
+    return log_io.revision(path)
 
 
 def parse_status(lines: list[str]) -> dict:
@@ -580,6 +567,22 @@ def clamp_to_screen(x: int, y: int, w: int, h: int) -> tuple:
 # ---------------------------------------------------------------------------
 # 面板与 Python 之间的桥(pywebview 的 js_api)
 # ---------------------------------------------------------------------------
+JS_API_METHODS = (
+    'snapshot', 'save_settings', 'start', 'stop',
+    'check_update', 'install_update', 'open_release',
+)
+
+
+def make_js_api(api):
+    """Expose methods only: pywebview recursively inspects public attributes.
+
+    Passing Api itself traverses api.window.native.AccessibilityObject and can
+    hang the native UI during bridge initialization. Keep runtime objects out
+    of the object being reflected, including the process after engine start.
+    """
+    return SimpleNamespace(**{name: getattr(api, name) for name in JS_API_METHODS})
+
+
 class Api:
     def __init__(self):
         self.proc: subprocess.Popen | None = None
@@ -592,6 +595,8 @@ class Api:
         self._update_lock = threading.Lock()
         self._update_release = None
         self._update_state = update_install.latest_status(PROJECT_ROOT)
+        self._log_lock = threading.Lock()
+        self._log_cache = None
 
     def _close_run_log(self) -> None:
         """Release the child log handle after the child has stopped."""
@@ -603,16 +608,26 @@ class Api:
                 pass
 
     # ---- 状态 ----
-    def snapshot(self, only_key: bool = False, tail: int = 400) -> dict:
+    def snapshot(self, only_key: bool = False, tail: int = 400, since_rev=None) -> dict:
         running = self.proc is not None and self.proc.poll() is None
         if not running and self.proc is not None:
             # A child may exit on its own; do not retain one file descriptor
             # for every start/stop cycle until the panel itself closes.
             self._close_run_log()
-        lines = tail_lines(LOG, tail)
-        if only_key:
-            lines = [ln for ln in lines if any(w in ln for w in KEY_WORDS)]
-        st = parse_status(tail_lines(LOG, tail))
+        tail = max(0, min(int(tail), log_io.MAX_TAIL_LINES))
+        with self._log_lock:
+            rev = log_rev(LOG)
+            key = (LOG, rev, tail)
+            if self._log_cache is None or self._log_cache['key'] != key:
+                lines = tail_lines(LOG, tail)
+                self._log_cache = {'key': key, 'status': parse_status(lines),
+                    'all': [[mark_line(ln), ln] for ln in lines],
+                    'only_key': [[mark_line(ln), ln] for ln in lines
+                                 if any(w in ln for w in KEY_WORDS)]}
+            st = self._log_cache['status']
+            marked = self._log_cache['only_key' if only_key else 'all']
+            # An unchanged log needs no repeated bridge transfer or DOM rebuild.
+            marked = [] if since_rev == rev else marked
         ver = read_version()
         return {
             "running": running,
@@ -620,10 +635,10 @@ class Api:
             "elapsed": (round(time.time() - self.started_at)
                         if (running and self.started_at) else None),
             "argv": self.last_opts.get("argv") or [],
-            "log_lines": [[mark_line(ln), ln] for ln in lines[-400:]],
+            "log_lines": marked,
             # ★ 面板靠这个判"日志变了没有"(**不是靠行数** —— 行数会饱和在 400,
             #   见 `log_rev()` 的说明)。空串 = 日志文件还不存在。
-            "log_rev": log_rev(LOG),
+            "log_rev": rev,
             "status": st,
             "version": ver.get("version", "?"),
             "switches": SWITCHES,
@@ -675,6 +690,11 @@ class Api:
         if os.name == "nt":
             flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
         try:
+            try:
+                archived = log_io.archive_large(GUI_RUN_LOG)
+                if archived: log_update('[日志] 旧运行日志已归档：'+str(archived))
+            except OSError as error:
+                log_update(f'[日志] 运行日志暂不能归档，继续追加：{error}')
             self._fh = open(GUI_RUN_LOG, "ab", buffering=0)
             self._fh.write(f"\n=== {time.strftime('%Y-%m-%d %H:%M:%S')} "
                            f"{' '.join(cmd)} ===\n".encode("utf-8"))
@@ -987,7 +1007,7 @@ HTML = r"""<!doctype html>
 </main>
 <div class="toast" id="toast"></div>
 <script>
-let onlyKey = false, autoscroll = true, lastRev = '';
+let onlyKey = false, autoscroll = true, lastRev = '', polling = false;
 let updUrl = '', lastUpdateMessage = '', checkingUpdate=false;   // 查到新版本后存发布页地址,按钮第二次点就是打开它
 const $ = s => document.querySelector(s);
 function toast(msg, ms=3200){ const t=$('#toast'); t.textContent=msg; t.classList.add('show');
@@ -1060,8 +1080,12 @@ function render(s){
   }
 }
 async function poll(){
+  if(polling) return;
+  polling = true;
+  const filter = onlyKey;
   try{
-    const s = await window.pywebview.api.snapshot(onlyKey, 400);
+    const s = await window.pywebview.api.snapshot(filter, 400, lastRev);
+    if(filter !== onlyKey){ lastRev=''; return; }
     renderSwitches(s.switches, s.saved_options); render(s);
     $('#logtag').textContent = 'main_loop.log';
     $('#logtag').style.color = '';
@@ -1070,6 +1094,8 @@ async function poll(){
     //   就没有新内容"长得一模一样 —— 用户看到的又是"日志不动了"。至少要让人看见。
     $('#logtag').textContent = 'main_loop.log · ⚠ 面板读不到状态';
     $('#logtag').style.color = 'var(--bad)';
+  }finally{
+    polling = false;
   }
 }
 function collectOptions(){
@@ -1206,6 +1232,9 @@ def main() -> int:
             #   面板是 onefile exe、`gui.py` 是编进去的 —— 不重打包就等于没修。
             #   `log_rev` 只有新代码才有,所以自检里出现这个字段 = 新面板真的在 exe 里。
             "log_rev": log_rev(LOG),
+            "log_reader": {"max_tail_bytes": log_io.MAX_TAIL_BYTES,
+                           "max_line_chars": log_io.MAX_LINE_CHARS,
+                           "cached": True, "serial_poll": True},
             "version": read_version(),
             "options_file": options_path(),
             "saved_options": load_options(),
@@ -1239,7 +1268,7 @@ def main() -> int:
     if x is not None and y is not None:
         x, y = clamp_to_screen(x, y, w, h)
     window = webview.create_window(
-        APP_NAME, html=HTML, js_api=api, width=w, height=h, x=x, y=y,
+        APP_NAME, html=HTML, js_api=make_js_api(api), width=w, height=h, x=x, y=y,
         min_size=WIN_MIN, background_color="#0a0e13", text_select=False)
     api.window = window
 
