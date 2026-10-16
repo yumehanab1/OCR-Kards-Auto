@@ -54,10 +54,11 @@ class FeedAssets(unittest.TestCase):
     def test_denial_and_timeout_recover_paired_assets_without_zip_download(self):
         for code in (403, 429, 'timeout'):
             fetch, calls = self.route(code)
-            result = uc.check('0.2.1', _fetch=fetch)
+            result = uc.check('0.2.1', _fetch=fetch, _head=lambda url, timeout: 1234)
             self.assertTrue(result['has_update'])
             self.assertEqual(result['via'], 'feed')
             self.assertEqual(result['asset']['name'], STEM + '.zip')
+            self.assertEqual(result['asset']['size'], 1234)
             self.assertEqual(result['manifest_asset']['digest'], DIGEST)
             self.assertFalse(result['asset_error'])
             self.assertTrue(result['api_error'])
@@ -105,6 +106,7 @@ class FeedAssets(unittest.TestCase):
                 patch.object(gui, 'PROJECT_ROOT', directory), \
                 patch.object(gui, 'read_version', return_value={'version': '0.2.1'}), \
                 patch.object(gui, 'log_update'), patch.object(uc, '_http_get', side_effect=fetch), \
+                patch.object(uc, '_http_head', return_value=1234), \
                 patch.object(ui, 'read_manifest', side_effect=read):
             result = gui.Api().check_update()
         self.assertTrue(result['can_apply'])
@@ -114,6 +116,13 @@ class FeedAssets(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, '校验失败'):
             read_manifest(dict(result['manifest_asset'], digest='sha256:'+'0'*64), '0.2.2',
                           opener=lambda *a, **kw: Response(MANIFEST))
+
+    def test_exact_size_required_before_offering_install(self):
+        for size in (None, 0, -1, 3*1024*1024*1024):
+            fetch, _ = self.route()
+            result = uc.check('0.2.1', _fetch=fetch, _head=lambda url, timeout: size)
+            self.assertIsNone(result['asset'])
+            self.assertIn('有效字节大小', result['asset_error'])
 
     def test_gui_failure_does_not_claim_release_has_no_manifest(self):
         fetch, _ = self.route(asset_code=503)

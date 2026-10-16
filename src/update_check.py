@@ -319,7 +319,7 @@ def parse_release_assets(raw, tag):
     return result
 
 
-def _feed_assets(rel, fetch, timeout):
+def _feed_assets(rel, fetch, head, timeout):
     """The feed has no assets; fetch the public HTML list without API quota."""
     tag = rel.get('tag', '')
     if not re.fullmatch(r'[vV]?[0-9]+(?:\.[0-9]+)+', tag):
@@ -330,10 +330,23 @@ def _feed_assets(rel, fetch, timeout):
         if code != 200:
             return dict(rel, asset_error=f'发布页附件列表读取失败(HTTP {code})')
         assets = parse_release_assets(raw, tag)
+        if assets.get('asset'):
+            size = head(assets['asset']['browser_download_url'], timeout)
+            if type(size) is not int or not 0 < size <= 2*1024*1024*1024:
+                raise ValueError('PC附件未返回有效字节大小')
+            assets['asset']['size'] = size
     except Exception as error:
         return dict(rel, asset_error=f'发布页附件列表读取失败({type(error).__name__}: {error})')
     error = '' if assets.get('manifest_asset') and assets.get('asset') else '发布页附件列表未找到配套PC包和文件清单'
     return dict(rel, **assets, asset_source=url, asset_error=error)
+
+
+def _http_head(url, timeout):
+    """Read exact ZIP length without transferring the archive body."""
+    request = urllib.request.Request(url, method='HEAD', headers={
+        'User-Agent': 'kards-auto-update-check', 'Accept-Encoding': 'identity'})
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        return int(response.headers.get('Content-Length', '0'))
 
 
 def _http_get(url: str, timeout: float):
@@ -369,7 +382,7 @@ def _why_http(code: int, api_url: str) -> str:
 
 
 def check(local_version: str, api_url: str | None = None,
-          timeout: float = TIMEOUT, _fetch=None) -> dict:
+          timeout: float = TIMEOUT, _fetch=None, _head=None) -> dict:
     """
     查一次更新。**永远返回同一个形状**,面板照着 `msg` 显示就行:
 
@@ -425,7 +438,7 @@ def check(local_version: str, api_url: str | None = None,
             if code2 == 200:
                 rel2 = parse_feed(raw2)
                 if rel2.get("tag"):
-                    rel, via = _feed_assets(rel2, fetch, timeout), "feed"
+                    rel, via = _feed_assets(rel2, fetch, _head or _http_head, timeout), "feed"
         except Exception:
             pass                                        # 备用也失败 -> 保留第一路的 why
 
