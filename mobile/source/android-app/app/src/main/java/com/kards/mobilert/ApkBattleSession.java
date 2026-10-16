@@ -40,6 +40,7 @@ public final class ApkBattleSession {
     private final File directory;
     private final long started = SystemClock.elapsedRealtime();
     private final GameEntryGate entryGate;
+    private final boolean startupAdmission;
     private volatile long deadline;
     private final int maxSeconds;
     private final int maxInputs;
@@ -107,6 +108,9 @@ public final class ApkBattleSession {
         options.put("post_match_settle", settleEnabled);
         stage = !MatchEntryOptions.TRAINING.equals(matchMode) ? "menu"
                 : options.optBoolean("start_with_opening", true) && !readOnly ? "opening" : "battle";
+        startupAdmission=GameEntryGate.LAUNCH_GAME.equals(entryGate.mode) && "menu".equals(stage)
+                && !options.optBoolean("native_observe_only",false);
+        if(startupAdmission)entryGate.enableBootstrap(service.gameDepartureEpoch());
         String id = System.currentTimeMillis() + "-" + UUID.randomUUID().toString().substring(0, 8);
         directory = new File(service.getFilesDir(), "battle/" + id);
         if (!directory.mkdirs()) throw new IllegalStateException("evidence_directory");
@@ -334,6 +338,7 @@ public final class ApkBattleSession {
             return "menu_entry_failed:" + menuResult.optString("reason", "unverified_result");
         }
         stage = "opening";
+        entryGate.sealBootstrap();
         lastFrame = null;
         publish("opening", "waiting_for_opening", null);
         return awaitCampaignOpening();
@@ -408,9 +413,24 @@ public final class ApkBattleSession {
     private synchronized void watchdog() {
         if (!active) return;
         if (SystemClock.elapsedRealtime() >= deadline) cancel("time_budget");
-        if (entryGate.isAdmitted() && entryGate.check(service.currentForegroundPackage(),
-                service.gameForegroundGeneration()) != null) cancel("foreground_changed");
+        if (entryGate.isAdmitted()) {
+            String rejection=checkEntry(service.foregroundSnapshot());
+            if(rejection!=null && !GameEntryGate.WAITING.equals(rejection))cancel("foreground_changed");
+        }
         if (active) main.postDelayed(this::watchdog, 500);
+    }
+
+    private synchronized String checkEntry(ForegroundSnapshot facts) {
+        if(!"menu".equals(stage) || roundIndex!=1 || roundInputs()>0)entryGate.sealBootstrap();
+        long prior=entryGate.admittedGeneration();
+        String rejection=entryGate.check(facts.foregroundPackage,facts.generation,facts.departureEpoch);
+        if(rejection==null && prior>=0 && prior!=entryGate.admittedGeneration()) {
+            JSONObject oldFrame=lastFrame;
+            if(oldFrame!=null && oldFrame.optLong("foreground_generation",-1)!=entryGate.admittedGeneration())lastFrame=null;
+            try { publish("startup_window_changed","waiting_for_fresh_game_capture",entryGate.evidence()); }
+            catch(Exception error) { android.util.Log.w("KardsBattle","Cannot record startup window",error); }
+        }
+        return rejection;
     }
 
     private synchronized void startRound(int index) throws Exception {
@@ -584,17 +604,61 @@ public final class ApkBattleSession {
             }
             long age = elapsedRealtime() - frame.getLong("captured_elapsed_ms");
             if (age < 0 || age > ("menu".equals(stage) ? 5000 : 3000)) return failure("native_ocr_capture_expired");
-            String rejection = entryGate.check(service.currentForegroundPackage(), service.gameForegroundGeneration());
+            String rejection = checkEntry(service.foregroundSnapshot());
             if (rejection != null) return failure(rejection);
+            age = elapsedRealtime() - frame.getLong("captured_elapsed_ms");
+            if (age < 0 || age > ("menu".equals(stage) ? 5000 : 3000)) return failure("native_ocr_capture_expired");
             {
-                JSONObject result = NativeOriginalOcr.inspect(service, new File(frame.getString("png_path")), 720);
+                JSONObject result;
+                if("opening_controls".equals(supplied.optString("ocr_scope"))) {
+                    if(!"menu".equals(stage))return failure("opening_ocr_stage_required");
+                    JSONArray regions=supplied.getJSONArray("ocr_regions");
+                    if(regions.length()!=2)return failure("opening_ocr_region_count");
+                    int width=frame.getInt("source_width"),height=frame.getInt("source_height");
+                    for(int i=0;i<regions.length();i++) {
+                        JSONArray box=regions.getJSONArray(i);
+                        if(box.length()!=4)return failure("opening_ocr_region_bounds");
+                        int x=box.getInt(0),y=box.getInt(1),w=box.getInt(2),h=box.getInt(3);
+                        if(x<0 || y<0 || w<=0 || h<=0 || x>width-w || y>height-h
+                            || (i==0 && (y!=0 || h>height*.23))
+                            || (i==1 && y<height*.70))return failure("opening_ocr_region_bounds");
+                    }
+                    result=NativeOriginalOcr.inspectOpeningRegions(service,new File(frame.getString("png_path")),regions);
+                } else if("menu_controls".equals(supplied.optString("ocr_scope"))) {
+                    if(!("menu".equals(stage)||"settle".equals(stage)))return failure("menu_ocr_stage_required");
+                    JSONArray regions=supplied.getJSONArray("ocr_regions");
+                    if(regions.length()!=2)return failure("menu_ocr_region_count");
+                    int width=frame.getInt("source_width"),height=frame.getInt("source_height");
+                    for(int i=0;i<regions.length();i++) {
+                        JSONArray box=regions.getJSONArray(i);
+                        if(box.length()!=4)return failure("menu_ocr_region_bounds");
+                        int x=box.getInt(0),y=box.getInt(1),w=box.getInt(2),h=box.getInt(3);
+                        if(x<0 || y<0 || w<=0 || h<=0 || x>width-w || y>height-h)
+                            return failure("menu_ocr_region_bounds");
+                    }
+                    result=NativeOriginalOcr.inspectMenuRegions(service,new File(frame.getString("png_path")),regions);
+                } else if("turn_controls".equals(supplied.optString("ocr_scope"))) {
+                    JSONArray regions=supplied.getJSONArray("ocr_regions");
+                    String regionRejection=TurnOcrRegions.rejection(stage,regions,frame.getInt("source_width"),frame.getInt("source_height"));
+                    if(regionRejection!=null)return failure(regionRejection);
+                    result=NativeOriginalOcr.inspectTurnRegions(service,new File(frame.getString("png_path")),regions);
+                } else if("result_controls".equals(supplied.optString("ocr_scope"))) {
+                    JSONArray regions=supplied.getJSONArray("ocr_regions");
+                    String regionRejection=ResultOcrRegions.rejection(stage,regions,frame.getInt("source_width"),frame.getInt("source_height"));
+                    if(regionRejection!=null)return failure(regionRejection);
+                    result=NativeOriginalOcr.inspectResultRegions(service,new File(frame.getString("png_path")),regions);
+                } else result=NativeOriginalOcr.inspect(service,new File(frame.getString("png_path")),720);
                 age = elapsedRealtime() - frame.getLong("captured_elapsed_ms");
                 if (isCancelled()) return failure("cancelled");
-                if (age < 0 || age > ("menu".equals(stage) ? 5000 : 3000)) return new JSONObject(failure("native_ocr_capture_expired"))
+                if (lastFrame != frame || age < 0 || age > ("menu".equals(stage) ? 5000 : 3000)) return new JSONObject(failure("native_ocr_capture_expired"))
                         .put("frame_age_ms", age).put("elapsed_ms", result.optDouble("elapsed_ms"))
                         .put("model_stage_ms", result.optJSONArray("model_stage_ms")).toString();
-                rejection = entryGate.check(service.currentForegroundPackage(), service.gameForegroundGeneration());
+                rejection = checkEntry(service.foregroundSnapshot());
                 if (rejection != null) return failure(rejection);
+                age = elapsedRealtime() - frame.getLong("captured_elapsed_ms");
+                if (isCancelled()) return failure("cancelled");
+                if (lastFrame != frame || age < 0 || age > ("menu".equals(stage) ? 5000 : 3000))
+                    return failure("native_ocr_capture_expired");
                 for (String key : new String[]{"frame_id", "captured_elapsed_ms", "foreground_generation",
                         "source_width", "source_height", "png_path"}) result.put(key, frame.get(key));
                 return result.put("ok", true).toString();
@@ -651,8 +715,9 @@ public final class ApkBattleSession {
                 JSONObject result = new JSONObject(Python.getInstance().getModule("apk_native.opening")
                         .callAttr("observe", frame.getString("png_path"), assets.getAbsolutePath(), frame.toString(), this).toString());
                 age = elapsedRealtime() - frame.getLong("captured_elapsed_ms");
-                String rejection = entryGate.check(service.currentForegroundPackage(), service.gameForegroundGeneration());
+                String rejection = checkEntry(service.foregroundSnapshot());
                 if (rejection != null) return failure(rejection);
+                age = elapsedRealtime() - frame.getLong("captured_elapsed_ms");
                 if (isCancelled() || lastFrame != frame || age < 0 || age > 5000)
                     return failure("frame_age_expired");
                 return result.put("ok", true).put("frame_id", frame.getLong("frame_id")).toString();
@@ -683,6 +748,33 @@ public final class ApkBattleSession {
         }
 
         private String captureInternal(boolean nativePixels) throws Exception {
+            boolean waited=false;
+            int captureFailures=0;
+            while(true) {
+                if(isCancelled())return failure("cancelled");
+                if(elapsedRealtime()>=deadline)return failure("time_budget");
+                String result=captureAttempt(nativePixels);
+                if(GameEntryGate.RECAPTURE.equals(new JSONObject(result).optString("reason"))) {
+                    lastFrame=null;
+                    publish("startup_capture_retry","waiting_for_fresh_game_capture",null);
+                    Thread.sleep(150);continue;
+                }
+                if("temporary_window_capture_error".equals(new JSONObject(result).optString("reason"))) {
+                    if(++captureFailures>3)return failure("window_capture_retry_exhausted");
+                    publish("capture_retry","waiting_for_fresh_game_capture",null);
+                    Thread.sleep(350);continue;
+                }
+                if(!GameWindowState.OCCLUDED.equals(new JSONObject(result).optString("reason"))) {
+                    if(waited)publish("overlay_wait_finished","game_window_available",null);
+                    return result;
+                }
+                if(!waited)publish("overlay_wait","waiting_for_game_window",null);
+                waited=true;
+                Thread.sleep(300);
+            }
+        }
+
+        private String captureAttempt(boolean nativePixels) throws Exception {
             requireWorker();
             if (isCancelled()) return failure("cancelled");
             if(workingEvidence!=null)workingEvidence.beforeCapture();
@@ -701,20 +793,20 @@ public final class ApkBattleSession {
             main.post(() -> {
                 try {
                 if (isCancelled()) { error.set("cancelled"); latch.countDown(); return; }
-                String foreground = service.currentForegroundPackage();
-                String entryRejection = entryGate.check(foreground, service.gameForegroundGeneration());
+                ForegroundSnapshot facts = service.foregroundSnapshot();
+                String entryRejection = checkEntry(facts);
                 if (entryRejection != null) {
                     error.set(entryRejection); latch.countDown(); return;
                 }
+                if(facts.windowState.occluded) {error.set(GameWindowState.OCCLUDED);latch.countDown();return;}
                 metadata[0] = SystemClock.elapsedRealtime();
-                metadata[1] = service.gameForegroundGeneration();
+                metadata[1] = facts.generation;
                 FrameSource.Callback captureCallback = new FrameSource.Callback() {
                     @Override public void onFrame(FrameSnapshot frame) {
                         try {
                             synchronized (acquired) {
                                 if (abandoned.get() || isCancelled()) { frame.close(); return; }
-                                String rejection = entryGate.check(service.currentForegroundPackage(),
-                                        service.gameForegroundGeneration());
+                                String rejection = checkEntry(service.foregroundSnapshot());
                                 if (rejection == null) rejection = entryGate.checkCapture(metadata[0], metadata[1]);
                                 if (rejection != null) {
                                     error.set(rejection);
@@ -726,7 +818,16 @@ public final class ApkBattleSession {
                             error.set("capture_callback_error:" + failure.getClass().getSimpleName());
                         } finally { latch.countDown(); }
                     }
-                    @Override public void onFailure(String message) { error.set(message); latch.countDown(); }
+                    @Override public void onFailure(String message) {
+                        try {
+                            ForegroundSnapshot facts=service.foregroundSnapshot();
+                            String rejection=checkEntry(facts);
+                            error.set(rejection!=null && !GameEntryGate.WAITING.equals(rejection)?rejection
+                                    :entryGate.captureFailureReason(message,facts.foregroundPackage,facts.generation,facts.departureEpoch));
+                        } catch(RuntimeException failure) {
+                            error.set("capture_callback_error:"+failure.getClass().getSimpleName());
+                        } finally { latch.countDown(); }
+                    }
                 };
                 if (nativePixels) service.requestNativeFrame(captureCallback);
                 else service.requestFrame(captureCallback);
@@ -755,9 +856,11 @@ public final class ApkBattleSession {
                 File frameDirectory=new File(retention==null?directory:roundDirectory,"frames");
                 if(!frameDirectory.isDirectory() && !frameDirectory.mkdirs())throw new IllegalStateException("frame_directory");
                 File png = new File(frameDirectory, String.format(Locale.ROOT, "%05d.png", sequence));
+                long encodeStarted=SystemClock.elapsedRealtime();
                 try (FileOutputStream stream = new FileOutputStream(png)) {
-                    if (!frame.bitmap().compress(Bitmap.CompressFormat.PNG, 100, stream)) throw new IllegalStateException("PNG_encode_failed");
+                    OriginalPng.write(frame.bitmap(),stream);
                 }
+                long encodeElapsed=SystemClock.elapsedRealtime()-encodeStarted;
                 File capturedPng = png;
                 String evidenceCopyMode = "original";
                 if (retention==null && "battle".equals(stage)) {
@@ -775,12 +878,19 @@ public final class ApkBattleSession {
                         .put("png_path", capturedPng.getAbsolutePath())
                         .put("campaign_png_path", png.getAbsolutePath()).put("captured_elapsed_ms", metadata[0])
                         .put("evidence_copy_mode", evidenceCopyMode)
+                        .put("png_encode_ms",encodeElapsed)
+                        .put("capture_scope",frame.captureScope).put("capture_window_id",frame.captureWindowId)
+                        .put("capture_window_bounds",new JSONArray().put(frame.captureBounds.left).put(frame.captureBounds.top)
+                                .put(frame.captureBounds.width()).put(frame.captureBounds.height()))
                         .put("foreground_generation", metadata[1]).put("source_width", frame.sourceWidth())
                         .put("source_height", frame.sourceHeight())
                         .put("aspect_profile", FrameAspectProfile.classify(frame.sourceWidth(), frame.sourceHeight()))
                         .put("width", frame.width()).put("height", frame.height())
                         .put("coordinate_space", nativePixels ? "source_pixels" : "normalized_1280x720");
                 save(new File(frameDirectory, String.format(Locale.ROOT, "%05d.json", sequence)), json.toString());
+                String currentRejection=checkEntry(service.foregroundSnapshot());
+                if(currentRejection==null)currentRejection=entryGate.checkCapture(metadata[0],metadata[1]);
+                if(currentRejection!=null)return failure(currentRejection);
                 lastFrame = json;
                 if(workingEvidence!=null)workingEvidence.register(json);
                 return json.toString();
@@ -866,15 +976,18 @@ public final class ApkBattleSession {
         }
 
         private String validateSettle(JSONObject plan) throws Exception {
-            String foreground = service.currentForegroundPackage();
-            long generation = service.gameForegroundGeneration();
-            String entryRejection = entryGate.check(foreground, generation);
+            ForegroundSnapshot facts=service.foregroundSnapshot();
+            String foreground = facts.foregroundPackage;
+            long generation = facts.generation;
+            String entryRejection = checkEntry(facts);
             if (entryRejection != null) return entryRejection;
+            if(facts.windowState.occluded)return GameWindowState.OCCLUDED;
             if (!BattleWorkerLease.isOwnedBy(ApkBattleSession.this)) return "campaign_lease_lost";
             if (roundInputs() >= maxInputs) return "campaign_input_budget";
-            return SettleDispatchGuard.validate(plan, lastFrame, consumedFrame, isCancelled(), readOnly,
+            String rejection=SettleDispatchGuard.validate(plan, lastFrame, consumedFrame, isCancelled(), readOnly,
                     elapsedRealtime(), deadline, settleClicks, SettleDispatchGuard.TOTAL_MAX_CLICKS,
                     new int[0][], foreground, generation);
+            return rejection!=null?rejection:pathOccluded(facts,physicalPathPoints(plan,lastFrame))?GameWindowState.OCCLUDED:null;
         }
 
         /** The settlement loop learns the screen through the menu recogniser. */
@@ -954,6 +1067,7 @@ public final class ApkBattleSession {
                         reply.set(dispatchReply(false, false, rejection == null ? "dispatch_timeout" : rejection));
                         latch.countDown(); return;
                     }
+                    if(menu)entryGate.sealBootstrap();
                     boolean accepted = service.dispatchGesture(gesture, new AccessibilityService.GestureResultCallback() {
                         @Override public void onCompleted(GestureDescription description) {
                             release.run();
@@ -995,22 +1109,43 @@ public final class ApkBattleSession {
 
         private String validate(JSONObject plan, boolean menu) throws Exception {
             // Take time/cancellation snapshots after the potentially slow foreground IPC.
-            String foreground = service.currentForegroundPackage();
-            long generation = service.gameForegroundGeneration();
-            String entryRejection = entryGate.check(foreground, generation);
+            ForegroundSnapshot facts=service.foregroundSnapshot();
+            String foreground = facts.foregroundPackage;
+            long generation = facts.generation;
+            String entryRejection = checkEntry(facts);
+            if(menu && startupAdmission && GameEntryGate.WAITING.equals(entryRejection))
+                return GameEntryGate.RECAPTURE;
             if (entryRejection != null) return entryRejection;
+            if(menu && startupAdmission && plan.has("captured_elapsed_ms") && plan.has("foreground_generation")) {
+                String captureRejection=entryGate.checkCapture(plan.getLong("captured_elapsed_ms"),plan.getLong("foreground_generation"));
+                if(captureRejection!=null)return captureRejection;
+            }
+            if(facts.windowState.occluded)return GameWindowState.OCCLUDED;
             if (!BattleWorkerLease.isOwnedBy(ApkBattleSession.this)) return "campaign_lease_lost";
             if (roundInputs() >= maxInputs) return "campaign_input_budget";
-            if (menu) return MenuDispatchGuard.validate(plan, lastFrame, consumedFrame, isCancelled(), readOnly,
-                    elapsedRealtime(), deadline, menuInputs, stage, matchMode, foreground, generation);
+            if (menu) {
+                String rejection=MenuDispatchGuard.validate(plan,lastFrame,consumedFrame,isCancelled(),readOnly,
+                    elapsedRealtime(),deadline,menuInputs,stage,matchMode,foreground,generation);
+                return rejection!=null?rejection:pathOccluded(facts,physicalPathPoints(plan,lastFrame))?GameWindowState.OCCLUDED:null;
+            }
             if (!"battle".equals(stage)) return "not_battle_stage";
-            return BattleDispatchGuard.validate(plan, lastFrame, consumedFrame, isCancelled(), readOnly,
+            String rejection=BattleDispatchGuard.validate(plan, lastFrame, consumedFrame, isCancelled(), readOnly,
                     elapsedRealtime(), deadline, roundInputs(), maxInputs, foreground, generation);
+            return rejection!=null?rejection:pathOccluded(facts,physicalPathPoints(plan,lastFrame))?GameWindowState.OCCLUDED:null;
         }
     }
 
     static JSONObject runtimeOptions(JSONObject options) throws Exception {
         return MatchEntryOptions.runtimeOptions(options);
+    }
+
+    private static boolean pathOccluded(ForegroundSnapshot facts,JSONArray path) throws Exception {
+        float[][] points=new float[path.length()][2];
+        for(int i=0;i<path.length();i++) {
+            points[i][0]=(float)path.getJSONArray(i).getDouble(0);
+            points[i][1]=(float)path.getJSONArray(i).getDouble(1);
+        }
+        return facts.windowState.blocksPath(points);
     }
 
     static JSONArray physicalPathPoints(JSONObject plan, JSONObject frame) throws Exception {

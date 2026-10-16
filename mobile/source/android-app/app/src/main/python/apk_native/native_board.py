@@ -1,6 +1,22 @@
 """Native-frame board prototype; relative row calibration remains experimental."""
 import cv2,numpy as np
 
+def _inverted_triangle_markers(frame,verified_card_boxes):
+    """Use the existing triangle shape in the opposite vertical direction."""
+    from .frontline_pattern import inspect as inspect_marker
+    h=frame.shape[0]
+    mirrored=np.ascontiguousarray(frame[::-1])
+    boxes=[[x,h-y-ch,cw,ch] for x,y,cw,ch in verified_card_boxes]
+    result=[]
+    for proof in inspect_marker(mirrored,boxes,triangular=True,phase_consensus=True,
+                                search_y_fraction=(.36,.73)):
+        line=h-1-proof['line_y']
+        if 0<=line<h:
+            result.append(dict(proof,line_y=line,mirrored_line_y=proof['line_y'],
+                               basis='distributed_inverted_triangle_phase_marker'))
+    return result
+
+
 def _repeated_frontline_ticks(gray,y,x0,x1,dy):
     """Distinguish a repeated frontline marker from a straight table seam."""
     h=gray.shape[0];reference=(gray[y-dy,x0:x1]+gray[y+dy,x0:x1])//2
@@ -69,11 +85,21 @@ def frontline(frame,features=None,verified_card_boxes=()):
         from .frontline_pattern import inspect as inspect_marker
         patterns=[p for p in inspect_marker(frame,verified_card_boxes)
                   if any(a<=p['line_y']/h<=b for a,b in ((.34,.39),(.46,.51),(.56,.62)))]
+        # A downward marker can have a strong rail but rival card/table structure.
+        # Demand its own shape proof, without lowering the global peak margin.
+        if not uniform_stroke and score>=.93 and min(segments)>=.90:
+            inverted=[p for p in _inverted_triangle_markers(frame,verified_card_boxes)
+                      if any(a<=p['line_y']/h<=b for a,b in ((.34,.39),(.46,.51),(.56,.62)))]
+            for proof in inverted:
+                if not any(abs(proof['line_y']-prior['line_y'])<=h*.025 for prior in patterns):
+                    patterns.append(proof)
         if len(patterns)==1:
             candidate=patterns[0];r=candidate['line_y']/h
-            if .34<=r<=.39:owner='our'
-            elif .56<=r<=.62:owner='enemy'
-            elif .46<=r<=.51:owner='empty'
+            near_peak=(candidate['basis']!='distributed_inverted_triangle_phase_marker'
+                       or abs(candidate['line_y']-y)<=h*.015)
+            if near_peak and .34<=r<=.39:owner='our'
+            elif near_peak and .56<=r<=.62:owner='enemy'
+            elif near_peak and .46<=r<=.51:owner='empty'
             if owner!='unknown':y=candidate['line_y'];marker_proof=candidate
     return {'owner':owner,'line_y':y,'score':score,'rival_score':rival,
             'excluded_card_count':len(verified_card_boxes),

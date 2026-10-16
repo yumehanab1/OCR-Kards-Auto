@@ -4,7 +4,7 @@ import numpy as np
 import hashlib
 
 
-def inspect(frame, close_templates):
+def _inspect_templates(frame, close_templates):
     h,w=frame.shape[:2];gray=cv2.cvtColor(frame,cv2.COLOR_BGR2GRAY)
     edges=cv2.Canny(gray,40,100)
     joined=cv2.morphologyEx(edges,cv2.MORPH_CLOSE,np.ones((3,3),np.uint8))
@@ -59,3 +59,91 @@ def inspect(frame, close_templates):
         identity=hashlib.sha256((cv2.resize(body,(8,8),interpolation=cv2.INTER_AREA)//32).tobytes()).hexdigest()
         confirmed.append({'panel_bounds':[x,y,cw,ch],'edge_coverage':coverage,'close':best,'popup_id':identity})
     return confirmed[0] if len(confirmed)==1 else None
+
+
+def _cross_shape(component):
+    """Measure two complete diagonal strokes; scores are geometric ratios."""
+    bh,bw=component.shape
+    yy,xx=np.nonzero(component)
+    if not len(xx):return None
+    u=xx/max(1,bw-1);v=yy/max(1,bh-1)
+    purity=float(((abs(u-v)<=.19)|(abs(u+v-1)<=.19)).mean())
+    fill=float(len(xx)/(bw*bh))
+    arms=[];radius=max(1,round(min(bw,bh)*.12))
+    for reverse in (False,True):
+        for start,end in ((.05,.45),(.55,.95)):
+            samples=[]
+            for t in np.linspace(start,end,12):
+                x=round(t*(bw-1));y=round((1-t if reverse else t)*(bh-1))
+                samples.append(bool(component[max(0,y-radius):min(bh,y+radius+1),
+                                              max(0,x-radius):min(bw,x+radius+1)].any()))
+            arms.append(float(np.mean(samples)))
+    diagonals=[min(arms[:2]),min(arms[2:])]
+    if min(diagonals)<.70 or purity<.68 or not .10<=fill<=.70:return None
+    score=float(min(diagonals)*purity)
+    return dict(diagonal_coverage=diagonals,arm_coverage=arms,diagonal_purity=purity,
+                fill_ratio=fill,shape_score=score,score=score,basis='current_close_x_geometry')
+
+
+def inspect_geometry(frame):
+    h,w=frame.shape[:2];gray=cv2.cvtColor(frame,cv2.COLOR_BGR2GRAY)
+    hsv=cv2.cvtColor(frame,cv2.COLOR_BGR2HSV);edges=cv2.Canny(gray,40,100)
+    joined=cv2.morphologyEx(edges,cv2.MORPH_CLOSE,np.ones((3,3),np.uint8))
+    contours,_=cv2.findContours(joined,cv2.RETR_LIST,cv2.CHAIN_APPROX_SIMPLE)
+    proposals=[cv2.boundingRect(c) for c in contours]
+    horizontal=cv2.morphologyEx(edges,cv2.MORPH_OPEN,np.ones((1,max(20,round(w*.22))),np.uint8))
+    lines,_=cv2.findContours(horizontal,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE)
+    measured=[cv2.boundingRect(c) for c in lines]
+    for x,y,bw,_ in measured:
+        for bx,by,cw,_ in measured:
+            if by>y and abs(x-bx)<h*.025 and abs(bw-cw)<h*.05:
+                proposals.append((min(x,bx),y,max(x+bw,bx+cw)-min(x,bx),by-y+1))
+    panels=[];pad=max(2,round(h*.01))
+    for x,y,bw,bh in proposals:
+        if not (.25*w<bw<.80*w and .20*h<bh<.85*h and x>=0 and y>=h*.05
+                and x+bw<=w and y+bh<=h and abs(x+bw/2-w/2)<w*.15):continue
+        strips=(edges[max(0,y-pad):y+pad+1,x:x+bw],edges[max(0,y+bh-pad):min(h,y+bh+pad+1),x:x+bw],
+                edges[y:y+bh,max(0,x-pad):x+pad+1],edges[y:y+bh,max(0,x+bw-pad):min(w,x+bw+pad+1)])
+        coverage=[float((strip>0).any(axis=0 if i<2 else 1).mean()) for i,strip in enumerate(strips)]
+        if sum(value>=.65 for value in coverage)<2:continue
+        if any(max(abs(a-b) for a,b in zip((x,y,bw,bh),panel[:4]))<=pad*2 for panel in panels):continue
+        panels.append((x,y,bw,bh,coverage))
+    if not panels:return None
+    crosses=[]
+    for saturation,value in ((45,130),(45,175),(90,130),(90,175)):
+        mask=cv2.inRange(hsv,(0,0,value),(179,saturation,255))
+        mask=cv2.morphologyEx(mask,cv2.MORPH_OPEN,np.ones((2,2),np.uint8))
+        _,labels,stats,_=cv2.connectedComponentsWithStats(mask,8)
+        for index,(x,y,bw,bh,area) in enumerate(stats[1:],1):
+            if not (max(6,h*.008)<=min(bw,bh) and max(bw,bh)<=h*.07 and .65<bw/bh<1.5):continue
+            component=np.uint8(labels[y:y+bh,x:x+bw]==index)
+            shape=_cross_shape(component)
+            if shape is None:continue
+            # A close glyph is isolated from adjacent caption letters. This
+            # excludes a printed X inside a word without reading that word.
+            gap=max(2,round(bw*.70))
+            neighboring=int(np.count_nonzero(mask[y:y+bh,max(0,x-gap):x]))
+            neighboring+=int(np.count_nonzero(mask[y:y+bh,x+bw:min(w,x+bw+gap)]))
+            if neighboring>area*.45:continue
+            shape['bounds']=[int(x),int(y),int(bw),int(bh)]
+            if any(max(abs(a-b) for a,b in zip(shape['bounds'],old['bounds']))<=max(3,h*.006) for old in crosses):continue
+            crosses.append(shape)
+    confirmed=[]
+    for close in crosses:
+        x,y,bw,bh=close['bounds']
+        options=[]
+        for px,py,pw,ph,coverage in panels:
+            if not (px+pw*.75<=x and x+bw<=px+pw+1 and py<=y and y+bh<=py+ph*.25):continue
+            options.append((sum(coverage),px,py,pw,ph,coverage))
+        if not options:continue
+        _,px,py,pw,ph,coverage=max(options,key=lambda row:row[0])
+        body=gray[py+round(ph*.2):py+round(ph*.8),px+round(pw*.1):px+round(pw*.85)]
+        identity=hashlib.sha256((cv2.resize(body,(8,8),interpolation=cv2.INTER_AREA)//32).tobytes()).hexdigest()
+        confirmed.append(dict(basis='current_close_x_geometry',panel_bounds=[int(px),int(py),int(pw),int(ph)],
+                              edge_coverage=coverage,close=close,popup_id=identity))
+    return confirmed[0] if len(confirmed)==1 else None
+
+
+def inspect(frame, close_templates):
+    strict=_inspect_templates(frame,close_templates) if close_templates else None
+    return strict or inspect_geometry(frame)

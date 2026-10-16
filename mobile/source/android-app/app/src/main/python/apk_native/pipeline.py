@@ -1,5 +1,5 @@
 """Source-pixel recognition. Input dispatch stays outside this observation API."""
-import json,time
+import copy,hashlib,json,time
 from pathlib import Path
 import cv2,numpy as np
 from .frame_features import FrameFeatures
@@ -116,8 +116,20 @@ def deployment(frame,page,scene,hand,probe):
 class Pipeline:
     def __init__(self,page_bank,combat_bank,ocr):
         self.page=FastPage(ocr,page_bank);self.objects=Objects(combat_bank);self.guards=Guards(combat_bank)
+        self._effect_cache=None
+
+    @staticmethod
+    def _validate(frame):
+        if not isinstance(frame,np.ndarray) or frame.dtype!=np.uint8 or frame.ndim!=3 or frame.shape[2]!=3:
+            raise ValueError('invalid_native_capture')
+        if not 1.70<=frame.shape[1]/frame.shape[0]<=2.30:raise ValueError('unsupported_native_capture_aspect')
+
+    @staticmethod
+    def _pixels_digest(frame):
+        return hashlib.sha256(memoryview(np.ascontiguousarray(frame))).hexdigest()
 
     def observe(self,frame):
+        self._effect_cache=None
         from .recognition_scale import shrink,restore
         scaled,factors=shrink(frame)
         if factors==(1.,1.):return self.observe_pixels(frame)
@@ -129,22 +141,110 @@ class Pipeline:
         An own-turn frame still takes the complete planning path. This API
         never creates an executable action from an abbreviated observation.
         """
+        self._effect_cache=None
         from .recognition_scale import shrink,restore
         scaled,factors=shrink(frame)
         result=self.observe_pixels(scaled,turn_ui_only=True)
         return result if factors==(1.,1.) else restore(result,frame,scaled,factors)
 
-    def observe_pixels(self,frame,*,turn_ui_only=False):
-        if not isinstance(frame,np.ndarray) or frame.dtype!=np.uint8 or frame.ndim!=3 or frame.shape[2]!=3:
-            raise ValueError('invalid_native_capture')
-        h,w=frame.shape[:2]
-        if not 1.70<=w/h<=2.30:raise ValueError('unsupported_native_capture_aspect')
-        start=time.perf_counter();features=FrameFeatures(frame);page=self.page.observe(frame,features);paged=time.perf_counter()
+    def observe_effect(self,frame,context):
+        """Observe a completed input's evidence without planning another input.
+
+        Board cards remain a complete inventory for artwork uniqueness. Only
+        deployment needs row coverage here. Unscanned hands are None, never
+        evidence of an empty hand. The private cache belongs to this one frame.
+        """
+        self._effect_cache=None;self._validate(frame)
+        if context not in ('deploy','move_front','attack_unit','attack_hq'):
+            raise ValueError('unsupported_effect_observation_context')
+        from .recognition_scale import shrink,restore
+        start=time.perf_counter();digest=self._pixels_digest(frame)
+        scaled,factors=shrink(frame)
+        # At <=720p shrink returns its input. Own the cached pixels so external
+        # array mutation cannot invalidate previously computed lazy features.
+        if scaled is frame:scaled=scaled.copy()
+        features,page,choice,display,paged=self._page(scaled)
+        active=page['state'] in ('battle','opponent_turn')
+        icons=self.objects.inspect(scaled,features) if active else []
+        scene=board(scaled,icons,features) if active else None;boarded=time.perf_counter()
+        probe=support(scaled,scene,features) if active and context=='deploy' else None
+        done=time.perf_counter()
+        timings={'page':(paged-start)*1000,'board':(boarded-paged)*1000,'hand':0.,
+                 'support':(done-boarded)*1000,'combat':0.,'selection':0.,'total':(done-start)*1000}
+        raw=dict(state=page['state'],page=page,scene=scene,hand=None,hand_scanned=False,
+                 support_probe=probe,combat=None,combat_scanned=False,planning_complete=False,
+                 choice_modal=bool(choice['ready']),choice_evidence=choice,card_display=display,
+                 current_state_key=None,plan={'action':'wait','reason':'effect_observation_requires_planning'},
+                 selected_action={'action':'wait','reason':'effect_observation_requires_planning'},
+                 source_shape=list(scaled.shape),coordinate_space='source_pixels',executable=False,
+                 observation_scope='effect_'+context,timings_ms=timings)
+        # Keep raw recognition coordinates/features private. In particular,
+        # executor annotations must not mutate the paired partial observation.
+        public=copy.deepcopy(raw)
+        if factors!=(1.,1.):public=restore(public,frame,scaled,factors)
+        self._effect_cache=dict(observation=public,digest=digest,shape=tuple(frame.shape),
+                                frame=scaled,factors=factors,features=features,raw=raw)
+        return public
+
+    def complete_planning(self,frame,partial):
+        """Fill missing planning evidence once, from the same original pixels.
+
+        Capture identity, PNG bytes and freshness are checked by the executor;
+        this layer additionally binds cached features to the supplied pixels.
+        A returned full observation is separate from the historical partial.
+        """
+        cached=self._effect_cache;self._effect_cache=None
+        if (cached is None or partial is not cached['observation']
+                or partial.get('planning_complete') is not False):
+            raise ValueError('effect_planning_cache_miss')
+        self._validate(frame)
+        if tuple(frame.shape)!=cached['shape'] or self._pixels_digest(frame)!=cached['digest']:
+            raise ValueError('effect_planning_source_changed')
+        from .recognition_scale import restore
+        raw=cached['raw'];scaled=cached['frame']
+        full=self._finish(scaled,cached['features'],raw['page'],raw['scene'],raw['choice_evidence'],
+                          raw['card_display'],dict(raw['timings_ms']),raw['support_probe'])
+        result=full if cached['factors']==(1.,1.) else restore(full,frame,scaled,cached['factors'])
+        # Keep original capture provenance and diagnostics without accepting
+        # caller edits to page, scene, support or other recognition evidence.
+        for name in ('source','capture_timings_ms','turn_transition_proof'):
+            if name in partial:result[name]=copy.deepcopy(partial[name])
+        result['completed_from_scope']=raw['observation_scope']
+        return result
+
+    def _page(self,frame):
+        features=FrameFeatures(frame);page=self.page.observe(frame,features)
+        paged=time.perf_counter()
         active=page['state'] in ('battle','opponent_turn')
         from .choice import inspect as inspect_choice
-        choice_evidence=inspect_choice(frame,features) if active else {'ready':False}
+        choice=inspect_choice(frame,features) if active else {'ready':False}
         from .turn_preparation import card_display
-        display=card_display(frame,features) if active and not choice_evidence['ready'] else {'ready':False}
+        display=card_display(frame,features) if active and not choice['ready'] else {'ready':False}
+        return features,page,choice,display,paged
+
+    def _finish(self,frame,features,page,scene,choice,display,timings,probe=None):
+        start=time.perf_counter();active=page['state'] in ('battle','opponent_turn')
+        hand=inspect(frame,features) if active else [];handed=time.perf_counter()
+        if active and probe is None:probe=support(frame,scene,features)
+        probed=time.perf_counter()
+        plan=deployment(frame,page['state'],scene,hand,probe) if active else page.get('plan',{})
+        fight=combat(frame,{'dataset':'native','file':'current','state':page['state'],'scene':scene},features,self.guards) if active else None
+        fought=time.perf_counter();selected=select({'state':page['state'],'scene':scene,'plan':plan,'combat':fight})
+        from .current_state import identity
+        state_key=identity(frame,hand) if active else None;done=time.perf_counter()
+        timings.update(hand=(handed-start)*1000,support=timings.get('support',0.)+(probed-handed)*1000,
+                       combat=(fought-probed)*1000,selection=(done-fought)*1000,
+                       total=timings['total']+(done-start)*1000)
+        return {'state':page['state'],'page':page,'scene':scene,'hand':hand,'support_probe':probe,'combat':fight,
+                'hand_scanned':active,'combat_scanned':active,'planning_complete':True,'observation_scope':'full_planning',
+                'choice_modal':bool(choice['ready']),'choice_evidence':choice,'card_display':display,
+                'current_state_key':state_key,'plan':plan,'selected_action':selected,'source_shape':list(frame.shape),
+                'coordinate_space':'source_pixels','executable':False,'timings_ms':timings}
+
+    def observe_pixels(self,frame,*,turn_ui_only=False):
+        self._effect_cache=None;self._validate(frame)
+        start=time.perf_counter();features,page,choice_evidence,display,paged=self._page(frame)
+        active=page['state'] in ('battle','opponent_turn')
         if turn_ui_only and page['state']=='opponent_turn':
             return dict(state=page['state'],page=page,scene={},hand=[],hand_scanned=False,
                 support_probe={},combat={},choice_modal=bool(choice_evidence['ready']),
@@ -152,25 +252,9 @@ class Pipeline:
                 plan={'action':'wait','reason':'explicit_opponent_turn'},
                 selected_action={'action':'wait','reason':'explicit_opponent_turn'},
                 source_shape=list(frame.shape),coordinate_space='source_pixels',executable=False,
-                observation_scope='current_turn_ui',timings_ms={'page':(paged-start)*1000,
+                observation_scope='current_turn_ui',planning_complete=False,combat_scanned=False,timings_ms={'page':(paged-start)*1000,
                     'total':(time.perf_counter()-start)*1000})
         icons=self.objects.inspect(frame,features) if active else [];scene=board(frame,icons,features) if active else None
-        boarded=time.perf_counter();hand=inspect(frame,features) if active else [];handed=time.perf_counter()
-        probe=support(frame,scene,features) if active else None;probed=time.perf_counter()
-        plan=deployment(frame,page['state'],scene,hand,probe) if active else page.get('plan',{})
-        fight=combat(frame,{'dataset':'native','file':'current','state':page['state'],'scene':scene},features,self.guards) if active else None
-        fought=time.perf_counter();selected=select({'state':page['state'],'scene':scene,'plan':plan,'combat':fight});done=time.perf_counter()
-        # Bright battlefield skins are not choice evidence. Only the three
-        # aligned card frames can interrupt normal battlefield actions.
-        choice=choice_evidence['ready']
-        from .current_state import identity
-        state_key=identity(frame,hand) if active else None
-        return {'state':page['state'],'page':page,'scene':scene,'hand':hand,'support_probe':probe,'combat':fight,
-                'choice_modal':bool(choice),'choice_evidence':choice_evidence,
-                'card_display':display,
-                'current_state_key':state_key,
-                'plan':plan,'selected_action':selected,'source_shape':list(frame.shape),
-                'coordinate_space':'source_pixels','executable':False,
-                'timings_ms':{name:(b-a)*1000 for name,a,b in [('page',start,paged),('board',paged,boarded),
-                    ('hand',boarded,handed),('support',handed,probed),('combat',probed,fought),
-                    ('selection',fought,done),('total',start,done)]}}
+        boarded=time.perf_counter()
+        return self._finish(frame,features,page,scene,choice_evidence,display,
+                            dict(page=(paged-start)*1000,board=(boarded-paged)*1000,total=(boarded-start)*1000))

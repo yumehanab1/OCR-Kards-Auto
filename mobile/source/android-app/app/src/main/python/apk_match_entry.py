@@ -300,10 +300,12 @@ class Recognizer:
 
 class MenuFlow:
     """Pure bounded state machine. Issued actions never repeat in one session."""
-    def __init__(self, mode, started):
+    def __init__(self, mode, started, direct_controls=False):
         if mode not in MODES:
             raise ValueError('invalid_match_mode')
         self.mode, self.started = mode, started
+        self.direct_controls = direct_controls
+        self.selection_requested = False
         self.last_key = None
         self.last_time = None
         self.last_frame = None
@@ -323,8 +325,12 @@ class MenuFlow:
         self.startup_cleanup_attempts = 0
         self.startup_cleanup_frame = None
         self.startup_cleanup_sent = None
+        self.popup_interrupted_navigation = None
+        self.popup_navigation_retries = {}
 
     def observe(self, observation, frame_id, now, opening=False):
+        if self.direct_controls:
+            return self.observe_controls(observation, frame_id, now, opening)
         if now-self.started >= 180000:
             return {'stop': 'menu_time_budget'}
         state = observation['state']
@@ -387,6 +393,15 @@ class MenuFlow:
                 return {'stop': 'menu_unknown_timeout'}
             return {'wait': state}
         self.unknown_since = None
+        navigation_sources = {'menu_home_start':'home', 'menu_battle_mode':'mode_menu',
+                              'menu_select_deck':'deck_list', 'menu_close_deck':'deck_ready',
+                              'menu_select_casual':'deck_ready', 'menu_select_ranked':'deck_ready'}
+        if (self.pending is not None and self.pending[0] in navigation_sources
+                and state in NATIVE_POPUP_ACTIONS):
+            # A late promotion can cover a completed navigation dispatch. Keep
+            # its receipt unresolved while clearing the independently proved popup.
+            self.popup_interrupted_navigation = self.pending
+            self.pending = None
         if self.pending is not None:
             action, sent = self.pending
             expected = {
@@ -422,6 +437,31 @@ class MenuFlow:
             if action == 'menu_select_deck':
                 self.first_deck_selected = True
             self.pending = None
+        if self.popup_interrupted_navigation is not None and state not in NATIVE_POPUP_ACTIONS:
+            interrupted, sent = self.popup_interrupted_navigation
+            destination = {
+                'menu_home_start': state in ('mode_menu','deck_list'),
+                'menu_battle_mode': state == 'deck_list',
+                'menu_select_deck': state == 'deck_ready',
+                'menu_close_deck': state == 'deck_list',
+                'menu_select_casual': state == 'deck_ready' and key[1] == 'casual',
+                'menu_select_ranked': state == 'deck_ready' and key[1] == 'ranked',
+            }[interrupted]
+            if self.stable < self.required_frames:
+                return {'wait':state}
+            if destination:
+                if interrupted == 'menu_select_deck': self.first_deck_selected = True
+                self.popup_interrupted_navigation = None
+            elif state == navigation_sources[interrupted]:
+                # Only a confirmed source page after a real intervening popup
+                # permits one fresh navigation attempt; never retry queueing.
+                if self.popup_navigation_retries.get(interrupted,0) >= 1:
+                    return {'stop':'menu_popup_navigation_retry_exhausted:'+interrupted}
+                self.popup_navigation_retries[interrupted] = 1
+                self.issued.discard(interrupted)
+                self.popup_interrupted_navigation = None
+            else:
+                return {'wait':state}
         if self.stable < self.required_frames:
             return {'wait': state}
         action = {'home':'menu_home_start', 'mode_menu':'menu_battle_mode',
@@ -446,6 +486,54 @@ class MenuFlow:
             return {'stop': 'menu_target_missing'}
         return {'action': action, 'bounds': bounds}
 
+    def observe_controls(self, observation, frame_id, now, opening=False):
+        """Choose from this screen's controls without prescribing intermediate pages.
+
+        A completed navigation tap does not require a separately named destination.
+        The next capture supplies the next target, including after a delayed popup.
+        Queue requests remain single-shot because the game may already be matching.
+        """
+        if now-self.started >= 180000:
+            return {'stop':'menu_time_budget'}
+        state = observation['state']
+        if self.queue_requested is not None:
+            if opening:
+                return {'verified':True}
+            if now-self.queue_requested >= 120000:
+                return {'stop':'matchmaking_timeout_queue_may_continue'}
+            return {'wait':state}
+        if opening:
+            return {'stop':'startup_existing_game_mode_unverified'}
+        if state == 'queueing':
+            return {'stop':'existing_queue_mode_unverified'}
+        if state in WAIT_STATES:
+            return {'wait':state}
+        if self.pending and now-self.pending[1] < 750:
+            return {'wait':state}
+        if state == 'deck_ready' and self.selection_requested:
+            self.first_deck_selected = True
+        action = {'home':'menu_home_start','mode_menu':'menu_battle_mode',
+                  'deck_list':'menu_select_deck','login_reward':'menu_dismiss_reward',
+                  'disconnected':'menu_reconnect',**NATIVE_POPUP_ACTIONS}.get(state)
+        if state == 'deck_ready':
+            action = ('menu_close_deck' if not self.first_deck_selected else
+                      'menu_start_queue' if observation.get('selected_mode') == self.mode
+                      else 'menu_select_'+self.mode)
+        if action is None:
+            return {'wait':state}
+        if self.inputs >= self.max_inputs:
+            return {'stop':'menu_input_budget'}
+        bounds = observation.get('targets',{}).get(action)
+        if bounds is None and action == 'menu_close_deck':
+            # The visible navigation tab also returns to deck selection;
+            # an unreadable card outline must not leave this flow targetless.
+            control=observation.get('start_control') or {}
+            if control.get('ok') is True:bounds=control.get('bounds')
+        if not bounds:
+            # An incomplete menu observation is a reason to observe again.
+            return {'wait':state}
+        return {'action':action,'bounds':bounds}
+
     def accepted(self, action, now, popup_id=''):
         self.inputs += 1
         if action == 'menu_startup_cleanup':
@@ -461,6 +549,11 @@ class MenuFlow:
         self.last_key = None
         if action in ('menu_close_deck','menu_select_deck'):
             self.first_deck_selected = False
+        if self.direct_controls:
+            if action == 'menu_select_deck':
+                self.selection_requested = True
+            elif action in ('menu_close_deck','menu_home_start'):
+                self.selection_requested = False
         if action == 'menu_start_queue':
             self.queue_requested = now
 
@@ -472,7 +565,8 @@ def run(bridge, assets_dir, mode, native=False):
     else:
         recognizer = Recognizer(assets_dir)
     flow = MenuFlow(str(mode), int(bridge.elapsedRealtime()))
-    if native:flow.max_inputs=32;flow.required_frames=1;flow.startup_cleanup=True
+    if native:flow.max_inputs=32;flow.required_frames=1;flow.direct_controls=True
+    frame_max_age = 5000 if native else 3000
     reason = 'cancelled'
     verified = False
     expired_dispatches = 0
@@ -500,15 +594,8 @@ def run(bridge, assets_dir, mode, native=False):
             observation={'state':'unknown','targets':{},'selected_mode':'',
                          'reason':'native_queue_opening_only','opening_evidence':check}
         else:
+            if native: recognizer.startup = flow.startup_cleanup
             observation = recognizer.observe(frame, packet) if native else recognizer.observe(frame)
-            if native and flow.startup_cleanup and observation.get('state') == 'unknown':
-                check = parse(bridge.inspectOpening())
-                opening = (check.get('ok') is True and check.get('frame_id') == packet.get('frame_id')
-                           and check.get('phase') in ('MULLIGAN_CONFIRM','CONFIRMED_MY_TURN','CONFIRMED_OPPONENT_TURN'))
-                observation['opening_evidence'] = check
-                h,w = frame.shape[:2]
-                size = max(8,round(h*24/720))
-                observation['targets']['menu_startup_cleanup'] = [w/2-size/2,round(h*665/720)-size/2,size,size]
         observation.update(frame_reader=reader,
             frame_shape=list(frame.shape) if frame is not None else None,
             frame_path=str(packet['png_path']))
@@ -518,7 +605,7 @@ def run(bridge, assets_dir, mode, native=False):
                        and check.get('phase') == 'MULLIGAN_CONFIRM')
         now = int(bridge.elapsedRealtime())
         age = now-packet['captured_elapsed_ms']
-        if age < 0 or age > 3000:
+        if age < 0 or age > frame_max_age:
             # BOTH observations in a stable pair must be fresh, including the
             # observation used only as a precursor to a later authorized tap.
             flow.stable = 0
@@ -546,7 +633,7 @@ def run(bridge, assets_dir, mode, native=False):
             break
         if decision.get('action'):
             age = int(bridge.elapsedRealtime())-packet['captured_elapsed_ms']
-            if age < 0 or age > 3000:
+            if age < 0 or age > frame_max_age:
                 # Nothing sent: get two fresh observations, without consuming this action.
                 flow.stable = 0
                 flow.last_key = None
@@ -572,14 +659,15 @@ def run(bridge, assets_dir, mode, native=False):
             bridge.emit(json.dumps({'kind':'menu_receipt','value':{'frame_id':packet['frame_id'],
                 'action':decision['action'],'reply':reply}},ensure_ascii=False))
             if (reply.get('accepted') is False and reply.get('completed') is False
-                    and reply.get('reason') == 'frame_age_expired'):
+                    and reply.get('reason') in ('frame_age_expired','temporary_game_window_occluded','bootstrap_window_changed')):
                 # Java rejected BEFORE dispatch. Reacquire and recognize;
                 # never replay the old request or advance the menu flow.
-                expired_dispatches += 1
+                if reply.get('reason')=='frame_age_expired':expired_dispatches += 1
                 flow.stable = 0
                 flow.last_key = None
                 bridge.emit(json.dumps({'kind':'menu_replan','value':{
-                    'reason':'dispatch_frame_expired','frame_id':packet['frame_id'],
+                    'reason':('bootstrap_window_changed' if reply.get('reason')=='bootstrap_window_changed'
+                              else 'dispatch_frame_expired'),'frame_id':packet['frame_id'],
                     'frame_age_ms':int(bridge.elapsedRealtime())-packet['captured_elapsed_ms'],
                     'consecutive_rejections':expired_dispatches}}))
                 if expired_dispatches >= 3:

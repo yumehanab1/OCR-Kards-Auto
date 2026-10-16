@@ -10,12 +10,9 @@ def audit(observed,allow,failed_deploys=0,*,allow_local_unknown=False):
     scene=observed.get('scene') or {};probe=observed.get('support_probe') or {};combat=observed.get('combat') or {}
     unknown_front=scene.get('frontline',{}).get('owner') not in ('our','enemy','empty')
     if unknown_front and not allow_local_unknown:return refusal('frontline_unknown')
-    if unknown_front and any(a.get('state')=='orange' and any(
+    ready_actor_unknown_front=unknown_front and any(a.get('state')=='orange' and any(
             allow(dict(kind=kind,unit=a)) for kind in ('attack_hq','attack_unit','movefront'))
-            for a in combat.get('actors',[])):
-        # An explicitly ready actor with an unresolved global prerequisite
-        # was not exhausted. Reacquire instead of silently ending its turn.
-        return refusal('ready_actor_frontline_unconfirmed')
+            for a in combat.get('actors',[]))
     control=end_control(observed.get('page',{}))
     if control is None:return refusal('current_end_control_unconfirmed')
     plan=observed.get('plan') or {};deploy=plan.get('action')
@@ -59,9 +56,88 @@ def audit(observed,allow,failed_deploys=0,*,allow_local_unknown=False):
     for option in combat.get('options',[]):
         if option.get('kind')=='pending':continue # Existing policy locally skips unknown guard/target.
         if allow(option):return refusal('remaining_combat_candidate')
-    return dict(ready=True,reason='current_action_candidates_exhausted_with_local_unknowns' if local_unknown else 'current_deployment_and_actor_scans_exhausted',control=control,
+    result=dict(ready=True,reason='current_action_candidates_exhausted_with_local_unknowns' if local_unknown else 'current_deployment_and_actor_scans_exhausted',control=control,
                 locally_unknown=local_unknown,
                 deployment_basis=deploy_basis,actors_scanned=len(actors),locally_pending=sum(o.get('kind')=='pending' for o in combat.get('options',[])))
+    if ready_actor_unknown_front:
+        # No claim that these orange actors were exhausted. A bounded series
+        # of fresh observations may separately permit ending despite this
+        # unresolved local prerequisite, after all other checks above pass.
+        result.update(ready=False,reason='ready_actor_frontline_unconfirmed',frontline_recheck_eligible=True)
+    return result
+
+
+_RECHECK_KEYS=('frame_id','captured_elapsed_ms','foreground_generation','source_width','source_height')
+_RECHECK_FRAMES=3
+_RECHECK_GAP_MS=250
+_RECHECK_SPAN_MS=1500
+
+
+def unknown_frontline_skip_ready(evidence,packet):
+    """Validate the explicit unknown-skip proof without declaring exhaustion."""
+    if (packet.get('coordinate_space')!='source_pixels'
+            or any(type(packet.get(key)) is not int for key in _RECHECK_KEYS)):return False
+    if (evidence.get('ready') is not True or evidence.get('unresolved_frontline_skipped') is not True
+            or evidence.get('frontline_recheck_eligible') is not True
+            or evidence.get('reason')!='bounded_unknown_frontline_skipped'
+            or evidence.get('current_frame_exhausted') is True or evidence.get('stable_pair') is True):return False
+    proof=evidence.get('frontline_recheck') or {}
+    if not isinstance(proof,dict):return False
+    samples=proof.get('samples')
+    if (not isinstance(samples,list) or len(samples)<_RECHECK_FRAMES
+            or proof.get('sample_count')!=len(samples)
+            or type(proof.get('source_turn')) is not int or proof['source_turn']<0):return False
+    previous=None
+    for sample in samples:
+        if (not isinstance(sample,dict) or any(type(sample.get(key)) is not int for key in _RECHECK_KEYS)
+                or sample['frame_id']<=0 or sample['captured_elapsed_ms']<0
+                or sample['foreground_generation']<0 or sample['source_width']<=0 or sample['source_height']<=0
+                or sample.get('coordinate_space')!='source_pixels'
+                or any(sample[key]!=packet.get(key) for key in ('foreground_generation','source_width','source_height'))):return False
+        if previous is not None and (sample['frame_id']<=previous['frame_id']
+                or sample['captured_elapsed_ms']-previous['captured_elapsed_ms']<_RECHECK_GAP_MS):return False
+        previous=sample
+    span=samples[-1]['captured_elapsed_ms']-samples[0]['captured_elapsed_ms']
+    return (span>=_RECHECK_SPAN_MS and proof.get('capture_span_ms')==span
+            and all(samples[-1][key]==packet.get(key) for key in _RECHECK_KEYS))
+
+
+class UnknownFrontlineRecheck:
+    """A limited, same-turn recheck of one explicitly unresolved prerequisite."""
+    def __init__(self):self.reset()
+
+    def reset(self):self.key=None;self.samples=[]
+
+    def observe(self,evidence,packet,turn,now_ms):
+        eligible=(evidence.get('ready') is False and evidence.get('frontline_recheck_eligible') is True
+                  and evidence.get('reason')=='ready_actor_frontline_unconfirmed')
+        valid=(all(type(packet.get(key)) is int for key in _RECHECK_KEYS)
+               and packet['frame_id']>0 and packet['captured_elapsed_ms']>=0
+               and packet['foreground_generation']>=0 and packet['source_width']>0 and packet['source_height']>0
+               and packet.get('coordinate_space')=='source_pixels' and type(turn) is int and turn>=0
+               and 0<=now_ms-packet['captured_elapsed_ms']<=3000)
+        if not eligible or not valid:
+            self.reset();return evidence
+        key=(turn,packet['foreground_generation'],packet['source_width'],packet['source_height'])
+        if key!=self.key:self.reset();self.key=key
+        sample={key:packet[key] for key in _RECHECK_KEYS};sample['coordinate_space']='source_pixels'
+        current=False
+        if not self.samples:
+            self.samples.append(sample);current=True
+        else:
+            previous=self.samples[-1]
+            if sample==previous:current=True # Reuse is the same sample, never a new one.
+            elif (sample['frame_id']<=previous['frame_id']
+                    or sample['captured_elapsed_ms']<=previous['captured_elapsed_ms']):
+                self.reset();return evidence
+            elif sample['captured_elapsed_ms']-previous['captured_elapsed_ms']>=_RECHECK_GAP_MS:
+                self.samples.append(sample);current=True
+        proof=dict(source_turn=turn,sample_count=len(self.samples),samples=[dict(row) for row in self.samples],
+                   capture_span_ms=self.samples[-1]['captured_elapsed_ms']-self.samples[0]['captured_elapsed_ms'])
+        result=dict(evidence,frontline_recheck=proof)
+        if current and len(self.samples)>=_RECHECK_FRAMES and proof['capture_span_ms']>=_RECHECK_SPAN_MS:
+            result.update(ready=True,reason='bounded_unknown_frontline_skipped',unresolved_frontline_skipped=True)
+        return result
 
 class StableAudit:
     def __init__(self):self.previous=None

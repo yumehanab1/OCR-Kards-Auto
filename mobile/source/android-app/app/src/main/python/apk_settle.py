@@ -1,6 +1,6 @@
 """Bounded post-match settlement: dismiss the result and tail screens.
 
-Ported from the PC runner's dismiss state machine (D:\\kards-auto-repo\\src\\main_loop.py),
+Ported from the PC runner's dismiss state machine (src/main_loop.py),
 which was corrected repeatedly against real play. What is kept from it:
 
 * the window only opens after a verified victory/defeat, never on an arbitrary
@@ -474,7 +474,10 @@ def run(bridge, points=None, assets_dir=None, timeout_seconds=DEFAULT_TIMEOUT_SE
     state = {"packet": None, "reader": "", "path": "", "observation": None}
     if native:
         from apk_native.menu import NativeMenuRecognizer
-        native_recognizer=NativeMenuRecognizer(assets,bridge)
+        # Only the already authorised result cleanup window can defer semantics.
+        # Unknown rewards get its original bounded neutral point; confirmed
+        # menu geometry still ends cleanup. No new action or result is inferred.
+        native_recognizer=NativeMenuRecognizer(assets,bridge,settlement=verified_result is True or component_scope is True)
 
     def classify(frame):
         """Classify the frame the machine just captured.
@@ -544,7 +547,7 @@ def run(bridge, points=None, assets_dir=None, timeout_seconds=DEFAULT_TIMEOUT_SE
         receipt = {"frame_id":packet["frame_id"],"request":request,"reply":reply}
         state.setdefault("dispatch_receipts",[]).append(receipt)
         if (reply.get("accepted") is False and reply.get("completed") is False
-                and reply.get("reason") == "frame_age_expired"):
+                and reply.get("reason") in ("frame_age_expired","temporary_game_window_occluded")):
             raise FreshSettlementFrameRequired(receipt)
         return bool(reply.get("accepted") and reply.get("completed"))
 

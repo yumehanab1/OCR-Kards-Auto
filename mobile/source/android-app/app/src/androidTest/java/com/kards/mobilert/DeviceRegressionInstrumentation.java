@@ -51,8 +51,28 @@ public final class DeviceRegressionInstrumentation extends Instrumentation {
 
     @Override
     public void onStart() {
+        if ("true".equals(arguments.getString("readOnlyDiagnostics", "false"))) {
+            Bundle diagnostic = new Bundle();
+            try {
+                String encoded = android.util.Base64.encodeToString(
+                    ReadOnlySessionRecords.read(getTargetContext(), arguments.getString("sessionId"))
+                        .getBytes(StandardCharsets.UTF_8), android.util.Base64.NO_WRAP);
+                for (int offset=0; offset<encoded.length(); offset+=24000) {
+                    Bundle chunk = new Bundle();
+                    chunk.putString("diagnostic_chunk", encoded.substring(offset, Math.min(offset+24000, encoded.length())));
+                    sendStatus(0, chunk);
+                }
+                diagnostic.putString("diagnostic_result", "read_only_completed");
+                finish(Activity.RESULT_OK, diagnostic);
+            } catch (Exception error) {
+                diagnostic.putString("diagnostic_error", error.toString());
+                finish(Activity.RESULT_CANCELED, diagnostic);
+            }
+            return;
+        }
         long started = System.currentTimeMillis();
         Bundle result = new Bundle();
+        PublicReleaseTestSupport publicSupport = null;
         try {
             outputDirectory = new File(getTargetContext().getFilesDir(), "device-tests");
             require(outputDirectory.isDirectory() || outputDirectory.mkdirs(), "Cannot create report directory");
@@ -72,13 +92,32 @@ public final class DeviceRegressionInstrumentation extends Instrumentation {
             report.put("app_version", packageInfo.versionName);
             report.put("app_version_code", packageInfo.getLongVersionCode());
             report.put("cases", cases);
-            if ("true".equals(arguments.getString("releaseSmokeOnly", "false"))) {
+            if ("true".equals(arguments.getString("publicRelease", "false"))) {
+                require("true".equals(arguments.getString("releaseSmokeOnly", "false")),
+                        "Public Python support is limited to releaseSmokeOnly");
+                publicSupport = new PublicReleaseTestSupport(getContext(),getTargetContext(),outputDirectory);
+                report.put("public_release_test_support",publicSupport.install());
+            }
+            if ("true".equals(arguments.getString("dynamicMenuOnly", "false"))) {
+                runCase("dynamic_menu_controls", item -> item.put("checks", DynamicMenuControlsChecks.run(getContext(),getTargetContext())));
+            } else if ("true".equals(arguments.getString("windowPolicyOnly", "false"))) {
+                runCase("game_window_policy", item -> item.put("checks", GameWindowChecks.run()));
+            } else if ("true".equals(arguments.getString("releaseSmokeOnly", "false"))) {
+                runCase("game_window_policy", item -> item.put("checks", GameWindowChecks.run()));
+                runCase("mulligan_notification_guards", item -> {
+                    JSONObject checks=MulliganSessionChecks.run(getTargetContext());
+                    require(checks.getInt("failure_count")==0,"Notification mulligan guards");item.put("checks",checks);
+                });
+                runCase("phone_resource_inset", item -> item.put("checks", PhoneInsetChecks.run(getContext(),getTargetContext())));
+                runCase("original_png_pixels", item -> item.put("checks", OriginalPngChecks.run()));
                 runCase("evidence_retention", item -> item.put("checks", EvidenceRetentionChecks.run(getTargetContext())));
                 runCase("floating_status", item -> item.put("checks", FloatingControlChecks.model()));
                 runCase("activity_result_lifecycle", this::testActivityLifecycle);
                 runCase("native_saved_pipeline", item -> item.put("checks", NativePipelineChecks.run(getContext(),getTargetContext())));
+                runCase("phone_result_regions", item -> item.put("checks", ResultRegionChecks.run(getContext(),getTargetContext())));
                 runCase("opening_evidence_replay", item -> item.put("checks", OpeningEvidenceReplayChecks.run(getContext(),getTargetContext())));
                 runCase("aspect_16_9_replay", item -> item.put("checks", Aspect169ReplayChecks.run(getContext(),getTargetContext())));
+                runCase("dynamic_menu_controls", item -> item.put("checks", DynamicMenuControlsChecks.run(getContext(),getTargetContext())));
             } else if ("true".equals(arguments.getString("openingEvidenceOnly", "false"))) {
                 runCase("opening_evidence_replay", item -> item.put("checks", OpeningEvidenceReplayChecks.run(getContext(),getTargetContext())));
             } else if ("true".equals(arguments.getString("specialSkinsOnly", "false"))) {
@@ -90,9 +129,13 @@ public final class DeviceRegressionInstrumentation extends Instrumentation {
             } else if ("true".equals(arguments.getString("floatingControlOnly", "false"))) {
                 getUiAutomation(android.app.UiAutomation.FLAG_DONT_SUPPRESS_ACCESSIBILITY_SERVICES);
                 report.put("ui_automation_used",true);
-                startPrototypeActivity();
+                awaitFloatingServiceGate();
+                startPrototypeActivity(true);
                 runCase("floating_status", item -> item.put("checks", FloatingControlChecks.model()));
-                runCase("floating_platform", item -> item.put("checks", FloatingControlChecks.platform(this)));
+                runCase("floating_platform", item -> {
+                    JSONObject diagnostic=new JSONObject();item.put("diagnostics",diagnostic);
+                    item.put("checks",FloatingControlChecks.platform(this,activity,outputDirectory,diagnostic));
+                });
             } else if ("true".equals(arguments.getString("nativePipelineOnly", "false"))) {
                 runCase("native_saved_pipeline", item -> item.put("checks", NativePipelineChecks.run(getContext(), getTargetContext())));
             } else if ("true".equals(arguments.getString("nativeOcrOnly", "false"))) {
@@ -199,6 +242,16 @@ public final class DeviceRegressionInstrumentation extends Instrumentation {
                     put(report, "cleanup_error", error.toString());
                 }
             }
+            if (publicSupport != null) {
+                try {
+                    JSONObject cleanup=publicSupport.close();
+                    put(report,"public_release_test_support",cleanup);
+                    if(!cleanup.optBoolean("cleanup_complete"))failures++;
+                } catch (Throwable error) {
+                    failures++;
+                    put(report,"public_release_test_support_cleanup_error",error.toString());
+                }
+            }
             put(report, "completed_at_ms", System.currentTimeMillis());
             put(report, "duration_ms", System.currentTimeMillis() - started);
             put(report, "status", failures == 0 ? "passed" : "failed");
@@ -228,6 +281,51 @@ public final class DeviceRegressionInstrumentation extends Instrumentation {
     }
 
     private interface TestCase { void run(JSONObject result) throws Exception; }
+
+    /** The host reconnects accessibility only after instrumentation has restarted this process. */
+    private void awaitFloatingServiceGate() throws Exception {
+        String runId=arguments.getString("runId","");
+        require(runId.matches("[a-zA-Z0-9_.-]{1,128}") && !runId.equals(".") && !runId.equals(".."),
+                "Floating service gate requires a safe unique runId");
+        File ready=new File(outputDirectory,"floating-ready-"+runId+".json");
+        File release=new File(outputDirectory,"floating-release-"+runId+".json");
+        long started=android.os.SystemClock.elapsedRealtime();
+        JSONObject gate=new JSONObject().put("schema","floating_service_gate_v1").put("run_id",runId)
+                .put("pid",android.os.Process.myPid()).put("ready_elapsed_ms",started).put("timeout_ms",30000)
+                .put("ready_file",ready.getName()).put("release_file",release.getName()).put("stage","preparing");
+        report.put("floating_service_gate",gate);
+        try {
+            require(!ready.exists() && !release.exists(),"Floating service gate marker already exists");
+            gate.put("stage","waiting_for_host");
+            write(ready,gate.toString());
+            JSONObject acknowledgement=null;
+            while(android.os.SystemClock.elapsedRealtime()-started<30000) {
+                if(release.isFile()) {
+                    try {
+                        acknowledgement=new JSONObject(new String(readFile(release),StandardCharsets.UTF_8));
+                        break;
+                    } catch(org.json.JSONException incomplete) {
+                        gate.put("last_release_parse_error",incomplete.toString());
+                    }
+                }
+                Thread.sleep(100);
+            }
+            require(acknowledgement!=null,"Floating service gate timed out waiting for host release");
+            gate.put("release",acknowledgement).put("release_observed_elapsed_ms",android.os.SystemClock.elapsedRealtime());
+            require("floating_service_gate_v1".equals(acknowledgement.optString("schema"))
+                    && runId.equals(acknowledgement.optString("run_id"))
+                    && acknowledgement.optBoolean("connected_inactive",false),"Floating service gate release mismatch");
+            AtomicReference<KardsAccessibilityService> service=new AtomicReference<>();
+            onMain(()->service.set(KardsAccessibilityService.instance()));
+            require(service.get()!=null,"Floating service gate released before accessibility connected");
+            gate.put("service_identity",System.identityHashCode(service.get())).put("stage","released")
+                    .put("completed_elapsed_ms",android.os.SystemClock.elapsedRealtime());
+        } catch(Exception|Error failure) {
+            gate.put("stage","failed").put("error",failure.toString())
+                    .put("completed_elapsed_ms",android.os.SystemClock.elapsedRealtime());
+            throw failure;
+        }
+    }
 
     // Assertions must reach the instrumentation thread so failures still produce report.json.
     private void onMain(Runnable action) {
@@ -431,10 +529,17 @@ public final class DeviceRegressionInstrumentation extends Instrumentation {
     }
 
     private void startPrototypeActivity() {
+        startPrototypeActivity(false);
+    }
+
+    private void startPrototypeActivity(boolean withoutAnimation) {
         if (activity != null && !activity.isDestroyed()) return;
         Intent intent = new Intent(getTargetContext(), MainActivity.class);
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
-        activity = (MainActivity) startActivitySync(intent);
+        if(withoutAnimation)intent.addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION);
+        activity = (MainActivity) startActivitySync(intent,withoutAnimation
+                ?android.app.ActivityOptions.makeCustomAnimation(getTargetContext(),0,0).toBundle():null);
+        if(withoutAnimation)onMain(()->activity.overridePendingTransition(0,0));
         waitForIdleSync();
     }
 

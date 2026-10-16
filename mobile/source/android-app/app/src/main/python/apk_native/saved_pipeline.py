@@ -15,6 +15,11 @@ def run(directory,core,menu,opening,engine,characters_json):
     for item in json.loads((Path(directory)/'manifest.json').read_text(encoding='utf8')):
         if dataset!=item['dataset']:
             pipeline=Pipeline(*banks,ocr);dataset=item['dataset']
+            # Saved images have no real elapsed capture intervals. Keep their
+            # pixel-path expectations deterministic; result_probe_test advances
+            # an explicit clock to verify the production five-second cadence.
+            pipeline.page.clock=lambda:0.0
+            pipeline.page.last_result_probe=0.0
         start=time.perf_counter()
         frame=cv2.imdecode(np.fromfile(str(Path(directory)/item['file']),np.uint8),cv2.IMREAD_COLOR)
         if item.get('warm_current_control_bounds'):
@@ -111,7 +116,17 @@ def run(directory,core,menu,opening,engine,characters_json):
     class SavedBridge:
         def recognizeNativeText(self, request):
             packet=json.loads(request)
-            found,_=ocr(self.frame)
+            if packet.get('ocr_scope'):
+                from .recognition_scale import shrink
+                small,factors=shrink(self.frame)
+                regions=[[round(v/(factors[0] if i%2==0 else factors[1]))
+                          for i,v in enumerate(box)] for box in packet['ocr_regions']]
+                found,_=ocr.regions(small,regions,scope=packet['ocr_scope'])
+                found=[((np.asarray(box)*np.asarray(factors)).tolist(),text,score)
+                       for box,text,score in found or []]
+                packet['scope']=packet['ocr_scope']
+            else:
+                found,_=ocr(self.frame)
             return json.dumps(dict(packet,items=[{'box':np.asarray(b).tolist(),'text':s,
                 'score':float(c),'score_available':True} for b,s,c in found or []]))
     menu_rows=[]

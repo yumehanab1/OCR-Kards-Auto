@@ -1,0 +1,2 @@
+# Preserve Android source and the byte-verified embedded engine across platforms.
+source/android-app/** -text

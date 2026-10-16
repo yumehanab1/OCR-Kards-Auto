@@ -88,16 +88,22 @@ final class MenuDispatchGuard {
             if (!nativePixels) return "popup_requires_source_pixels";
             JSONObject proof=plan.optJSONObject("login_popup_evidence");
             JSONArray buttons=proof==null?null:proof.optJSONArray("buttons");
-            if(proof==null || !finite(proof.opt("title_score")) || proof.getDouble("title_score")<.94 || proof.getDouble("title_score")>1
-                    || !finite(proof.opt("blank_score")) || proof.getDouble("blank_score")<.94 || proof.getDouble("blank_score")>1
+            boolean semantic=proof!=null && "current_daily_title_and_buttons".equals(proof.optString("basis"));
+            double minimum=semantic ? .90 : .94;
+            if(proof==null || !finite(proof.opt("title_score")) || proof.getDouble("title_score")<minimum || proof.getDouble("title_score")>1
+                    || !semantic && (!finite(proof.opt("blank_score")) || proof.getDouble("blank_score")<.94 || proof.getDouble("blank_score")>1)
                     || buttons==null || buttons.length()<1 || buttons.length()>3) return "login_popup_unverified";
             for(int i=0;i<buttons.length();i++) {
                 JSONObject button=buttons.getJSONObject(i);
                 JSONArray box=button.optJSONArray("bounds");
-                if(!finite(button.opt("score")) || button.getDouble("score")<.94 || button.getDouble("score")>1
+                if(!finite(button.opt("score")) || button.getDouble("score")<minimum || button.getDouble("score")>1
                         || box==null || box.length()!=4) return "login_popup_unverified";
                 for(int j=0;j<4;j++) if(!finite(box.opt(j))) return "login_popup_unverified";
-                if(box.getDouble(1)+box.getDouble(3)+frameHeight*.08>y+h/2) return "login_popup_unverified";
+                if(!semantic && box.getDouble(1)+box.getDouble(3)+frameHeight*.08>y+h/2)
+                    return "login_popup_unverified";
+                if(semantic && Math.min(x+w,box.getDouble(0)+box.getDouble(2))>Math.max(x,box.getDouble(0))
+                        && Math.min(y+h,box.getDouble(1)+box.getDouble(3))>Math.max(y,box.getDouble(1)))
+                    return "login_popup_unverified";
             }
             double size=Math.max(8,Math.round(frameHeight*24/720.0));
             double cx=frameWidth/2.0,cy=Math.round(frameHeight*665/720.0);
@@ -110,16 +116,21 @@ final class MenuDispatchGuard {
             if (evidence==null) return "generic_popup_unverified";
             JSONArray panel=evidence.optJSONArray("panel_bounds"),edges=evidence.optJSONArray("edge_coverage");
             JSONObject close=evidence.optJSONObject("close");
+            boolean currentShape="current_close_x_geometry".equals(evidence.optString("basis"));
             if (panel==null || panel.length()!=4 || edges==null || edges.length()!=4 || close==null
-                    || !finite(close.opt("score")) || close.getDouble("score")<.93
+                    || !finite(close.opt("score")) || close.getDouble("score")<0 || close.getDouble("score")>1
+                    || !currentShape && close.getDouble("score")<.93
                     || evidence.optString("popup_id").length()!=64) return "generic_popup_unverified";
             for (int i=0;i<4;i++) if (!finite(panel.opt(i)) || !finite(edges.opt(i))
-                    || edges.getDouble(i)<.93 || edges.getDouble(i)>1) return "generic_popup_unverified";
+                    || edges.getDouble(i)<0 || edges.getDouble(i)>1
+                    || !currentShape && edges.getDouble(i)<.93) return "generic_popup_unverified";
             double px=panel.getDouble(0),py=panel.getDouble(1),pw=panel.getDouble(2),ph=panel.getDouble(3);
             if (px<0 || py<0 || px+pw>frameWidth || py+ph>frameHeight
-                    || pw<=frameWidth*.30 || pw>=frameWidth*.70 || ph<=frameHeight*.25 || ph>=frameHeight*.75
-                    || Math.abs(px+pw/2-frameWidth/2)>frameWidth*.08
-                    || x<px+pw*.88-1 || x+w>px+pw || y<py || y+h>py+ph*.18+1)
+                    || pw<=0 || ph<=0
+                    || !currentShape && (pw<=frameWidth*.30 || pw>=frameWidth*.70 || ph<=frameHeight*.25 || ph>=frameHeight*.75
+                        || Math.abs(px+pw/2-frameWidth/2)>frameWidth*.08)
+                    || x<px+pw*(currentShape ? .75 : .88)-1 || x+w>px+pw || y<py
+                    || y+h>py+ph*(currentShape ? .25 : .18)+1)
                 return "generic_popup_bounds_mismatch";
             JSONArray measured=close.optJSONArray("bounds");
             if (measured==null || measured.length()!=4) return "generic_popup_unverified";
@@ -135,6 +146,7 @@ final class MenuDispatchGuard {
             if (Math.abs(x - (cx - size / 2)) > .5 || Math.abs(y - (cy - size / 2)) > .5
                     || w != size || h != size) return "popup_blank_bounds_mismatch";
             if (!("task_title_and_subtitle".equals(plan.optString("popup_basis"))
+                    || "current_offer_title_subtitle_price".equals(plan.optString("popup_basis"))
                     || "pass_title_subtitle_and_panel".equals(plan.optString("popup_basis"))
                     || "weekend_title_subtitle_and_panel".equals(plan.optString("popup_basis"))))
                 return "popup_evidence_missing";

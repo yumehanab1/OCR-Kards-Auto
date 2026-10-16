@@ -41,6 +41,8 @@ final class FloatingStatus {
             else if("opponent_turn".equals(screen)) phase="对方回合";
             else if(screen.startsWith("result_")) phase="结算核验";
             else if(active && !recentAction.isEmpty()) phase=recentAction;
+            if(active && "overlay_wait".equals(p.optString("event")))phase="等待遮挡消失";
+            if(active && "capture_retry".equals(p.optString("event")))phase="等待新截图";
             boolean verified=result!=null && Boolean.TRUE.equals(result.opt("result_verified"));
             String reason=result==null?"":result.optString("stop_reason");
             if(verified && "result_victory".equals(reason)) phase="胜利";

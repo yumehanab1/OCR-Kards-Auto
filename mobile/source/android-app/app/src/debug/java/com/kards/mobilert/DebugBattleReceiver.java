@@ -12,6 +12,9 @@ public final class DebugBattleReceiver extends BroadcastReceiver {
         boolean armedThisRequest = false;
         try {
             String action = intent.getAction();
+            if("com.kards.mobilert.debug.WINDOW_STATUS".equals(action)) {
+                setResultCode(0);setResultData(service.gameWindowDiagnostic());return;
+            }
             if ("com.kards.mobilert.debug.START_BATTLE".equals(action)) {
                 String options = intent.getStringExtra("options");
                 String mode = GameEntryGate.parseMode(new org.json.JSONObject(options == null ? "{}" : options));

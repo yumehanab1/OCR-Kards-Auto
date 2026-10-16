@@ -39,7 +39,7 @@ final class NativeOpeningInspector implements BoundedMulliganSession.Inspector {
             if (source == null) {
                 frame=File.createTempFile("source-",".png",assets);
                 try(FileOutputStream out=new FileOutputStream(frame)) {
-                    if(!bitmap.compress(Bitmap.CompressFormat.PNG,100,out)) throw new IllegalStateException("opening_png");
+                    OriginalPng.write(bitmap,out);
                 }
                 source=frame;
             }

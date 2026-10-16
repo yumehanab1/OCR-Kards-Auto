@@ -94,13 +94,13 @@ final class BattleProgressReport {
         JSONObject target = subset(source, "kind", "state", "turn", "stop_reason", "result_verified", "exception",
                 "engine_turns_seen", "actions_confirmed", "game_inputs", "unconfirmed_inputs", "unconfirmed_skipped",
                 "failed_inputs", "pending_end_turn_inputs", "end_turns_confirmed", "end_turns_unconfirmed",
-                "deployment_refusals_confirmed", "full_game_passed");
+                "deployment_refusals_confirmed", "full_game_passed", "layout_profile", "source_shape");
         JSONObject sourceValue = source.optJSONObject("value");
         if (sourceValue != null) {
             JSONObject value = subset(sourceValue, "state", "turn", "stop_reason", "result_verified", "exception",
                     "engine_turns_seen", "actions_confirmed", "game_inputs", "unconfirmed_inputs", "unconfirmed_skipped",
                     "failed_inputs", "pending_end_turn_inputs", "end_turns_confirmed", "end_turns_unconfirmed",
-                    "deployment_refusals_confirmed", "full_game_passed");
+                    "deployment_refusals_confirmed", "full_game_passed", "layout_profile", "source_shape");
             JSONObject opponent = sourceValue.optJSONObject("opponent_turn_label");
             if (opponent != null) value.put("opponent_turn_label", subset(opponent, "present"));
             target.put("value", value);

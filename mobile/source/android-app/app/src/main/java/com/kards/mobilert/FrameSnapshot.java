@@ -1,6 +1,7 @@
 package com.kards.mobilert;
 
 import android.graphics.Bitmap;
+import android.graphics.Rect;
 
 /**
  * Immutable metadata wrapper for one screenshot delivered to the mobile core.
@@ -14,6 +15,9 @@ public final class FrameSnapshot implements AutoCloseable {
     private final long capturedAtMillis;
     private final int sourceWidth;
     private final int sourceHeight;
+    final String captureScope;
+    final int captureWindowId;
+    final Rect captureBounds;
 
     public FrameSnapshot(Bitmap bitmap, long capturedAtMillis) {
         this(bitmap, capturedAtMillis, bitmap == null ? 0 : bitmap.getWidth(),
@@ -21,6 +25,9 @@ public final class FrameSnapshot implements AutoCloseable {
     }
 
     public FrameSnapshot(Bitmap bitmap, long capturedAtMillis, int sourceWidth, int sourceHeight) {
+        this(bitmap,capturedAtMillis,sourceWidth,sourceHeight,"display",-1,new Rect(0,0,sourceWidth,sourceHeight));
+    }
+    public FrameSnapshot(Bitmap bitmap,long capturedAtMillis,int sourceWidth,int sourceHeight,String scope,int windowId,Rect bounds) {
         if (bitmap == null) {
             throw new IllegalArgumentException("bitmap must not be null");
         }
@@ -31,6 +38,7 @@ public final class FrameSnapshot implements AutoCloseable {
         this.capturedAtMillis = capturedAtMillis;
         this.sourceWidth = sourceWidth;
         this.sourceHeight = sourceHeight;
+        captureScope=scope;captureWindowId=windowId;captureBounds=new Rect(bounds);
     }
 
     public Bitmap bitmap() {

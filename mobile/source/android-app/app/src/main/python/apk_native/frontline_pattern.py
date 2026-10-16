@@ -12,9 +12,24 @@ def _template(scale):
     return cv2.resize(t,(max(8,round(29*scale)),max(6,round(18*scale))),interpolation=cv2.INTER_NEAREST)
 
 
-def inspect(frame,verified_card_boxes=(),*,triangular=False,_gradients=None):
+def _phase_consistent_points(points,period):
+    """Keep a majority on one marker lattice, rather than fit isolated clutter."""
+    if not points or period<=0:return []
+    xs=np.array([point[0] for point in points],np.float64)
+    groups=[]
+    for phase in xs:
+        distance=np.abs((xs-phase+period/2)%period-period/2)
+        group=[point for point,delta in zip(points,distance) if delta<=period*.10]
+        if len(group)>=8 and len(group)>=.65*len(points):groups.append(group)
+    return max(groups,key=lambda group:(len(group),sum(point[1] for point in group))) if groups else []
+
+
+def inspect(frame,verified_card_boxes=(),*,triangular=False,_gradients=None,phase_consensus=False,
+            search_y_fraction=(.27,.64)):
+    if phase_consensus and not triangular:raise ValueError('phase_consensus_requires_triangle')
     h,w=frame.shape[:2];scale=h/720;left,right=round(w*.25),round(w*.75)
-    top,bottom=round(h*.27),round(h*.64);t=_template(scale)
+    top,bottom=(round(h*value) for value in search_y_fraction);t=_template(scale)
+    if not 0<=top<bottom<=h:raise ValueError('marker_search_bounds')
     if triangular:
         t=np.zeros((14,29,2),np.float32)
         for y in range(9):
@@ -54,7 +69,8 @@ def inspect(frame,verified_card_boxes=(),*,triangular=False,_gradients=None):
                 actual_y=max(0,y-round(3*scale))+int(np.argmax(local))
                 points.append((x,score,actual_y));radius=round(22*scale)
                 r[max(0,x-radius):x+radius+1]=0
-            points.sort()
+            points.sort();raw_steps=len(points)
+            if phase_consensus:points=_phase_consistent_points(points,29*scale)
             if len(points)<8:continue
             xs=np.array([p[0] for p in points]);gaps=np.diff(xs);period=29*scale
             fit=float(np.mean(np.abs(gaps/period-np.round(gaps/period))<.20))
@@ -65,6 +81,8 @@ def inspect(frame,verified_card_boxes=(),*,triangular=False,_gradients=None):
             evidence=dict(line_y=line,steps=len(points),period_fit=fit,span=span,
                           direction_coverage=float(np.mean([p[1] for p in points])),gradient_threshold=threshold,
                           basis='distributed_diagonal_triangle_marker' if triangular else 'distributed_two_direction_stair_marker')
+            if phase_consensus:evidence.update(raw_steps=raw_steps,phase_inlier_fraction=len(points)/raw_steps,
+                                              phase_tolerance_fraction=.10,expected_period_px=29*scale)
             prior=next((g for g in groups if abs(g['line_y']-line)<round(h*.035)),None)
             if prior is None:groups.append(evidence)
             elif evidence['steps']>prior['steps']:groups[groups.index(prior)]=evidence

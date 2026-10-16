@@ -7,7 +7,7 @@ from .ocr_bridge import NativeOCR
 from .action_request import request
 from .action_chain import select
 from .effects import sequence_postcondition
-from .end_audit import audit,StableAudit
+from .end_audit import audit,StableAudit,UnknownFrontlineRecheck
 from .turn_ui import opponent_evidence,end_control
 from .turn_preparation import TurnPreparation
 from apk_end_turn_ledger import EndTurnLedger
@@ -23,11 +23,13 @@ class ActionExecutor:
         self.failed_deploys=0;self.failed_inputs=0;self.max_failed_inputs=max_failed_inputs
         self.last_end_state_key=None;self.same_state_end_attempts=0
         self.ready_observation=None
+        self.effect_capture_context=None
         self.turn_preparation=TurnPreparation()
         # Native recognition is expensive on long-screen frames. Keep the
         # independent-frame proof, but bound each transition window so a
         # single unreadable label cannot stall the turn for half a minute.
         self.end_audit=StableAudit()
+        self.frontline_recheck=UnknownFrontlineRecheck()
         self.end_ledger=EndTurnLedger(timeout_ms=12000, sample_gap_ms=250, stable_span_ms=500)
         self.report=dict(game_inputs=0,inputs=[],hooks=[],captures=0,actions_confirmed=0,
             unconfirmed_inputs=0,unconfirmed_skipped=0,failed_inputs=0,end_turns_confirmed=0,
@@ -41,6 +43,7 @@ class ActionExecutor:
     def emit(self,kind,value):self.bridge.emit(_json(dict(kind=kind,value=value)))
 
     def resume_current_state(self,observed,packet,own_proof,preparation):
+        if observed.get('planning_complete') is False:return False
         if (own_proof and preparation['ready'] and self.end_ledger.pending is None
                 and self.last_end_state_key is not None
                 and observed.get('current_state_key') is not None
@@ -58,21 +61,129 @@ class ActionExecutor:
         queued=self.ready_observation;self.ready_observation=None
         if queued is None:return None
         self.running();observed,packet=queued
-        if (observed.get('card_display',{}).get('ready')
-                or observed.get('turn_preparation',{}).get('ready') is False):return None
+        if (observed.get('state')!='battle' or observed.get('choice_modal')
+                or observed.get('card_display',{}).get('ready')):
+            self.frontline_recheck.reset();return None
         if (self.end_ledger.pending is not None or packet['frame_id'] in self.consumed
-                or not 0<=self.now()-packet['captured_elapsed_ms']<=3000):return None
+                or not 0<=self.now()-packet['captured_elapsed_ms']<=3000):
+            self.frontline_recheck.reset();return None
+        if (packet['frame_id']!=self.last_id or packet['captured_elapsed_ms']!=self.last_capture_time
+                or packet['foreground_generation']!=self.foreground_generation
+                or self.shape!=(packet['source_height'],packet['source_width'],3)):
+            self.frontline_recheck.reset();return None
+        if self.is_effect_partial(observed):
+            observed=self.complete_effect_planning(observed,packet)
+            if observed is None:
+                self.frontline_recheck.reset();return None
+            own_proof=end_control(observed['page']) is not None
+            self.observe_turn_state(own_proof,observed.get('turn_transition_proof'))
+            preparation=self.turn_preparation.observe(observed,packet)
+            observed['turn_preparation']=preparation
+            self.resume_current_state(observed,packet,own_proof,preparation)
+            observed['planning_turn']=self.turn
+            record_file='native-planning-%06d.json'%packet['frame_id']
+            (self.out/record_file).write_text(_json(dict(packet=packet,observation=observed,
+                planning_turn=self.turn)),encoding='utf8')
+            self.emit('effect_planning_completed',dict(frame_id=packet['frame_id'],
+                completion_elapsed_ms=observed['capture_timings_ms']['planning_completion'],
+                age_ms=self.now()-packet['captured_elapsed_ms'],record_file=record_file,
+                turn=self.turn,planning_turn=self.turn))
+        if (observed.get('planning_complete') is False
+                or observed.get('turn_preparation',{}).get('ready') is False):
+            self.frontline_recheck.reset();return None
         entry=dict(state=observed['state'],scene=observed.get('scene'),
                    plan=observed.get('plan',{}),combat=observed.get('combat'))
         selected=select(entry,allow=self.allow)
-        # End-turn exhaustion still uses its own independent audit captures.
-        if selected.get('action') not in ('deploy','blind_middle','attack_hq','attack_unit','movefront'):return None
         observed=dict(observed,selected_action=selected)
+        if selected.get('action')=='end_turn_candidate':
+            # The post-input frame already contains a complete planning scan.
+            # Re-audit with updated actor isolation and failed-deploy counts,
+            # without pretending this same frame is a new preparation sample.
+            if not self.audit_end_candidate(observed,packet):return None
+        else:
+            self.frontline_recheck.reset()
+            if selected.get('action') not in ('deploy','blind_middle','attack_hq','attack_unit','movefront'):return None
         (self.out/('native-replanned-%06d.json'%packet['frame_id'])).write_text(
             _json(dict(packet=packet,observation=observed)),encoding='utf8')
         self.emit('postcondition_frame_reused',dict(frame_id=packet['frame_id'],
-                  age_ms=self.now()-packet['captured_elapsed_ms'],action=selected['action']))
+                  age_ms=self.now()-packet['captured_elapsed_ms'],action=observed['selected_action']['action']))
         return observed,packet
+
+    @staticmethod
+    def is_effect_partial(observed):
+        return (observed.get('planning_complete') is False
+                and str(observed.get('observation_scope','')).startswith('effect_'))
+
+    def complete_effect_planning(self,observed,packet):
+        """Complete the exact current original, never an abbreviated empty hand."""
+        complete=getattr(self.pipeline,'complete_planning',None)
+        source=observed.get('source') or {}
+        started=self.now()
+        def skipped(reason):
+            self.emit('postcondition_frame_reuse_skipped',dict(frame_id=packet['frame_id'],reason=reason,
+                elapsed_ms=self.now()-started))
+            return None
+        if not callable(complete):return skipped('effect_planning_api_missing')
+        if (source.get('frame_id')!=packet['frame_id'] or source.get('elapsed_ms')!=packet['captured_elapsed_ms']
+                or source.get('shape')!=[packet['source_height'],packet['source_width'],3]):
+            return skipped('effect_planning_source_metadata_mismatch')
+        try:
+            path=Path(source['path']).resolve()
+            if self.out not in path.parents or path!=Path(packet['png_path']).resolve():
+                return skipped('effect_planning_source_path_mismatch')
+            raw=path.read_bytes()
+            if hashlib.sha256(raw).hexdigest()!=source.get('sha256'):
+                return skipped('effect_planning_source_hash_mismatch')
+            frame=cv2.imdecode(np.frombuffer(raw,np.uint8),cv2.IMREAD_COLOR)
+            if frame is None or list(frame.shape)!=source['shape']:
+                return skipped('effect_planning_source_geometry_mismatch')
+        except (KeyError,OSError,ValueError):return skipped('effect_planning_source_unavailable')
+        self.running()
+        if not 0<=self.now()-packet['captured_elapsed_ms']<=3000:
+            return skipped('effect_planning_frame_expired_before_completion')
+        self.ocr.bind(packet)
+        try:full=complete(frame,observed)
+        except ValueError as error:return skipped(str(error))
+        self.running()
+        if not 0<=self.now()-packet['captured_elapsed_ms']<=3000:
+            return skipped('effect_planning_frame_expired_after_completion')
+        if (full.get('planning_complete') is not True or full.get('hand_scanned') is not True
+                or full.get('combat_scanned') is not True or not isinstance(full.get('hand'),list)
+                or not isinstance(full.get('scene'),dict) or not isinstance(full.get('combat'),dict)
+                or not isinstance(full.get('support_probe'),dict) or full.get('current_state_key') is None
+                or full.get('state')!='battle' or full.get('choice_modal')
+                or full.get('card_display',{}).get('ready')
+                or full.get('source_shape')!=source['shape']):
+            return skipped('effect_planning_completion_incomplete')
+        full['source']=source
+        full['turn_transition_proof']=observed.get('turn_transition_proof')
+        full['capture_timings_ms']=dict(observed.get('capture_timings_ms') or {},
+            planning_completion=self.now()-started)
+        return full
+
+    def capture_effect(self,context):
+        # Keep capture()'s no-argument contract for older/fake pipelines and
+        # instrumented capture providers. Partial data requires both APIs.
+        if (context not in ('deploy','move_front','attack_unit')
+                or not callable(getattr(self.pipeline,'observe_effect',None))
+                or not callable(getattr(self.pipeline,'complete_planning',None))):
+            return self.capture()
+        previous=self.effect_capture_context;self.effect_capture_context=context
+        try:return self.capture()
+        finally:self.effect_capture_context=previous
+
+    def audit_end_candidate(self,observed,packet):
+        if observed.get('planning_complete') is False:
+            self.frontline_recheck.reset();return False
+        evidence=audit(observed,self.allow,self.failed_deploys,allow_local_unknown=True)
+        evidence=self.frontline_recheck.observe(evidence,packet,self.turn,self.now())
+        observed['end_turn_audit']=evidence
+        self.emit('end_turn_audit',dict(frame_id=packet['frame_id'],turn=self.turn,**evidence))
+        if not evidence['ready']:return False
+        evidence['frame_id']=packet['frame_id']
+        if not evidence.get('unresolved_frontline_skipped'):evidence['current_frame_exhausted']=True
+        observed['selected_action']=dict(action='end_turn_verified',end_turn_evidence=evidence)
+        return True
 
     def observe_end_state(self,observed,packet,turn_proof,own_proof,preparation):
         if self.end_ledger.pending is None:return
@@ -82,6 +193,14 @@ class ActionExecutor:
             self.settle_end(self.end_ledger._finish('unconfirmed',
                 'current_own_state_ready_without_transition_proof',self.now()))
             self.resume_current_state(observed,packet,own_proof,preparation)
+
+    def observe_turn_state(self,own_proof,turn_proof):
+        if own_proof and self.previous_state=='opponent_turn':
+            self.turn+=1;self.isolated.clear();self.failed_deploys=0
+            self.failed_inputs=0;self.report['failed_inputs']=0
+            self.last_end_state_key=None;self.same_state_end_attempts=0
+        if own_proof:self.previous_state='battle'
+        elif turn_proof:self.previous_state='opponent_turn'
 
     def capture(self):
         self.running();capture_started=self.now();packet=_parse(self.bridge.captureNative())
@@ -103,9 +222,20 @@ class ActionExecutor:
         self.last_id=index;self.last_capture_time=captured;self.shape=frame.shape;self.foreground_generation=generation
         if self.now()-captured>3000:raise Replan('native_capture_frame_expired')
         self.ocr.bind(packet)
-        observer=(self.pipeline.observe_turn_ui if self.end_ledger.pending is not None
-                  or self.previous_state=='opponent_turn' else self.pipeline.observe)
-        observed=observer(frame);self.running()
+        if self.effect_capture_context is not None:
+            observed=self.pipeline.observe_effect(frame,self.effect_capture_context)
+            # State transitions keep their original full processing, including
+            # independent turn/result proof and draw/choice interruption.
+            if (self.is_effect_partial(observed) and (observed['state']!='battle'
+                    or observed.get('choice_modal') or observed.get('card_display',{}).get('ready'))):
+                try:observed=self.pipeline.complete_planning(frame,observed)
+                except ValueError as error:raise Replan(str(error))
+                if observed.get('planning_complete') is not True:raise Replan('effect_transition_planning_incomplete')
+        else:
+            observer=(self.pipeline.observe_turn_ui if self.end_ledger.pending is not None
+                      or self.previous_state=='opponent_turn' else self.pipeline.observe)
+            observed=observer(frame)
+        self.running()
         source=dict(path=str(path),sha256=hashlib.sha256(raw).hexdigest(),shape=list(frame.shape),frame_id=index,elapsed_ms=captured)
         observed['source']=source;self.report['captures']+=1
         observed['capture_timings_ms']=dict(bridge=bridge_finished-capture_started,
@@ -122,13 +252,14 @@ class ActionExecutor:
                     if observed['state']=='opponent_turn' and not observed.get('choice_modal') else None)
         if turn_proof:turn_proof=coordinates(turn_proof,*factors)
         observed['turn_transition_proof']=turn_proof
+        if self.is_effect_partial(observed):
+            # Missing hand/combat data is neither an empty hand nor a complete
+            # preparation sample. Only the effect detector consumes this frame.
+            observed['selected_action']=dict(action='wait',reason='effect_planning_incomplete')
+            self.record_observation(observed,packet)
+            return observed,packet
         own_proof=observed['state']=='battle' and not observed.get('choice_modal') and end_control(observed['page']) is not None
-        if own_proof and self.previous_state=='opponent_turn':
-            self.turn+=1;self.isolated.clear();self.failed_deploys=0
-            self.failed_inputs=0;self.report['failed_inputs']=0
-            self.last_end_state_key=None;self.same_state_end_attempts=0
-        if own_proof:self.previous_state='battle'
-        elif turn_proof:self.previous_state='opponent_turn'
+        self.observe_turn_state(own_proof,turn_proof)
         entry=dict(state=observed['state'],scene=observed.get('scene'),plan=observed.get('plan',{}),combat=observed.get('combat'))
         observed['selected_action']=select(entry,allow=self.allow)
         preparation=self.turn_preparation.observe(observed,packet)
@@ -143,21 +274,23 @@ class ActionExecutor:
         if observed['state']=='battle' and observed.get('choice_evidence',{}).get('ready'):
             observed['selected_action']={'action':'choice_middle'}
         if self.end_ledger.pending is not None:
+            self.frontline_recheck.reset()
             self.observe_end_state(observed,packet,turn_proof,own_proof,preparation)
         elif observed['selected_action'].get('action')=='end_turn_candidate':
-            evidence=audit(observed,self.allow,self.failed_deploys,allow_local_unknown=True)
-            observed['end_turn_audit']=evidence
-            self.emit('end_turn_audit',dict(frame_id=index,turn=self.turn,**evidence))
             # User-approved single explicit control; unrelated missing action
             # plates are local skips, not a whole-turn completeness gate.
-            if evidence['ready']:
-                evidence.update(current_frame_exhausted=True,frame_id=index)
-                observed['selected_action']=dict(action='end_turn_verified',end_turn_evidence=evidence)
-        else:self.end_audit.previous=None
-        (self.out/('native-observation-%06d.json'%index)).write_text(_json(dict(packet=packet,observation=observed)),encoding='utf8')
-        self.emit('native_observation',dict(state=observed['state'],frame_id=index,turn=self.turn,
-            timings_ms=observed.get('timings_ms'),capture_timings_ms=observed['capture_timings_ms']))
+            self.audit_end_candidate(observed,packet)
+        else:
+            self.end_audit.previous=None
+            self.frontline_recheck.reset()
+        self.record_observation(observed,packet)
         return observed,packet
+
+    def record_observation(self,observed,packet):
+        (self.out/('native-observation-%06d.json'%packet['frame_id'])).write_text(_json(dict(packet=packet,observation=observed)),encoding='utf8')
+        self.emit('native_observation',dict(state=observed['state'],frame_id=packet['frame_id'],turn=self.turn,
+            observation_scope=observed.get('observation_scope'),planning_complete=observed.get('planning_complete',True),
+            timings_ms=observed.get('timings_ms'),capture_timings_ms=observed['capture_timings_ms']))
 
     def settle_end(self,outcomes):
         for outcome in outcomes:
@@ -210,6 +343,7 @@ class ActionExecutor:
 
     def _execute(self,observed,packet):
         self.running()
+        if observed.get('planning_complete') is False:raise Replan('effect_planning_incomplete')
         if self.read_only:raise Stop('read_only')
         if self.end_ledger.pending is not None:raise Stop('input_while_end_turn_pending')
         if packet['frame_id'] in self.consumed:raise Stop('stale_or_consumed_frame')
@@ -225,10 +359,13 @@ class ActionExecutor:
         item=dict(request=plan,reply=reply,accepted_elapsed_ms=self.now() if reply.get('accepted') is True else None)
         self.report['inputs'].append(item);self.emit('dispatch',item)
         if reply.get('accepted') is not True:
+            if reply.get('accepted') is False and reply.get('completed') is False and reply.get('reason')=='temporary_game_window_occluded':
+                raise Replan('temporary_game_window_occluded')
             if reply.get('reason') in ('frame_age_expired','input_frame_age_exceeded','frame_expired'):raise Replan('java_frame_expired_replan')
             raise Stop('gesture_rejected:'+str(reply.get('reason')))
         self.report['game_inputs']+=1;self.consumed.add(packet['frame_id'])
         if reply.get('completed') is not True:raise Stop('gesture_not_completed:'+str(reply.get('reason')))
+        self.frontline_recheck.reset()
         if plan['context']=='choice_select':
             started=self.now();confirmed=False
             pair=dict(context='choice_select',request=plan,reply=reply,dispatch_elapsed_ms=item['accepted_elapsed_ms'],observations=[observed])
@@ -269,7 +406,7 @@ class ActionExecutor:
         latest=None
         while self.now()<deadline:
             self.running();time.sleep(.12)
-            try:after,after_packet=self.capture()
+            try:after,after_packet=self.capture_effect(plan['context'])
             except Replan:continue
             latest=(after,after_packet)
             pair['observations'].append(after)

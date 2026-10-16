@@ -13,12 +13,24 @@ class ResultProof:
         names=('victory_btn',) if state=='result_victory' else ('defeat_banner','defeat_btn') if state=='result_defeat' else ()
         strong=bool(names) and (any(page.get('evidence',{}).get(n,{}).get('score',0)>=.93 for n in names)
                               or page.get('result_proof',{}).get('ready') is True)
-        previous=self.previous;self.previous=(state,dict(packet)) if strong else None
-        if not strong or previous is None or previous[0]!=state:return False
+        previous=self.previous
+        if not strong:
+            self.previous=None
+            return False
+        if previous is None or previous[0]!=state:
+            self.previous=(state,dict(packet))
+            return False
         prior=previous[1]
-        return (all(packet.get(k)==prior.get(k) for k in ('source_width','source_height','foreground_generation'))
-                and packet['frame_id']>prior['frame_id']
-                and 300<=packet['captured_elapsed_ms']-prior['captured_elapsed_ms']<=5000)
+        delta=packet['captured_elapsed_ms']-prior['captured_elapsed_ms']
+        if (any(packet.get(k)!=prior.get(k) for k in ('source_width','source_height','foreground_generation'))
+                or delta<0 or delta>5000):
+            self.previous=(state,dict(packet))
+            return False
+        if packet['frame_id']<=prior['frame_id']:return False
+        # Keep the first current proof while captures arrive faster than the
+        # minimum separation. Moving this anchor every frame could prevent a
+        # valid independent pair forever at a stable sub-300ms capture cadence.
+        return delta>=300
 
 def run(bridge,core,menu,opening,evidence,options_json='{}'):
     options=options_from_json(options_json);out=Path(evidence);out.mkdir(parents=True,exist_ok=True)

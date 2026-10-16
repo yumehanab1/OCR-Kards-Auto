@@ -3,25 +3,43 @@ import cv2,numpy as np
 
 def structural_end(frame,items):
     h,w=frame.shape[:2]
-    labels=[r for r in items if r.get('score',0)>=.98 and r.get('text','').replace(' ','')=='结束回合']
+    labels=[r for r in items if r.get('score',0)>=.93 and r.get('text','').replace(' ','')=='结束回合']
     if len(labels)!=1:return None
-    label=labels[0];points=np.asarray(label['box']);a,b=points.min(axis=0);c,d=points.max(axis=0)
-    if a<w*.75 or not h*.45<b<d<h*.82:return None
-    gray=cv2.cvtColor(frame,cv2.COLOR_BGR2GRAY);white=np.uint8(gray>=145)
-    contours,_=cv2.findContours(white*255,cv2.RETR_LIST,cv2.CHAIN_APPROX_SIMPLE)
-    hits=[];pad=max(2,round(h*2/720))
-    for contour in contours:
-        x,y,bw,bh=cv2.boundingRect(contour)
-        if not (.12*h<bw<.40*h and .035*h<bh<.11*h and x>w*.75 and .45*h<y<.82*h):continue
-        if not (x<=a<c<=x+bw and y<=b<d<=y+bh):continue
-        strips=(white[y:y+pad,x:x+bw],white[y+bh-pad:y+bh,x:x+bw],white[y:y+bh,x:x+pad],white[y:y+bh,x+bw-pad:x+bw])
-        coverage=[float(strip.any(axis=0 if i<2 else 1).mean()) for i,strip in enumerate(strips)]
-        if min(coverage)>=.94 and not any(max(abs(v-z) for v,z in zip([x,y,bw,bh],p['bounds']))<pad*2 for p in hits):
-            hits.append(dict(bounds=[x,y,bw,bh],score=float(label['score']),edge_coverage=coverage,basis='current_ocr_and_four_control_sides'))
-    return hits[0] if len(hits)==1 else None
+    label=labels[0];points=np.asarray(label.get('box',[]),dtype=float)
+    if points.ndim!=2 or points.shape[0]<3 or points.shape[1]!=2 or not np.isfinite(points).all():return None
+    a,b=points.min(axis=0);c,d=points.max(axis=0)
+    if not (.60*w<a<c<=w and h*.35<b<d<h*.90):return None
+    for row in items:
+        if row.get('score',0)<.93 or row.get('text','').replace(' ','')!='敌方':continue
+        p=np.asarray(row.get('box',[]),dtype=float)
+        if p.ndim!=2 or p.shape[0]<3 or p.shape[1]!=2 or not np.isfinite(p).all():continue
+        if p[:,0].mean()>.60*w and h*.35<p[:,1].mean()<h*.90:return None
+    return dict(bounds=[float(a),float(b),float(c-a),float(d-b)],score=float(label['score']),
+                basis='current_ocr_end_control')
+
+
+def current_turn_control(frame,items):
+    """A bounded OCR read provides its current control, never a full page."""
+    own=structural_end(frame,items)
+    if own:return dict(own,state='battle')
+    h,w=frame.shape[:2];labels={'敌方':[],'结束回合':[]}
+    for row in items:
+        text=row.get('text','').replace(' ','')
+        if text not in labels or row.get('score',0)<.93:continue
+        points=np.asarray(row.get('box',[]),dtype=float)
+        if points.ndim!=2 or points.shape[0]<3 or points.shape[1]!=2 or not np.isfinite(points).all():continue
+        a,b=points.min(axis=0);c,d=points.max(axis=0)
+        if .60*w<a<c<=w and .35*h<b<d<.90*h:
+            labels[text].append(dict(bounds=[float(a),float(b),float(c-a),float(d-b)],score=float(row['score'])))
+    if len(labels['敌方'])==1 and not labels['结束回合']:
+        return dict(labels['敌方'][0],state='opponent_turn',basis='current_ocr_opponent_control')
+    return None
 
 def end_control(page,threshold=.93):
     if page.get('state')!='battle':return None
+    semantic=page.get('ocr_turn_control') or {}
+    if semantic.get('score',0)>=threshold and semantic.get('bounds'):
+        return dict(semantic)
     if page.get('path')=='current_frame_local_label' and page.get('label_score',0)>=.97 and page.get('label_bounds'):
         return dict(bounds=page['label_bounds'],score=page['label_score'],basis='current_local_label')
     for name in ('end_turn_btn','end_turn_btn_white'):
@@ -37,9 +55,11 @@ def opponent_evidence(frame,page,detector):
     if page.get('path')=='current_frame_local_label' and page.get('label_score',0)>=.97:
         label=page.get('label_bounds')
     else:
+        semantic=page.get('ocr_opponent_control') or {}
+        if semantic.get('score',0)>=.93:label=semantic.get('bounds')
         for name in ('opponent_compact','opponent_standard'):
             hit=page.get('evidence',{}).get(name,{})
-            if hit.get('score',0)>=.93:label=hit.get('bounds');break
+            if label is None and hit.get('score',0)>=.93:label=hit.get('bounds');break
         if label is None:
             for item in page.get('ocr_items',[]):
                 if item.get('score',0)>=.98 and item.get('text','').replace(' ','')=='敌方':

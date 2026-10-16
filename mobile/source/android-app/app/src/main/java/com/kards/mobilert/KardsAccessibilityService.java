@@ -4,6 +4,11 @@ import android.accessibilityservice.AccessibilityService;
 import android.accessibilityservice.GestureDescription;
 import android.graphics.Path;
 import android.graphics.Bitmap;
+import android.graphics.Rect;
+import android.graphics.Canvas;
+import android.os.Build;
+import android.app.KeyguardManager;
+import android.view.accessibility.AccessibilityWindowInfo;
 import android.hardware.HardwareBuffer;
 import android.os.Handler;
 import android.os.Looper;
@@ -28,6 +33,9 @@ public final class KardsAccessibilityService extends AccessibilityService implem
     private static final String GAME_PACKAGE = "com.android1939.kards";
     private String foregroundPackage = "";
     private long foregroundGeneration;
+    private final ForegroundDepartureTracker foregroundDepartures = new ForegroundDepartureTracker();
+    private int admittedGameWindowId=-1;
+    private GameWindowState.Window lastVisibleGameWindow;
     private int sourceWidth;
     private int sourceHeight;
     private BoundedMulliganSession mulliganSession;
@@ -89,7 +97,7 @@ public final class KardsAccessibilityService extends AccessibilityService implem
         // or arbitrary windows with the same package name.
         if (floatingControl != null && event != null && getPackageName().equals(packageName)
                 && floatingControl.ownsWindow(event.getWindowId())) return;
-        updateForeground(packageName);
+        activePackage();
     }
 
     @Override
@@ -105,9 +113,30 @@ public final class KardsAccessibilityService extends AccessibilityService implem
         }
     }
 
-    /** Inspect only the active window's package; never traverse or log window content. */
+    /** One fresh window inventory supplies all facts for one independent boundary. */
+    synchronized ForegroundSnapshot foregroundSnapshot() {
+        GameWindowState windows=gameWindowState();
+        String foreground=updateForegroundFromWindows(windows);
+        return new ForegroundSnapshot(foreground,foregroundGeneration,foregroundDepartures.epoch(),
+                windows,android.os.SystemClock.elapsedRealtime());
+    }
+
+    private String activePackage() { return foregroundSnapshot().foregroundPackage; }
+
+    /** Preserve existing foreground generation and legacy platform fallback behavior. */
     @SuppressWarnings("deprecation")
-    private String activePackage() {
+    private String updateForegroundFromWindows(GameWindowState windows) {
+        if(windows.game!=null) {
+            if(admittedGameWindowId>=0 && admittedGameWindowId!=windows.game.id)foregroundGeneration++;
+            admittedGameWindowId=windows.game.id;
+            updateForeground(GAME_PACKAGE);
+            return GAME_PACKAGE;
+        }
+        admittedGameWindowId=-1;
+        if(Build.VERSION.SDK_INT>=34) {updateForeground(windows.foreground);return windows.foreground;}
+        if(!windows.foreground.isEmpty()) {updateForeground(windows.foreground);return windows.foreground;}
+        KeyguardManager keyguard=(KeyguardManager)getSystemService(KEYGUARD_SERVICE);
+        if(keyguard!=null && keyguard.isKeyguardLocked()){updateForeground("");return "";}
         AccessibilityNodeInfo root = getRootInActiveWindow();
         if (root == null) {
             updateForeground("");
@@ -120,6 +149,51 @@ public final class KardsAccessibilityService extends AccessibilityService implem
         } finally {
             root.recycle();
         }
+    }
+
+    synchronized GameWindowState gameWindowState() {
+        ArrayList<GameWindowState.Window> inventory=new ArrayList<>();
+        for(AccessibilityWindowInfo window:getWindows()) {
+            AccessibilityNodeInfo root=null;
+            try {
+                int id=window.getId();
+                boolean ownOverlay=floatingControl!=null && floatingControl.ownsWindow(id);
+                // An exactly known own overlay needs no hidden-root Binder query.
+                // Other application windows still provide their current owner.
+                if(!ownOverlay)root=window.getRoot();
+                String owner=ownOverlay?getPackageName():root==null || root.getPackageName()==null?"":root.getPackageName().toString();
+                Rect bounds=new Rect();window.getBoundsInScreen(bounds);
+                inventory.add(new GameWindowState.Window(id,window.getType(),window.getLayer(),owner,bounds,
+                        window.isActive(),window.isFocused(),ownOverlay));
+            } finally {if(root!=null)root.recycle();window.recycle();}
+        }
+        KeyguardManager keyguard=(KeyguardManager)getSystemService(KEYGUARD_SERVICE);
+        boolean locked=keyguard!=null && keyguard.isKeyguardLocked();
+        foregroundDepartures.observe(inventory,locked);
+        GameWindowState state=GameWindowState.inspect(inventory,locked,lastVisibleGameWindow);
+        lastVisibleGameWindow=state.game;
+        return state;
+    }
+    boolean gameInputOccluded() {return gameWindowState().occluded;}
+    boolean gamePathOccluded(org.json.JSONArray path) throws org.json.JSONException {
+        float[][] points=new float[path.length()][2];
+        for(int i=0;i<path.length();i++) {
+            points[i][0]=(float)path.getJSONArray(i).getDouble(0);
+            points[i][1]=(float)path.getJSONArray(i).getDouble(1);
+        }
+        return gameWindowState().blocksPath(points);
+    }
+    String gameWindowDiagnostic() throws org.json.JSONException {
+        ForegroundSnapshot snapshot=foregroundSnapshot();
+        String foreground=snapshot.foregroundPackage;GameWindowState state=snapshot.windowState;
+        org.json.JSONObject result=new org.json.JSONObject().put("game_present",state.game!=null)
+                .put("occluded",state.occluded).put("foreground_game",GAME_PACKAGE.equals(foreground))
+                .put("foreground_package",foreground).put("departure_epoch",snapshot.departureEpoch)
+                .put("generation",snapshot.generation).put("window_capture_supported",Build.VERSION.SDK_INT>=34);
+        if(state.game!=null)result.put("window_id",state.game.id)
+                .put("bounds",new org.json.JSONArray().put(state.game.bounds.left).put(state.game.bounds.top)
+                    .put(state.game.bounds.width()).put(state.game.bounds.height()));
+        return result.toString();
     }
 
     public boolean startMulliganOnce() {
@@ -147,11 +221,12 @@ public final class KardsAccessibilityService extends AccessibilityService implem
             @Override public void prepareInput(java.util.function.Consumer<Runnable> ready) { withoutOverlay(ready); }
             @Override public String currentForegroundPackage() { return activePackage(); }
             @Override public long foregroundGeneration() { return foregroundGeneration; }
+            @Override public boolean inputOccluded() { return gameInputOccluded(); }
             @Override public boolean dispatchTap(float x, float y, BoundedMulliganSession.TapCallback callback) {
                 if (owner != null && (battleSession != owner || !owner.canContinueOpening()
                         || !BattleWorkerLease.isOwnedBy(owner))) return false;
                 long before = foregroundGeneration;
-                if (!GAME_PACKAGE.equals(activePackage()) || before != foregroundGeneration
+                if (!GAME_PACKAGE.equals(activePackage()) || before != foregroundGeneration || gameInputOccluded()
                         || mulliganSession == null || !mulliganSession.isRunning()
                         || !FrameAspectProfile.supported(sourceWidth, sourceHeight)
                         || !Float.isFinite(x) || !Float.isFinite(y)
@@ -161,7 +236,8 @@ public final class KardsAccessibilityService extends AccessibilityService implem
                 GestureDescription gesture = new GestureDescription.Builder()
                         .addStroke(new GestureDescription.StrokeDescription(tap, 0, 60)).build();
                 // The active-window IPC above can take time; check freshness at the actual input boundary.
-                if (!mulliganSession.canDispatchPreparedTapNow()
+                if (gameWindowState().blocksPath(new float[][]{{x*sourceWidth,y*sourceHeight}})
+                        || !mulliganSession.canDispatchPreparedTapNow()
                         || (owner != null && !owner.canContinueOpening())) return false;
                 return dispatchGesture(gesture, new GestureResultCallback() {
                     @Override public void onCompleted(GestureDescription description) { callback.onCompleted(); }
@@ -177,6 +253,10 @@ public final class KardsAccessibilityService extends AccessibilityService implem
 
     String currentForegroundPackage() { return activePackage(); }
     long gameForegroundGeneration() { return foregroundGeneration; }
+    synchronized long gameDepartureEpoch() {
+        gameWindowState();
+        return foregroundDepartures.epoch();
+    }
 
     /** A menu worker hands its existing campaign and foreground token to the bounded opening. */
     boolean startCampaignOpening(ApkBattleSession campaign, GameEntryGate gate, Consumer<String> observer) {
@@ -413,7 +493,16 @@ public final class KardsAccessibilityService extends AccessibilityService implem
         // Every admitted request takes a new native screenshot. Keep the original
         // request time as the conservative age bound; waiting never refreshes it.
         try {
-        takeScreenshot(Display.DEFAULT_DISPLAY, mainExecutor, new TakeScreenshotCallback() {
+        final GameWindowState selected=gameWindowState();
+        if(selected.occluded){callback.onFailure(GameWindowState.OCCLUDED);return;}
+        final Rect displayBounds=new Rect();
+        displayBounds.set(getSystemService(android.view.WindowManager.class).getCurrentWindowMetrics().getBounds());
+        displayBounds.offsetTo(0,0);
+        final boolean windowCapture=Build.VERSION.SDK_INT>=34 && selected.game!=null;
+        if(preserveSourcePixels && Build.VERSION.SDK_INT>=34 && !windowCapture) {
+            callback.onFailure("game_window_missing");return;
+        }
+        TakeScreenshotCallback receiver=new TakeScreenshotCallback() {
             @Override
             public void onSuccess(ScreenshotResult screenshot) {
                 HardwareBuffer hardwareBuffer = screenshot.getHardwareBuffer();
@@ -435,12 +524,31 @@ public final class KardsAccessibilityService extends AccessibilityService implem
                         callback.onFailure("截图能力：无法复制为软件 Bitmap。");
                         return;
                     }
+                    if(windowCapture) {
+                        GameWindowState after=gameWindowState();
+                        Rect area=selected.game.bounds;
+                        if(after.game==null || after.game.id!=selected.game.id || !area.equals(after.game.bounds)) {
+                            softwareBitmap.recycle();callback.onFailure("game_window_changed");return;
+                        }
+                        if(after.occluded) {softwareBitmap.recycle();callback.onFailure(GameWindowState.OCCLUDED);return;}
+                        if(area.left<0 || area.top<0 || !displayBounds.contains(area)
+                            || softwareBitmap.getWidth()!=area.width() || softwareBitmap.getHeight()!=area.height()) {
+                            softwareBitmap.recycle();callback.onFailure("game_window_geometry_unconfirmed");return;
+                        }
+                        if(!area.equals(displayBounds)) {
+                            Bitmap display=Bitmap.createBitmap(displayBounds.width(),displayBounds.height(),Bitmap.Config.ARGB_8888);
+                            new Canvas(display).drawBitmap(softwareBitmap,area.left,area.top,null);
+                            softwareBitmap.recycle();softwareBitmap=display;
+                        }
+                        sourceWidth=displayBounds.width();sourceHeight=displayBounds.height();
+                    }
                     Bitmap normalized = preserveSourcePixels ? softwareBitmap : normalize(softwareBitmap);
                     KardsAccessibilityService.this.sourceWidth = sourceWidth;
                     KardsAccessibilityService.this.sourceHeight = sourceHeight;
                     // Use request start as a conservative age bound, including capture/conversion latency.
                     callback.onFrame(new FrameSnapshot(normalized, requestedAtMillis,
-                            sourceWidth, sourceHeight));
+                            sourceWidth, sourceHeight,windowCapture?"game_window":"display",
+                            windowCapture?selected.game.id:-1,windowCapture?selected.game.bounds:displayBounds));
                 } catch (RuntimeException error) {
                     callback.onFailure("截图能力：Bitmap 转换失败：" + error.getClass().getSimpleName());
                 } finally {
@@ -453,9 +561,14 @@ public final class KardsAccessibilityService extends AccessibilityService implem
 
             @Override
             public void onFailure(int errorCode) {
+                if(errorCode==ERROR_TAKE_SCREENSHOT_INTERNAL_ERROR || errorCode==ERROR_TAKE_SCREENSHOT_INTERVAL_TIME_SHORT) {
+                    callback.onFailure("temporary_window_capture_error");return;
+                }
                 callback.onFailure("截图能力：失败，错误码=" + errorCode + "；后续接入 MediaProjection 备用通道。");
             }
-        });
+        };
+        if(windowCapture)takeScreenshotOfWindow(selected.game.id,mainExecutor,receiver);
+        else takeScreenshot(Display.DEFAULT_DISPLAY,mainExecutor,receiver);
         } catch (RuntimeException error) {
             callback.onFailure("截图能力：请求失败：" + error.getClass().getSimpleName());
         }

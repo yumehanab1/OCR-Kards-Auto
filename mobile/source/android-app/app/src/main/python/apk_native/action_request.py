@@ -1,6 +1,7 @@
 """Convert native action plans to source-pixel bridge requests; no dispatch."""
 import math
 from .turn_ui import end_control
+from .end_audit import unknown_frontline_skip_ready
 
 FRAME_KEYS=('frame_id','captured_elapsed_ms','foreground_generation','source_width','source_height')
 
@@ -14,6 +15,8 @@ def point(value,width,height):
     return [float(x),float(y)]
 
 def request(observed,packet,now,remaining_ms):
+    if observed.get('planning_complete') is False:
+        raise ValueError('native_action_requires_complete_planning')
     if packet.get('ok') is not True or packet.get('coordinate_space')!='source_pixels':
         raise ValueError('native_action_requires_source_capture')
     width,height=packet['source_width'],packet['source_height']
@@ -23,7 +26,8 @@ def request(observed,packet,now,remaining_ms):
     if observed.get('choice_modal') and not choice:raise ValueError('native_action_choice_modal')
     if not choice and (observed.get('card_display',{}).get('ready') or observed.get('turn_preparation',{}).get('ready') is False):
         raise ValueError('native_action_draw_not_settled')
-    if end_control(observed.get('page',{})) is None:
+    current_control=end_control(observed.get('page',{}))
+    if current_control is None:
         raise ValueError('native_action_current_turn_control_unconfirmed')
     age=now-packet['captured_elapsed_ms']
     if age<0 or age>3000:raise ValueError('native_action_frame_expired')
@@ -69,11 +73,18 @@ def request(observed,packet,now,remaining_ms):
         kind='drag';duration=650
     elif action=='end_turn_verified':
         evidence=selected.get('end_turn_evidence') or {}
+        unknown_skip=unknown_frontline_skip_ready(evidence,packet)
+        if ((evidence.get('unresolved_frontline_skipped') is True
+                or evidence.get('reason')=='bounded_unknown_frontline_skipped') and (not unknown_skip
+                or (observed.get('scene') or {}).get('frontline',{}).get('owner') in ('our','enemy','empty'))):
+            raise ValueError('native_end_turn_unknown_skip_unconfirmed')
         if (evidence.get('ready') is not True or not (evidence.get('stable_pair') is True
-                or evidence.get('current_frame_exhausted') is True)
+                or evidence.get('current_frame_exhausted') is True or unknown_skip)
                 or evidence.get('frame_id')!=packet['frame_id']):raise ValueError('native_end_turn_audit_unconfirmed')
         control=evidence.get('control') or {}
         if control.get('score',0)<.93:raise ValueError('native_end_turn_control_unconfirmed')
+        if unknown_skip and control.get('bounds')!=current_control.get('bounds'):
+            raise ValueError('native_end_turn_unknown_skip_control_mismatch')
         x,y,w,h=control['bounds'];origin=point([x+w/2,y+h/2],width,height);target=origin
         kind='tap';duration=60;context='end_turn'
     else:

@@ -57,6 +57,7 @@ public final class BoundedMulliganSession {
     public interface Platform {
         /** Prepare an unobscured input boundary; release after the system callback or refusal. */
         default void prepareInput(java.util.function.Consumer<Runnable> ready) { ready.accept(()->{}); }
+        default boolean inputOccluded() { return false; }
         String currentForegroundPackage();
         long foregroundGeneration();
 
@@ -106,6 +107,9 @@ public final class BoundedMulliganSession {
     private boolean dispatchReturned;
     private boolean gestureCompleted;
     private boolean gestureCancelled;
+    private boolean opponentMulliganWaitObserved;
+    private long firstOpponentMulliganWaitFrameSequence;
+    private int captureFailures;
     private boolean verified;
     private long generation;
     private long armedForegroundGeneration;
@@ -199,6 +203,9 @@ public final class BoundedMulliganSession {
         dispatchReturned = false;
         gestureCompleted = false;
         gestureCancelled = false;
+        opponentMulliganWaitObserved = false;
+        firstOpponentMulliganWaitFrameSequence = 0;
+        captureFailures=0;
         verified = false;
         previous = null;
         gameInputs = 0;
@@ -301,7 +308,8 @@ public final class BoundedMulliganSession {
             finish(token, State.STOPPED, "time_budget");
             return false;
         }
-        if (gameInputs == 1 && (state == State.DISPATCHING || state == State.VERIFYING)) {
+        if (gameInputs == 1 && !opponentMulliganWaitObserved
+                && (state == State.DISPATCHING || state == State.VERIFYING)) {
             long verificationElapsed = now - dispatchedAtElapsed;
             if (verificationElapsed < 0L || verificationElapsed >= POST_VERIFICATION_BUDGET_MS) {
                 finish(token, State.STOPPED, "post_verification_timeout");
@@ -339,7 +347,7 @@ public final class BoundedMulliganSession {
                 }
                 @Override public void onFailure(String message) {
                     // Platform error messages are not copied into private evidence.
-                    scheduler.postDelayed(() -> captureFailed(token, requestSequence), 0L);
+                    scheduler.postDelayed(() -> captureFailed(token, requestSequence, message), 0L);
                 }
             });
         } catch (RuntimeException error) {
@@ -347,8 +355,17 @@ public final class BoundedMulliganSession {
         }
     }
 
-    private synchronized void captureFailed(long token, long requestSequence) {
+    private synchronized void captureFailed(long token, long requestSequence,String reason) {
         if (isCurrent(token) && capturePending && requestSequence == pendingFrameSequence) {
+            if("temporary_window_capture_error".equals(reason) && ++captureFailures<=3) {
+                capturePending=false;previous=null;
+                scheduler.postDelayed(() -> capture(token),350L);return;
+            }
+            if(GameWindowState.OCCLUDED.equals(reason)) {
+                capturePending=false;previous=null;
+                scheduler.postDelayed(() -> capture(token),300L);
+                return;
+            }
             finish(token, State.STOPPED, "capture_failed");
         }
     }
@@ -357,6 +374,7 @@ public final class BoundedMulliganSession {
         try {
             if (!isCurrent(token) || !capturePending || requestSequence != pendingFrameSequence) return;
             capturePending = false;
+            captureFailures=0;
             if (!gate(token)) return;
             if (frame == null || !frame.isUsable() || (nativePixels ? !NativeFrameCoordinates.valid(frame.width(), frame.height(), frame.sourceWidth(), frame.sourceHeight())
                     : frame.width() != 1280 || frame.height() != 720)) {
@@ -384,6 +402,10 @@ public final class BoundedMulliganSession {
             put(report, "capturedAtMillis", capturedAt);
             put(report, "sourceWidth", frame.sourceWidth());
             put(report, "sourceHeight", frame.sourceHeight());
+            put(report, "captureScope",frame.captureScope);
+            put(report, "captureWindowId",frame.captureWindowId);
+            put(report, "captureWindowBounds",new org.json.JSONArray().put(frame.captureBounds.left).put(frame.captureBounds.top)
+                    .put(frame.captureBounds.width()).put(frame.captureBounds.height()));
             put(report, "width", frame.width());
             put(report, "height", frame.height());
             put(report, "screenshot", frameName + ".png");
@@ -425,10 +447,45 @@ public final class BoundedMulliganSession {
             if (!gate(token)) return;
             long processedFrameAge = clock.wallTimeMillis() - capturedAt;
             if (processedFrameAge < 0L || processedFrameAge > frameAgeLimit()) {
+                if (nativePixels && processedFrameAge >= 0L) {
+                    previous = null;
+                    scheduler.postDelayed(() -> capture(token), SAMPLE_INTERVAL_MS);
+                    return;
+                }
                 finish(token, State.STOPPED, "frame_expired_during_processing");
                 return;
             }
+            if (current.phase == MulliganRecognizer.Phase.WAITING_OPPONENT_MULLIGAN) {
+                if (gameInputs != 1 || !dispatchAccepted || !dispatchReturned
+                        || !gestureCompleted || gestureCancelled) {
+                    finish(token, State.STOPPED, "opponent_mulligan_wait_without_completed_confirm");
+                    return;
+                }
+                if (result == null || !Double.isFinite(result.score) || result.score < .90
+                        || result.score > 1.0 || current.templateId.isEmpty()) {
+                    finish(token, State.STOPPED, "invalid_recognition_result");
+                    return;
+                }
+                // This is read-only waiting, never a turn handoff or another tap.
+                // Only explicit current evidence can use the original total
+                // deadline instead of the shorter post-input transition limit.
+                if (!opponentMulliganWaitObserved) {
+                    opponentMulliganWaitObserved = true;
+                    firstOpponentMulliganWaitFrameSequence = current.sequence;
+                    saveEvent("opponent_mulligan_wait_observed", json("frameSequence", current.sequence));
+                }
+                previous = null;
+                if (isCurrent(token)) scheduler.postDelayed(() -> capture(token), SAMPLE_INTERVAL_MS);
+                return;
+            }
             if (current.phase == null || current.phase == MulliganRecognizer.Phase.UNKNOWN) {
+                if (nativePixels) {
+                    // Loading/animation or a missed label calls for a new image.
+                    // The 90-second stage budget still bounds this observation loop.
+                    previous = null;
+                    scheduler.postDelayed(() -> capture(token), SAMPLE_INTERVAL_MS);
+                    return;
+                }
                 if (emptyOpeningFrame) {
                     // A fully black capture can occur during the opening transition. It never
                     // authorizes input or preserves a stable pair, and does not reset the budget.
@@ -463,13 +520,13 @@ public final class BoundedMulliganSession {
                     finish(token, State.STOPPED, "invalid_confirm_target");
                     return;
                 }
-                if (stability.stable || nativePixels && result.score >= .94) {
+                if (stability.stable || nativePixels && result.score >= .90) {
                     dispatchOnce(token, current);
                     return;
                 }
             } else if ((current.phase == MulliganRecognizer.Phase.CONFIRMED_MY_TURN
                     || current.phase == MulliganRecognizer.Phase.CONFIRMED_OPPONENT_TURN)
-                    && (stability.stable || nativePixels && result.score >= .94) && dispatchAccepted && gestureCompleted && !gestureCancelled) {
+                    && (stability.stable || nativePixels && result.score >= .90) && dispatchAccepted && gestureCompleted && !gestureCancelled) {
                 firstVerifiedFrameSequence = previous == null ? current.sequence : previous.sequence;
                 secondVerifiedFrameSequence = current.sequence;
                 verified = true;
@@ -547,6 +604,9 @@ public final class BoundedMulliganSession {
 
     private boolean preDispatchGate(long token, Evidence current) {
         if (!gate(token)) return false;
+        if(platform.inputOccluded()) {
+            previous=null;scheduler.postDelayed(() -> capture(token),300L);return false;
+        }
         long age = clock.wallTimeMillis() - current.capturedAt;
         if (gameInputs != 0 || capturePending || latestFrameSequence != current.sequence
                 || pendingFrameSequence != current.sequence || age < 0L || age > frameAgeLimit()
@@ -626,6 +686,8 @@ public final class BoundedMulliganSession {
         put(json, "dispatchAccepted", dispatchAccepted);
         put(json, "dispatchReturned", dispatchReturned);
         put(json, "gestureCompleted", gestureCompleted);
+        put(json, "opponentMulliganWaitObserved", opponentMulliganWaitObserved);
+        put(json, "firstOpponentMulliganWaitFrameSequence", firstOpponentMulliganWaitFrameSequence);
         put(json, "verified", verified);
         put(json, "stopReason", stopReason);
         put(json, "startedAtMillis", startedWall);
@@ -675,9 +737,10 @@ public final class BoundedMulliganSession {
         }
     }
 
-    private static void savePng(File file, Bitmap bitmap) throws IOException {
+    private void savePng(File file, Bitmap bitmap) throws IOException {
         try (FileOutputStream stream = new FileOutputStream(file, false)) {
-            if (!bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)) {
+            if(nativePixels)OriginalPng.write(bitmap,stream);
+            else if (!bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)) {
                 throw new IOException("png_write_failed");
             }
             stream.flush();

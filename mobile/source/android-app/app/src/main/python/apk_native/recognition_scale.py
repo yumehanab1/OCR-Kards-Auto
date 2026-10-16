@@ -2,7 +2,7 @@
 import cv2
 import numpy as np
 
-BOXES={'box','boxes','bounds','target_bounds','panel_bounds','card_box','card_box_estimate','badge_box','shield_box',
+BOXES={'box','boxes','bounds','regions','target_bounds','panel_bounds','card_box','card_box_estimate','badge_box','shield_box',
        'label_bounds','hq_box','rectangles','support_rectangles','unclassified_support_rectangles','unknown_rectangles','sharp_unknown_rectangles'}
 POINTS={'center','digit_center','digit_center_source','grab_source','drop_source','point','at','grab','position'}
 
@@ -30,9 +30,11 @@ def coordinates(value,sx,sy,key=''):
     return value
 
 def restore(result,frame,scaled,factors):
+    from .layout_profiles import for_shape
     out=coordinates(result,*factors)
     out['source_shape']=list(frame.shape)
     out['coordinate_space']='source_pixels'
     out['recognition_shape']=list(scaled.shape)
     out['recognition_scale_to_source']=list(factors)
+    out['layout_profile']=for_shape(frame.shape).name
     return out

@@ -14,7 +14,8 @@ import java.io.InputStream;
  * stability, dispatch, and stopping. Assets/provenance.json records exact source frames.
  */
 public final class MulliganRecognizer {
-    public enum Phase { MULLIGAN_CONFIRM, CONFIRMED_MY_TURN, CONFIRMED_OPPONENT_TURN, UNKNOWN }
+    public enum Phase { MULLIGAN_CONFIRM, CONFIRMED_MY_TURN, CONFIRMED_OPPONENT_TURN,
+        WAITING_OPPONENT_MULLIGAN, UNKNOWN }
     public static final String ASSET_DIRECTORY = "mulligan-one-shot/";
     public static final double MIN_SCORE = 0.94;
 

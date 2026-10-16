@@ -25,8 +25,12 @@ final class GameFloatingControl {
     private final Handler main=new Handler(Looper.getMainLooper());
     private final FrameLayout root;
     private TextView compact, headline, details;
-    private Button attach, start, stop;
-    private boolean expanded, attached, destroyed, gameVisible;
+    private Button attach, start, stop, collapse;
+    private ScrollView expandedScroll;
+    private LinearLayout actionButtons;
+    private boolean expanded, destroyed, gameVisible;
+    private volatile boolean attached;
+    private volatile int attachedWindowId=-1;
     private int hidden;
     private String action="", message="";
     private long actionAt;
@@ -56,7 +60,11 @@ final class GameFloatingControl {
         WindowManager.LayoutParams p=new WindowManager.LayoutParams(area.width(),area.height(),
                 WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
-                        | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN, PixelFormat.TRANSLUCENT);
+                        | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
+                        | (hidden>0?WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE:0), PixelFormat.TRANSLUCENT);
+        // Hide the attached window's compositor layer as well as its View.
+        // Keeping the attachment preserves its exact accessibility identity.
+        p.alpha=hidden>0?0f:1f;
         p.gravity=Gravity.TOP|Gravity.RIGHT; p.x=0; p.y=area.top;
         p.setTitle("KARDS局内控制"); return p;
     }
@@ -66,11 +74,32 @@ final class GameFloatingControl {
     }
     private Button button(String title,Runnable callback) {
         Button b=new Button(service);b.setText(title);b.setTextSize(12);b.setAllCaps(false);
-        b.setMinHeight(0);b.setMinimumHeight(0);b.setPadding(dp(4),0,dp(4),0);
+        b.setSingleLine(true);b.setGravity(Gravity.CENTER);b.setPadding(dp(4),0,dp(4),0);
+        android.graphics.Paint.FontMetricsInt font=b.getPaint().getFontMetricsInt();
+        int height=Math.max(dp(38),font.bottom-font.top+dp(12));
+        b.setMinHeight(height);b.setMinimumHeight(height);
+        // All four controls need an explicit row height. WRAP_CONTENT combined
+        // with platform Button insets collapsed the two standalone controls.
+        b.setLayoutParams(new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,height));
         b.setOnClickListener(v->callback.run()); return b;
     }
+    private void arrangeActionButtons() {
+        if(actionButtons==null || attach==null || stop==null)return;
+        int contentWidth=Math.max(0,layout().width-2*dp(8));
+        int halfWidth=contentWidth/2;
+        boolean twoColumns=true;
+        for(Button button:new Button[]{attach,stop}) {
+            int titleWidth=(int)Math.ceil(button.getPaint().measureText(button.getText().toString()));
+            int required=titleWidth+button.getCompoundPaddingLeft()+button.getCompoundPaddingRight()+2;
+            if(required>halfWidth)twoColumns=false;
+        }
+        actionButtons.setOrientation(twoColumns?LinearLayout.HORIZONTAL:LinearLayout.VERTICAL);
+        int height=attach.getLayoutParams().height;
+        for(Button button:new Button[]{attach,stop})button.setLayoutParams(new LinearLayout.LayoutParams(
+                twoColumns?0:LinearLayout.LayoutParams.MATCH_PARENT,height,twoColumns?1:0));
+    }
     private void rebuild() {
-        root.removeAllViews();
+        root.removeAllViews();actionButtons=null;
         GradientDrawable background=new GradientDrawable();background.setColor(Color.rgb(25,35,45));
         background.setCornerRadius(dp(12));background.setStroke(dp(1),Color.rgb(90,115,130));root.setBackground(background);
         if(!expanded) {
@@ -78,15 +107,18 @@ final class GameFloatingControl {
             compact.setOnClickListener(v->setExpanded(true));root.addView(compact);
         } else {
             ScrollView scroll=new ScrollView(service);LinearLayout column=new LinearLayout(service);
+            expandedScroll=scroll;
             column.setOrientation(LinearLayout.VERTICAL);column.setPadding(dp(8),dp(5),dp(8),dp(5));
             headline=text(13);details=text(11);column.addView(headline);column.addView(details);
-            LinearLayout row=new LinearLayout(service);
+            actionButtons=new LinearLayout(service);
             attach=button("接管当前局",()->start(true));stop=button("停止",service::cancelBattle);
-            row.addView(attach,new LinearLayout.LayoutParams(0,dp(38),1));
-            row.addView(stop,new LinearLayout.LayoutParams(0,dp(38),1));column.addView(row);
+            actionButtons.addView(attach);actionButtons.addView(stop);arrangeActionButtons();
+            column.addView(actionButtons,new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,LinearLayout.LayoutParams.WRAP_CONTENT));
             start=button("从菜单开局",()->start(false));column.addView(start);
-            column.addView(button("收起 ›",()->setExpanded(false)));
-            scroll.addView(column);root.addView(scroll);
+            collapse=button("收起 ›",()->setExpanded(false));column.addView(collapse);
+            scroll.addView(column,new ScrollView.LayoutParams(ScrollView.LayoutParams.MATCH_PARENT,ScrollView.LayoutParams.WRAP_CONTENT));
+            root.addView(scroll,new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT,FrameLayout.LayoutParams.MATCH_PARENT));
         }
     }
     private void start(boolean currentBattle) {
@@ -108,38 +140,63 @@ final class GameFloatingControl {
         } else {compact.setText(state.compact);compact.setTextColor(state.active?Color.rgb(136,236,179):Color.rgb(250,217,150));}
         if(attached) {
             WindowManager.LayoutParams old=(WindowManager.LayoutParams)root.getLayoutParams(),next=layout();
-            if(old.width!=next.width || old.height!=next.height || old.y!=next.y)windows.updateViewLayout(root,next);
+            if(old.width!=next.width || old.height!=next.height || old.y!=next.y
+                    || old.alpha!=next.alpha || old.flags!=next.flags) {
+                if(expanded)arrangeActionButtons();windows.updateViewLayout(root,next);
+            }
         }
         if(visible&&!attached) {
-            try { root.setVisibility(hidden>0?View.INVISIBLE:View.VISIBLE);windows.addView(root,layout());attached=true; }
+            try {
+                attachedWindowId=-1;root.setVisibility(hidden>0?View.INVISIBLE:View.VISIBLE);
+                windows.addView(root,layout());attached=true;rememberWindowId();root.post(this::rememberWindowId);
+            }
             catch(RuntimeException e) { android.util.Log.w("KardsOverlay","Cannot attach control",e); }
-        } else if(!visible&&attached) {windows.removeView(root);attached=false;}
-        if(attached)root.setVisibility(hidden>0?View.INVISIBLE:View.VISIBLE);
+        } else if(!visible&&attached) {windows.removeView(root);attached=false;attachedWindowId=-1;}
+        if(attached) {root.setVisibility(hidden>0?View.INVISIBLE:View.VISIBLE);rememberWindowId();}
     }
     private int windowId() {
         android.view.accessibility.AccessibilityNodeInfo node=root.createAccessibilityNodeInfo();
         try {return node.getWindowId();} finally {node.recycle();}
     }
-    boolean ownsWindow(int id) { return attached && id!=-1 && id==windowId(); }
+    private void rememberWindowId() {
+        // Read the view identity only while visible. INVISIBLE can hide the
+        // accessibility node while the same WindowManager attachment remains.
+        if(!attached || root.getVisibility()!=View.VISIBLE)return;
+        int id=windowId();if(id>=0)attachedWindowId=id;
+    }
+    boolean ownsWindow(int id) { return attached && id!=-1 && id==attachedWindowId; }
     void withoutOverlay(Consumer<Runnable> work) {
         // A lease is idempotent and nested captures/inputs cannot restore each other's overlay.
-        boolean wait=attached;hidden++;if(attached)root.setVisibility(View.INVISIBLE);
+        boolean wait=attached;rememberWindowId();hidden++;
         AtomicBoolean released=new AtomicBoolean();
         Runnable release=()->{
             if(!released.compareAndSet(false,true))return;
             main.post(()->{hidden--;if(!destroyed)update(gameVisible);});
         };
         main.postDelayed(release,10_000); // missing system callback cannot leave controls permanently hidden
+        try {
+            if(attached) {
+                root.setVisibility(View.INVISIBLE);
+                windows.updateViewLayout(root,layout());
+            }
+        } catch(RuntimeException error) {release.run();throw error;}
         Runnable begin=()->{try{work.accept(release);}catch(RuntimeException e){release.run();throw e;}};
         // Visibility must reach SurfaceFlinger before screenshot or gesture submission.
         if(wait)main.postDelayed(begin,80);else begin.run();
     }
-    void destroy() { destroyed=true;main.removeCallbacks(tick);if(attached){windows.removeView(root);attached=false;} }
+    void destroy() { destroyed=true;main.removeCallbacks(tick);if(attached){windows.removeView(root);attached=false;}attachedWindowId=-1; }
     // Device tests use the real window manager without launching or touching the game.
     void showForTest(boolean expanded) { setExpanded(expanded);update(true);main.removeCallbacks(tick); }
     boolean hiddenForTest() { return hidden>0 && root.getVisibility()!=View.VISIBLE; }
+    float windowAlphaForTest() { return ((WindowManager.LayoutParams)root.getLayoutParams()).alpha; }
+    boolean windowTouchBlockedForTest() {
+        return (((WindowManager.LayoutParams)root.getLayoutParams()).flags&WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE)!=0;
+    }
     boolean expandedForTest() { return expanded; }
     int windowIdForTest() { return windowId(); }
+    int cachedWindowIdForTest() { return attachedWindowId; }
+    Button[] buttonsForTest() { return new Button[]{attach,stop,start,collapse}; }
+    ScrollView scrollForTest() { return expandedScroll; }
     void restoreAfterTest() { update(false);main.post(tick); }
     Rect boundsForTest() { WindowManager.LayoutParams p=layout();Rect s=windows.getCurrentWindowMetrics().getBounds();return new Rect(s.width()-p.width,p.y,s.width(),p.y+p.height); }
 }

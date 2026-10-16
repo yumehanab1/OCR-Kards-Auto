@@ -3,6 +3,8 @@ package com.kards.mobilert;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import com.chaquo.python.Python;
+import com.chaquo.python.android.AndroidPlatform;
 import org.json.JSONObject;
 import org.json.JSONArray;
 import java.io.File;
@@ -49,7 +51,35 @@ final class OpeningEvidenceReplayChecks {
         if(summary.getInt("opening_frames")!=pngCount || summary.getLong("opening_review_jpeg_bytes")!=jpegBytes)throw new IllegalStateException("opening_summary_count");
         return new JSONObject().put("passed",true).put("source",manifest).put("scope","saved_real_opening_postround_replay")
                 .put("original_png_bytes",pngBytes).put("review_jpeg_bytes",jpegBytes).put("hashes_compared",compared)
-                .put("directory",round.getAbsolutePath()).put("device_inputs",0).put("captures",0);
+                .put("directory",round.getAbsolutePath()).put("device_inputs",0).put("captures",0)
+                .put("opponent_mulligan_wait", opponentWaitReplay(assets,target,round));
+    }
+
+    private static JSONObject opponentWaitReplay(Context assets,Context target,File directory) throws Exception {
+        File source=new File(directory,"code139-frame0008-review.jpg");
+        NativePipelineChecks.copy(assets,"opening-opponent-wait-probe/code139-frame0008-review.jpg",source);
+        String sourceHash=hash(source);
+        if(!"ff743846098fd3ec23ddfda81249c5a94b9b69df0e10a327d07f881ab7e79655".equals(sourceHash))
+            throw new IllegalStateException("opponent_wait_review_hash");
+        if(!Python.isStarted()) Python.start(new AndroidPlatform(target));
+        File core=new File(directory,"opponent-wait-core");
+        NativePipelineChecks.copy(target,"mobile-core",core);
+        Python.getInstance().getModule("sys").get("path").callAttr("insert",0,new File(core,"src").getAbsolutePath());
+        Bitmap bitmap=BitmapFactory.decodeFile(source.getAbsolutePath());
+        if(bitmap==null)throw new IllegalStateException("opponent_wait_review_decode");
+        MulliganRecognizer.Result result;
+        try { result=new NativeOpeningInspector(target).inspectSaved(bitmap,source); }
+        finally { bitmap.recycle(); }
+        if(result.phase!=MulliganRecognizer.Phase.WAITING_OPPONENT_MULLIGAN || result.score<.90)
+            throw new IllegalStateException("opponent_wait_review_unrecognized:"+result.phase+":"+result.reason);
+        JSONObject semantics=new JSONObject(Python.getInstance().getModule("json").callAttr("dumps",
+                Python.getInstance().getModule("apk_native.opening_wait_test").callAttr("run",
+                    new File(target.getFilesDir(),"native-opening-component").getAbsolutePath())).toString());
+        if(!semantics.getBoolean("passed"))throw new IllegalStateException("opponent_wait_semantics");
+        return new JSONObject().put("passed",true).put("phase",result.phase.name())
+                .put("reason",result.reason).put("score",result.score).put("review_jpeg_sha256",sourceHash)
+                .put("semantics",semantics)
+                .put("source_kind","archived_review_jpeg_not_original_png").put("device_inputs",0).put("captures",0);
     }
 
     private static String hash(File file) throws Exception {

@@ -39,6 +39,94 @@ public final class MulliganSessionChecks {
         JSONArray cases = new JSONArray();
         int[] failures = {0};
         int[] fakeDispatchCalls = {0};
+        runCase(root,cases,failures,fakeDispatchCalls,"explicit_opponent_mulligan_wait_over_30_then_own",f->{
+            f.source.add(mulligan(),STILL);f.source.add(mulligan(),STILL);
+            for(int i=0;i<60;i++)f.source.add(opponentMulliganWait(),STILL);
+            f.source.add(myTurn(),STILL);f.source.add(myTurn(),STILL);
+            f.startCurrentGame();
+            f.scheduler.until(()->f.last().optBoolean("opponentMulliganWaitObserved"));
+            f.scheduler.advanceBy(31_000L);
+            require(f.session.isRunning() && !f.last().optBoolean("verified") && f.platform.taps==1,
+                    "Explicit wait beyond 30 seconds remains read-only");
+            f.runToStop();
+            require(f.session.state()==BoundedMulliganSession.State.VERIFIED && f.platform.taps==1
+                    && f.last().optLong("postVerificationElapsedMillis")>30_000L,
+                    "Only actual own turn verifies the original single tap");
+            require(f.last().optLong("firstOpponentMulliganWaitFrameSequence")==3,
+                    "First waiting evidence is recorded and not reset by later frames");
+        });
+        runCase(root,cases,failures,fakeDispatchCalls,"explicit_opponent_mulligan_wait_over_30_then_enemy",f->{
+            f.source.add(mulligan(),STILL);f.source.add(mulligan(),STILL);
+            for(int i=0;i<60;i++)f.source.add(opponentMulliganWait(),STILL);
+            for(int i=0;i<2;i++)f.source.add(result(MulliganRecognizer.Phase.CONFIRMED_OPPONENT_TURN,
+                    new Rect(1120,486,1191,523),"opponent"),STILL);
+            f.startCurrentGame();f.runToStop();
+            require(f.session.state()==BoundedMulliganSession.State.VERIFIED && f.platform.taps==1
+                    && "opponent_turn_after_completed_confirm".equals(f.last().optString("stopReason"))
+                    && f.last().optLong("postVerificationElapsedMillis")>30_000L,
+                    "Waiting never masquerades as enemy turn; real enemy control is required");
+        });
+        runCase(root,cases,failures,fakeDispatchCalls,"explicit_opponent_mulligan_wait_total_deadline",f->{
+            f.source.add(mulligan(),STILL);f.source.add(mulligan(),STILL);
+            for(int i=0;i<160;i++)f.source.add(opponentMulliganWait(),STILL);
+            f.startCurrentGame();f.runToStop();f.expectStopped("time_budget",1);
+            require(f.last().optBoolean("opponentMulliganWaitObserved")
+                    && f.last().optLong("elapsedMillis")==BoundedMulliganSession.TIME_BUDGET_MS,
+                    "Repeated waiting never resets the original 90 second deadline");
+        });
+        runCase(root,cases,failures,fakeDispatchCalls,"opponent_mulligan_wait_before_confirm_never_taps",f->{
+            f.source.add(opponentMulliganWait(),STILL);f.startCurrentGame();f.runToStop();
+            f.expectStopped("opponent_mulligan_wait_without_completed_confirm",0);
+            require(!f.last().optBoolean("opponentMulliganWaitObserved"),"No allowance before completed tap");
+        });
+        runCase(root,cases,failures,fakeDispatchCalls,"explicit_opponent_mulligan_wait_cancel",f->{
+            f.source.add(mulligan(),STILL);f.source.add(mulligan(),STILL);
+            for(int i=0;i<60;i++)f.source.add(opponentMulliganWait(),STILL);
+            f.startCurrentGame();f.scheduler.until(()->f.last().optBoolean("opponentMulliganWaitObserved"));
+            f.session.cancel();f.scheduler.advanceBy(40_000L);f.expectStopped("cancelled",1);
+        });
+        runCase(root,cases,failures,fakeDispatchCalls,"explicit_opponent_mulligan_wait_foreground_invalidated",f->{
+            f.source.add(mulligan(),STILL);f.source.add(mulligan(),STILL);
+            for(int i=0;i<60;i++)f.source.add(opponentMulliganWait(),STILL);
+            f.startCurrentGame();f.scheduler.until(()->f.last().optBoolean("opponentMulliganWaitObserved"));
+            f.platform.leaveGame();f.runToStop();f.expectStopped("foreground_changed",1);
+        });
+        runCase(root,cases,failures,fakeDispatchCalls,"stale_opponent_mulligan_wait_cannot_extend",f->{
+            f.source.add(mulligan(),STILL);f.source.add(mulligan(),STILL);
+            f.source.add(opponentMulliganWait(),STILL).age=BoundedMulliganSession.MAX_FRAME_AGE_MS+1;
+            f.startCurrentGame();f.runToStop();f.expectStopped("stale_or_duplicate_frame",1);
+            require(!f.last().optBoolean("opponentMulliganWaitObserved"),"Stale waiting has no authority");
+        });
+        runCase(root,cases,failures,fakeDispatchCalls,"transient_capture_retries_use_fresh_frames",f->{
+            f.source.transientFailures=2;
+            f.source.add(mulligan(),STILL);f.source.add(mulligan(),STILL);
+            f.source.add(myTurn(),STILL);f.source.add(myTurn(),STILL);
+            f.startCurrentGame();f.runToStop();
+            require(f.session.state()==BoundedMulliganSession.State.VERIFIED && f.platform.taps==1,
+                    "Transient capture refusals never authorize a tap, fresh frames can");
+            require(f.source.requests==6,"Two refusals then four independent captures");
+        });
+        runCase(root,cases,failures,fakeDispatchCalls,"capture_retries_bounded",f->{
+            f.source.transientFailures=9;
+            f.startCurrentGame();f.runToStop();f.expectStopped("capture_failed",0);
+            require(f.source.requests==4,"At most three capture retries");
+        });
+        runCase(root,cases,failures,fakeDispatchCalls,"notification_before_confirm_recaptures",f->{
+            f.platform.occluded=true;
+            for(int i=0;i<12;i++)f.source.add(mulligan(),STILL);
+            f.source.add(myTurn(),STILL);f.source.add(myTurn(),STILL);
+            f.startCurrentGame();
+            f.scheduler.advanceBy(3000);
+            require(f.platform.taps==0 && f.session.isRunning(),"Covered confirm must wait without dispatch");
+            f.platform.occluded=false;f.runToStop();
+            require(f.platform.taps==1,"After unblocking exactly one fresh confirm");
+        });
+        runCase(root,cases,failures,fakeDispatchCalls,"notification_wait_cancelled",f->{
+            f.platform.occluded=true;for(int i=0;i<8;i++)f.source.add(mulligan(),STILL);
+            f.startCurrentGame();f.scheduler.advanceBy(3000);f.session.cancel();
+            f.platform.occluded=false;f.scheduler.advanceBy(3000);
+            require(f.platform.taps==0 && !f.session.isRunning(),"Cancel invalidates notification retry");
+        });
         runCase(root,cases,failures,fakeDispatchCalls,"overlay_prepare_cancel_before_input",f->{
             int[] releases={0};
             f.platform.inputPreparation=ready->f.scheduler.postDelayed(()->{
@@ -719,6 +807,7 @@ public final class MulliganSessionChecks {
         final ArrayDeque<FrameSpec> frames = new ArrayDeque<>();
         final ArrayDeque<Callback> pending = new ArrayDeque<>();
         int requests;
+        int transientFailures;
         long lastCapturedAt;
         FakeSource(Fixture fixture) { this.fixture = fixture; }
         FrameSpec add(MulliganRecognizer.Result result, int color) {
@@ -726,6 +815,7 @@ public final class MulliganSessionChecks {
         }
         @Override public void requestFrame(Callback callback) {
             requests++;
+            if(transientFailures>0) {transientFailures--;callback.onFailure("temporary_window_capture_error");return;}
             if (frames.isEmpty()) pending.add(callback);
             else deliver(callback, frames.remove());
         }
@@ -746,6 +836,7 @@ public final class MulliganSessionChecks {
         long generation = 1;
         boolean accepted = true;
         boolean autoComplete = true;
+        boolean occluded;
         int taps;
         int emittedTaps;
         int finalGateChecks;
@@ -759,6 +850,7 @@ public final class MulliganSessionChecks {
         void leaveGame() { foreground = "test.other"; generation++; }
         @Override public String currentForegroundPackage() { return foreground; }
         @Override public long foregroundGeneration() { return generation; }
+        @Override public boolean inputOccluded() { return occluded; }
         @Override public void prepareInput(Consumer<Runnable> ready) { inputPreparation.accept(ready); }
         @Override public boolean dispatchTap(float x, float y, BoundedMulliganSession.TapCallback callback) {
             require(BoundedMulliganSession.GAME_PACKAGE.equals(foreground), "Only fake game foreground may dispatch");
@@ -782,6 +874,10 @@ public final class MulliganSessionChecks {
     }
     private static MulliganRecognizer.Result unknown() {
         return new MulliganRecognizer.Result(MulliganRecognizer.Phase.UNKNOWN, null, 0, "synthetic_unknown", "");
+    }
+    private static MulliganRecognizer.Result opponentMulliganWait() {
+        return new MulliganRecognizer.Result(MulliganRecognizer.Phase.WAITING_OPPONENT_MULLIGAN,
+                null,.99,"current_ocr_opponent_mulligan_wait","native_opponent_mulligan_wait");
     }
     private static MulliganRecognizer.Result result(MulliganRecognizer.Phase phase, Rect target, String template) {
         return new MulliganRecognizer.Result(phase, new Rect(target), 0.99, "synthetic_fixture", template);

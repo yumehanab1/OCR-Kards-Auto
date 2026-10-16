@@ -230,6 +230,28 @@ class FlowTests(unittest.TestCase):
         self.stable('deck_list')
         self.assertEqual('menu_repeated_state:menu_home_start',self.stable('home')['stop'])
 
+    def test_late_popup_preserves_navigation_then_retries_verified_source_once(self):
+        self.send('home',action='menu_home_start')
+        self.send('pass_popup',action='menu_dismiss_pass')
+        self.assertEqual('menu_home_start',self.flow.popup_interrupted_navigation[0])
+        self.send('home',action='menu_home_start')
+        self.send('box_popup',action='menu_dismiss_box')
+        self.assertEqual('menu_popup_navigation_retry_exhausted:menu_home_start',
+                         self.stable('home')['stop'])
+
+    def test_late_popup_destination_does_not_repeat_navigation(self):
+        self.send('home',action='menu_home_start')
+        self.send('pass_popup',action='menu_dismiss_pass')
+        self.send('deck_list',action='menu_select_deck')
+        self.assertIsNone(self.flow.popup_interrupted_navigation)
+        self.assertEqual({},self.flow.popup_navigation_retries)
+
+    def test_late_popup_unknown_does_not_authorize_retry(self):
+        self.send('home',action='menu_home_start')
+        self.send('pass_popup',action='menu_dismiss_pass')
+        self.assertEqual('unknown',self.step('unknown')['wait'])
+        self.assertEqual({},self.flow.popup_navigation_retries)
+
     def test_input_budget(self):
         self.flow.inputs=apk_match_entry.MAX_MENU_INPUTS
         self.assertEqual('menu_input_budget',self.stable('home')['stop'])
@@ -329,8 +351,8 @@ class RunTests(unittest.TestCase):
         self.assertEqual([4],[r['frame_id'] for r in bridge.requests])
         self.assertEqual(1,result['menu_inputs'])
 
-    def test_native_menu_uses_java_three_second_freshness(self):
-        bridge=self.Bridge([{'age_ms':3500},{}])
+    def test_native_menu_uses_java_five_second_freshness(self):
+        bridge=self.Bridge([{'age_ms':5500},{}])
         bridge.captureNative=bridge.capture
         recognizer=mock.Mock()
         recognizer.observe.return_value=screen('home')
@@ -339,6 +361,21 @@ class RunTests(unittest.TestCase):
             result=json.loads(apk_match_entry.run(bridge,ASSETS,'casual',native=True))
         self.assertEqual([2],[r['frame_id'] for r in bridge.requests])
         self.assertTrue(any(e['value'].get('reason')=='menu_frame_age_expired' for e in bridge.events))
+
+    def test_native_popup_recognition_enabled_from_start(self):
+        bridge=self.Bridge([{},{}])
+        bridge.captureNative=bridge.capture
+        recognizer=mock.Mock()
+        startup_modes=[]
+        def observe(frame, packet):
+            startup_modes.append(recognizer.startup)
+            return screen('home' if len(startup_modes)==1 else 'pass_popup')
+        recognizer.observe.side_effect=observe
+        with mock.patch.object(apk_match_entry.time,'sleep',side_effect=bridge.sleep), \
+                mock.patch('apk_native.menu.NativeMenuRecognizer',return_value=recognizer):
+            apk_match_entry.run(bridge,ASSETS,'casual',native=True)
+        self.assertEqual([False,False],startup_modes)
+        self.assertEqual(['menu_home_start','menu_dismiss_pass'],[r['context'] for r in bridge.requests])
 
     def test_waiting_for_game_retries_capture(self):
         result, bridge = self.execute([
@@ -568,6 +605,128 @@ class RunTests(unittest.TestCase):
         result,bridge=self.execute(rows,selected_deck=False)
         self.assertEqual('menu_transition_timeout',result['reason'])
         self.assertEqual([],bridge.requests)
+
+
+class NativeMenuReplanTests(unittest.TestCase):
+    """Real native run loop; generated frames and scripted current recognitions."""
+    def execute(self,rows):
+        trace=[]
+        class Bridge:
+            def __init__(self):
+                self.rows=list(rows);self.sequence=0;self.now=10000;self.cancelled=False
+                self.requests=[];self.events=[];self.recognized=[];self.last=None
+            def elapsedRealtime(self):return self.now
+            def deadlineElapsedRealtime(self):return 240000
+            def isCancelled(self):return self.cancelled
+            def captureNative(self):
+                if not self.rows:
+                    self.cancelled=True
+                    return json.dumps(dict(ok=False,reason='cancelled'))
+                self.sequence+=1;self.last=self.rows.pop(0)
+                trace.append(('capture',self.sequence))
+                return json.dumps(dict(ok=True,frame_id=self.sequence,captured_elapsed_ms=self.now,
+                    foreground_generation=self.last.get('generation',4),source_width=1280,source_height=720,
+                    coordinate_space='source_pixels',png_path='/generated/frame-'+str(self.sequence)+'.png'))
+            def dispatchMenu(self,encoded):
+                request=json.loads(encoded);self.requests.append(request)
+                trace.append(('dispatch',request['frame_id']))
+                return json.dumps(self.last.get('reply',dict(accepted=True,completed=True)))
+            def inspectOpening(self):
+                return json.dumps(dict(ok=True,frame_id=self.sequence,
+                    phase='MULLIGAN_CONFIRM' if self.last.get('opening') else 'UNKNOWN'))
+            def emit(self,encoded):self.events.append(json.loads(encoded))
+            def sleep(self,seconds):self.now+=round(seconds*1000)
+        bridge=Bridge()
+        def read_frame(path):
+            frame_id=int(Path(path).stem.split('-')[-1]);trace.append(('read',frame_id))
+            return np.full((720,1280,3),frame_id,np.uint8),'generated'
+        recognizer=mock.Mock()
+        def recognize(frame,packet):
+            self.assertTrue(np.all(frame==packet['frame_id']))
+            trace.append(('recognize',packet['frame_id']));bridge.recognized.append(dict(packet))
+            observation=screen(bridge.last['state'],bridge.last.get('mode',''))
+            bounds=bridge.last.get('bounds',[packet['frame_id']*100,100,60,40])
+            observation['targets']={action:list(bounds) for action in observation['targets']}
+            return observation
+        recognizer.observe.side_effect=recognize
+        with mock.patch.object(apk_match_entry,'read_frame',side_effect=read_frame), \
+                mock.patch.object(apk_match_entry.time,'sleep',side_effect=bridge.sleep), \
+                mock.patch('apk_native.menu.NativeMenuRecognizer',return_value=recognizer):
+            result=json.loads(apk_match_entry.run(bridge,'generated-assets','casual',native=True))
+        return result,bridge,trace
+
+    def test_bootstrap_rejection_reacquires_and_recognizes_changed_current_target(self):
+        rejected=dict(accepted=False,completed=False,reason='bootstrap_window_changed')
+        result,bridge,trace=self.execute([
+            dict(state='home',generation=4,bounds=[30,150,80,30],reply=rejected),
+            dict(state='mode_menu',generation=5,bounds=[500,180,90,45])])
+        self.assertEqual([('capture',1),('read',1),('recognize',1),('dispatch',1),
+                          ('capture',2),('read',2),('recognize',2),('dispatch',2)],trace)
+        self.assertEqual(['menu_home_start','menu_battle_mode'],[r['context'] for r in bridge.requests])
+        self.assertEqual([4,5],[r['foreground_generation'] for r in bridge.requests])
+        self.assertEqual([[70,165],[545,202.5]],[r['to'] for r in bridge.requests])
+        self.assertEqual([1,2],[r['frame_id'] for r in bridge.requests])
+        self.assertGreater(bridge.requests[1]['captured_elapsed_ms'],bridge.requests[0]['captured_elapsed_ms'])
+        self.assertEqual(1,result['menu_inputs'])
+        self.assertFalse(result['queue_requested'])
+        replans=[e['value'] for e in bridge.events if e['kind']=='menu_replan']
+        self.assertEqual(['bootstrap_window_changed'],[r['reason'] for r in replans])
+        self.assertEqual(0,replans[0]['consecutive_rejections'])
+
+    def test_bootstrap_rejection_does_not_replay_target_when_new_frame_unknown(self):
+        result,bridge,trace=self.execute([
+            dict(state='home',reply=dict(accepted=False,completed=False,reason='bootstrap_window_changed')),
+            dict(state='unknown',generation=5)])
+        self.assertEqual([1,2],[r['frame_id'] for r in bridge.recognized])
+        self.assertEqual([1],[r['frame_id'] for r in bridge.requests])
+        self.assertEqual(('recognize',2),trace[-1])
+        self.assertEqual(0,result['menu_inputs'])
+        self.assertFalse(result['verified'])
+
+    def test_bootstrap_reason_without_definite_unsent_receipt_stops(self):
+        for reply in (dict(accepted=True,completed=False,reason='bootstrap_window_changed'),
+                      dict(accepted=False,reason='bootstrap_window_changed'),
+                      dict(accepted=False,completed=True,reason='bootstrap_window_changed')):
+            with self.subTest(reply=reply):
+                result,bridge,trace=self.execute([dict(state='home',reply=reply),dict(state='mode_menu')])
+                self.assertEqual('menu_dispatch:bootstrap_window_changed',result['reason'])
+                self.assertEqual(1,len(bridge.requests))
+                self.assertEqual(1,len(bridge.recognized))
+                self.assertFalse(any(e['kind']=='menu_replan' for e in bridge.events))
+
+    def test_native_age_rejection_still_recognizes_a_new_target(self):
+        result,bridge,trace=self.execute([
+            dict(state='home',reply=dict(accepted=False,completed=False,reason='frame_age_expired')),
+            dict(state='mode_menu',bounds=[500,180,90,45])])
+        self.assertEqual([1,2],[r['frame_id'] for r in bridge.requests])
+        self.assertEqual(['menu_home_start','menu_battle_mode'],[r['context'] for r in bridge.requests])
+        self.assertEqual([545,202.5],bridge.requests[1]['to'])
+        self.assertEqual(1,result['menu_inputs'])
+        replan=next(e['value'] for e in bridge.events if e['kind']=='menu_replan')
+        self.assertEqual('dispatch_frame_expired',replan['reason'])
+        self.assertEqual(1,replan['consecutive_rejections'])
+
+    def test_bootstrap_rejections_do_not_count_as_three_age_expirations(self):
+        result,bridge,trace=self.execute([
+            *[dict(state='home',reply=dict(accepted=False,completed=False,reason='bootstrap_window_changed')) for _ in range(3)],
+            dict(state='home',bounds=[60,150,90,35])])
+        self.assertEqual([1,2,3,4],[r['frame_id'] for r in bridge.requests])
+        self.assertEqual(1,result['menu_inputs'])
+        self.assertNotEqual('menu_dispatch_expired_3_times',result['reason'])
+        self.assertTrue(all(e['value']['consecutive_rejections']==0 for e in bridge.events if e['kind']=='menu_replan'))
+
+    def test_normal_native_route_keeps_one_queue_and_opening_handoff(self):
+        result,bridge,trace=self.execute([dict(state='home'),dict(state='mode_menu'),dict(state='deck_list'),
+            dict(state='deck_ready',mode='casual'),dict(state='unknown',opening=True)])
+        self.assertEqual(['menu_home_start','menu_battle_mode','menu_select_deck','menu_start_queue'],
+                         [r['context'] for r in bridge.requests])
+        self.assertEqual([1,2,3,4],[r['frame_id'] for r in bridge.recognized])
+        self.assertEqual(4,result['menu_inputs'])
+        self.assertTrue(result['first_deck_selected'])
+        self.assertTrue(result['queue_requested'])
+        self.assertTrue(result['verified'])
+        self.assertEqual('mulligan_ready',result['reason'])
+        self.assertFalse(any(e['kind']=='menu_replan' for e in bridge.events))
 
 
 class PixelTests(unittest.TestCase):
@@ -910,7 +1069,7 @@ class PixelTests(unittest.TestCase):
 def self_check(assets_dir,fixtures_dir):
     global ASSETS,FIXTURES
     ASSETS,FIXTURES=str(assets_dir),str(fixtures_dir)
-    suite=unittest.TestSuite([unittest.defaultTestLoader.loadTestsFromTestCase(c) for c in (FlowTests,RunTests,PixelTests)])
+    suite=unittest.TestSuite([unittest.defaultTestLoader.loadTestsFromTestCase(c) for c in (FlowTests,RunTests,NativeMenuReplanTests,PixelTests)])
     output=io.StringIO()
     result=unittest.TextTestRunner(stream=output,verbosity=2).run(suite)
     return json.dumps({'passed':result.wasSuccessful(),'tests_run':result.testsRun,'device_inputs':0,

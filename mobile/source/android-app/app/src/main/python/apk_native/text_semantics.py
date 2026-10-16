@@ -5,10 +5,10 @@ def classify_text(items):
     words={r['text'].replace(' ',''):r for r in confident}
     def has(word): return word in words
     state,action,target='unknown',None,None
-    result_words={r['text'].replace(' ','') for r in items if r['score']>=.98}
-    if {'胜利','继续','查看战场'}<=result_words and '失败' not in result_words:
+    result_words={r['text'].replace(' ','') for r in items if r['score']>=.90}
+    if {'胜利','继续'}<=result_words and '失败' not in result_words:
         state='result_victory'
-    elif {'失败','继续','查看战场'}<=result_words and '胜利' not in result_words:
+    elif {'失败','继续'}<=result_words and '胜利' not in result_words:
         state='result_defeat'
     elif has('入伍任务') or has('加倍'):
         # A task/reward overlay blocks the board. It is an observation state,
