@@ -82,16 +82,18 @@ install.cmd
 
 ## 手机端 / Android
 
-[手机版源码](mobile/source/README.md)已补入仓库，Android项目与PC源码独立维护。
+[手机版源码快照](https://github.com/yumehanab1/OCR-Kards-Auto/tree/a5ffd2cf763faeafee78aff38cb8009700c9280a/mobile/source/android-app)与 PC 源码独立维护，[构建说明](mobile/source/README.md)单独提供。
 
-[v0.2.2 Release](https://github.com/yumehanab1/OCR-Kards-Auto/releases/tag/v0.2.2) 已预留手机版区域，0.2.2 APK待补充；当前手机版仍使用下方0.2.1下载。
+[v0.2.2 Release](https://github.com/yumehanab1/OCR-Kards-Auto/releases/tag/v0.2.2) 的 **Mobile / Android** 区域提供 **0.2.2 / versionCode 141** APK。
 
-请从 [v0.2.1 Release](https://github.com/yumehanab1/OCR-Kards-Auto/releases/tag/v0.2.1) 的 **Mobile / Android** 区域直接下载：
+正式 APK 已完成构建、签名、覆盖安装及 12 组设备检查，公开下载大小与 SHA-256 已核对。验证范围见下方发布报告。
 
-- [KARDS-AUTO-Mobile-v0.2.1.apk](https://github.com/yumehanab1/OCR-Kards-Auto/releases/download/v0.2.1/KARDS-AUTO-Mobile-v0.2.1.apk)：直接安装，无需解压。
-- [安装说明](mobile/README.md)及[验证报告/SHA-256](docs/reports/mobile/APK_0.2.1_RELEASE.md)。旧0.2.0资产保留在历史Release。
+- [KARDS-AUTO-Mobile-v0.2.2.apk](https://github.com/yumehanab1/OCR-Kards-Auto/releases/download/v0.2.2/KARDS-AUTO-Mobile-v0.2.2.apk)：直接安装，无需解压。
+- [安装说明](mobile/README.md)及[0.2.2 验证报告/SHA-256](docs/reports/mobile/APK_0.2.2_RELEASE.md)。
 - 游戏设置：画质不限，内容比例设为“原生”，UI 比例调为 1。
 
-当前包为0.2.1 / versionCode109，包含悬浮启停/阶段显示、行动后部署、特殊外观识别与350MiB截图证据预算。经过正式构建、签名、覆盖安装及Android识别/截图回放验证；十局实机及截图单局证据来自明确列出的开发版本，不称0.2.1新十局通过。实体手机、脱离主机及完整断线重连仍未验收。
+本次改善 16:9/宽屏和当前文字控件识别，修复部分登录弹窗、启动窗口切换及对手换牌等待问题，并优化重复识别与悬浮面板布局。开发包 code140 已在 1280×720 模拟器连续完成十局，code139 已在实体手机连续完成五局；正式包验证、动作效果未知和浮窗截图限制分别见报告。
 
 手机端只依赖 APK 和 Android 无障碍权限，运行时不依赖 Windows、ADB、Python 或 PC 端程序。PC 端验证结果不能替代手游验证。
+
+历史版本：[0.2.1 APK 直链](https://github.com/yumehanab1/OCR-Kards-Auto/releases/download/v0.2.1/KARDS-AUTO-Mobile-v0.2.1.apk)及[0.2.1 验证报告](docs/reports/mobile/APK_0.2.1_RELEASE.md)；0.2.0 资产保留在历史 Release。

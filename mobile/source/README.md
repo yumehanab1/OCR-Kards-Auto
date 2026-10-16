@@ -1,8 +1,10 @@
 # 手机版源码
 
-本目录包含 Android **0.2.1 / versionCode 109** 的独立源码快照。项目位于 [`android-app/`](android-app/)，包括 Java 界面与无障碍边界、Python 识别/行动模块、内置引擎、OCR模型和识别模板。PC源码在仓库根目录的`src/`，两条维护线分开。
+本目录说明 Android **0.2.2 / versionCode 141** 的独立源码快照。项目位于 [`android-app/`](android-app/)，包括 Java 界面与无障碍边界、Python 识别/行动模块、内置引擎、OCR 模型和识别模板。PC 源码在仓库根目录的 `src/`，两条维护线分开。
 
-直接安装请下载 [v0.2.1 Release](https://github.com/yumehanab1/OCR-Kards-Auto/releases/tag/v0.2.1) 的 **KARDS-AUTO-Mobile-v0.2.1.apk**。[安装说明](../README.md)及[公开验证报告](../../docs/reports/mobile/APK_0.2.1_RELEASE.md)。APK不用另装Python、ADB或PC软件。
+手机版源码固定到提交 [`a5ffd2cf763faeafee78aff38cb8009700c9280a`](https://github.com/yumehanab1/OCR-Kards-Auto/tree/a5ffd2cf763faeafee78aff38cb8009700c9280a/mobile/source/android-app)。共享 `v0.2.2` 标签保留为既有 PC 发布提交，手机版源码以此不可变链接为准。正式 APK 已完成构建、签名、覆盖安装及 12 组设备检查，上传附件和公开下载哈希均已核对。
+
+直接安装请使用同页 [v0.2.2 Release](https://github.com/yumehanab1/OCR-Kards-Auto/releases/tag/v0.2.2) 的 [KARDS-AUTO-Mobile-v0.2.2.apk](https://github.com/yumehanab1/OCR-Kards-Auto/releases/download/v0.2.2/KARDS-AUTO-Mobile-v0.2.2.apk)。[安装说明](../README.md)及[公开验证报告](../../docs/reports/mobile/APK_0.2.2_RELEASE.md)。APK 不用另装 Python、ADB 或 PC 软件。
 
 ## 构建
 
@@ -15,7 +17,7 @@ $env:KARDS_PUBLIC_BUILD = 'true'
 .\gradlew.bat assembleRelease lintRelease
 ```
 
-未配置签名时生成`app/build/outputs/apk/release/app-release-unsigned.apk`。发布签名通过本机环境变量`KARDS_ANDROID_KEYSTORE`、`KARDS_ANDROID_KEY_ALIAS`、`KARDS_ANDROID_STORE_PASSWORD`、`KARDS_ANDROID_KEY_PASSWORD`提供；私钥、密码和本机路径不入仓库。当前公开版本沿用既有APK证书，保持覆盖升级兼容；自行构建的不同证书APK不能覆盖官方包。
+未配置签名时生成 `app/build/outputs/apk/release/app-release-unsigned.apk`。发布签名通过本机环境变量 `KARDS_ANDROID_KEYSTORE`、`KARDS_ANDROID_KEY_ALIAS`、`KARDS_ANDROID_STORE_PASSWORD`、`KARDS_ANDROID_KEY_PASSWORD` 提供；私钥、密码和本机路径不入仓库。本次正式包沿用既有证书，覆盖安装已验证；自行构建的不同证书 APK 不能覆盖官方包。
 
 内置引擎自带230文件SHA-256清单。独立源码克隆构建检查这一完整载荷；原维护环境还可与其外部原始源码逐字节核对。不要从PC源码覆盖内置引擎。手动检查：
 
@@ -23,4 +25,12 @@ $env:KARDS_PUBLIC_BUILD = 'true'
 python tools/prepare_mobile_core.py --check --packaged-only
 ```
 
-私有实机截图、原始日志、回放图片和构建/运行环境没有上传。Python测试及Android测试的源代码保留，需要真实图像的回归需自行准备测试资产；没有这些资产不能将相应回放记为通过。正式构建排除测试模块和现场截图，保留运行时必需的裁剪模板和蓝图纹理atlas/mask。
+源码提交的 Git archive 已核对 561 个文件、23,335,171 bytes，预期文件集合完整。内置引擎 230 个文件、943,893 bytes 的清单检查通过。公开副本仅净化 `apk_settle.py` 模块文档字符串中的本机路径，其他 AST 未变；源码正文检查未发现私有路径。
+
+私有实机截图、原始日志、回放图片和构建/运行环境不上传。Python 测试及 Android 测试源代码保留，需要真实图像的回归须自行准备测试资产；没有这些资产不能将相应回放记为通过。正式 APK 已核对排除测试模块和私有夹具，保留运行必需的模型、裁剪模板与蓝图纹理 atlas/mask，详情见发布报告。
+
+开发包 code140 的模拟器十局、code139 的手机五局与正式 code141 构建分别记录，不能把开发包的同哈希对局验证记到重新构建的正式 APK 上。额外浮窗截图检查失败和动作效果未知仍保留在[发布报告](../../docs/reports/mobile/APK_0.2.2_RELEASE.md)。
+
+历史：[0.2.1 APK](https://github.com/yumehanab1/OCR-Kards-Auto/releases/download/v0.2.1/KARDS-AUTO-Mobile-v0.2.1.apk)及[0.2.1 发布报告](../../docs/reports/mobile/APK_0.2.1_RELEASE.md)。
+
+正式包会排除 Python 测试模块。开发者在准备好自行提供的回放资产后，可先运行 `python tools/prepare_public_release_test_support.py`，再构建 AndroidTest APK；该工具仅生成测试专用源码资产，不加入正式 APK。嵌入引擎使用逐文件哈希校验，`mobile/.gitattributes` 保留源码原始字节，避免跨平台换行转换破坏清单。
