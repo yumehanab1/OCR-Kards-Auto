@@ -8,7 +8,7 @@ Windows 64 位 KARDS 画面自动化工具：只读屏幕、模拟鼠标，不�
 
 ## 直接使用
 
-预发布测试版：[0.2.2_beta](https://github.com/yumehanab1/OCR-Kards-Auto/releases/tag/v0.2.2_beta)，包含可切换的“传统策略”。正式版仍从[稳定版下载页](https://github.com/yumehanab1/OCR-Kards-Auto/releases/latest)获取。
+当前PC正式版：[0.2.3](https://github.com/yumehanab1/OCR-Kards-Auto/releases/tag/v0.2.3)，修复橙色费用重复拒识与天气复核长等待，保留可切换的“传统策略”。后续更新从[稳定版下载页](https://github.com/yumehanab1/OCR-Kards-Auto/releases/latest)获取。
 
 从 [Releases](https://github.com/yumehanab1/OCR-Kards-Auto/releases) 下载 `kards-auto_vX.Y.Z_x86_64.zip`，解压到空目录后：
 
@@ -33,7 +33,7 @@ Windows 64 位 KARDS 画面自动化工具：只读屏幕、模拟鼠标，不�
 下载服务器支持分段时，只读取 ZIP 目录和变更文件；不支持时会下载完整包，安装仍仅替换变更文件。
 没有配套 PC 文件清单时，请使用发布页下载。已有旧面板需要先换用一次带“应用更新”的新版面板，后续即可直接更新。
 
-`0.2.2_beta`首次使用请从上述预发布页下载完整PC包。beta面板检查自己的修订，正式版更新源不自动切换到beta。
+已有`0.2.2_beta`在面板检测并应用一次“通道迁移”修订，自动重启后再次检测，即可升级`0.2.3`；以后跟随正式版。也可直接下载`0.2.3`完整PC包解压到新目录。迁移保留本机选项和学习数据。
 
 ## 面板开关
 
