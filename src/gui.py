@@ -231,6 +231,8 @@ SWITCHES = [
      "hint": "⚠️ 可能被游戏检测并有封号风险；需要确认后才启用"},
     {"key": "fast_scan", "flag": "--fast-scan", "label": "坐标表直扫",
      "hint": "使用已标定的手牌坐标(需先完成标定，速度更快)"},
+    {"key": "classic_strategy", "flag": "--classic-strategy", "label": "传统策略",
+     "hint": "绕过橙色筛选和凑费，使用传统扫描与出牌流程；停止后重新开始生效"},
     {"key": "end_turn", "flag": "--end-turn", "label": "结束回合",
      "hint": "只在未开启『自动打完一局』时单独点结束回合"},
     #  ★ 2026-09-21 用户要求改口径:干跑**是调试用的,平时不需要开**
@@ -1239,6 +1241,12 @@ def main() -> int:
             "version": read_version(),
             "options_file": options_path(),
             "saved_options": load_options(),
+            "classic_strategy": True,
+            "beta_updates": {
+                "stable_after_beta": update_check.is_newer('0.2.2', '0.2.2_beta'),
+                "package_suffix": bool(update_check.parse_release_assets(
+                    b'<a href="/yumehanab1/OCR-Kards-Auto/releases/download/v0.2.2_beta/kards-auto_v0.2.2_beta_x86_64.manifest.json">manifest</a>',
+                    'v0.2.2_beta').get('manifest_asset'))},
             # ★★ 2026-09-19(v0.1.3):把"更新检测这次真的打进 exe 了"写进自检里。
             #   为什么非要这一条:面板是 **onefile exe**,`gui.py` 是**编进去**的 ——
             #   改了 gui.py 不重打包,用户那边看到的还是旧面板(新功能等于没发)。

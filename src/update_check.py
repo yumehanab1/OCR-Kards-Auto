@@ -49,6 +49,9 @@ DEFAULT_API = ("https://api.github.com/repos/yumehanab1/OCR-Kards-Auto"
 #:   不猜测附件存在，不要求用户登录。先API、不行再退这条。
 DEFAULT_FEED = "https://github.com/yumehanab1/OCR-Kards-Auto/releases.atom"
 DEFAULT_ASSETS = "https://github.com/yumehanab1/OCR-Kards-Auto/releases/expanded_assets/"
+DEFAULT_TAG_API = ("https://api.github.com/repos/yumehanab1/OCR-Kards-Auto"
+                   "/releases/tags/")
+RELEASE_VERSION_PATTERN = r'[0-9]+(?:\.[0-9]+)+(?:_beta)?'
 #: 用不了 API 时,人能自己去看的地方
 RELEASES_PAGE = "https://github.com/yumehanab1/OCR-Kards-Auto/releases"
 #: 超时给短一点:面板上点一下按钮,卡 30 秒是不可接受的
@@ -84,7 +87,16 @@ def is_newer(remote, local) -> bool:
     n = max(len(r), len(l))
     r = r + (0,) * (n - len(r))
     l = l + (0,) * (n - len(l))
-    return r > l
+    if r != l:
+        return r > l
+    # Keep parse_version's public numeric tuple unchanged. A beta is older
+    # than the stable release with the same numeric core.
+    return _is_beta(local) and not _is_beta(remote)
+
+
+def _is_beta(version) -> bool:
+    return bool(re.fullmatch(r'[vV]?[0-9]+(?:\.[0-9]+)+_beta',
+                             str(version or '').strip()))
 
 
 def _asset_entries(assets):
@@ -146,6 +158,7 @@ def parse_release(payload) -> dict:
         "notes": body,
         "url": str(p.get("html_url") or "").strip() or RELEASES_PAGE,
         "published_at": str(p.get("published_at") or "").strip(),
+        "prerelease": bool(p.get("prerelease")) or _is_beta(tag),
         "asset": pick_asset(p.get("assets")),
         "manifest_asset": pick_manifest_asset(p.get("assets")),
     }
@@ -243,9 +256,16 @@ def parse_feed(xml_bytes) -> dict:
     except Exception:
         return {}
     ns = {"a": "http://www.w3.org/2005/Atom"}
-    entry = root.find("a:entry", ns)
-    if entry is None:
-        return {}                        # 仓库一条 release 都没有时就是这个形状
+    # Atom does not expose GitHub's prerelease boolean. Only a complete
+    # numeric stable tag may enter the default stable-update fallback.
+    for entry in root.findall("a:entry", ns):
+        release = _parse_feed_entry(entry, ns)
+        if re.fullmatch(r'[vV]?[0-9]+(?:\.[0-9]+)+', release.get('tag', '')):
+            return release
+    return {}
+
+
+def _parse_feed_entry(entry, ns):
     href = ""
     link = entry.find("a:link", ns)
     if link is not None:
@@ -253,7 +273,9 @@ def parse_feed(xml_bytes) -> dict:
     title = (entry.findtext("a:title", default="", namespaces=ns) or "").strip()
     tag = href.rsplit("/", 1)[-1] if "/releases/tag/" in href else ""
     if not tag:
-        m = re.search(r"v?\d+(?:\.\d+)+", title)
+        # Include suffixes so a title-only beta cannot be truncated into a
+        # stable version before the caller applies its stable-tag filter.
+        m = re.search(r"[vV]?\d+(?:\.\d+)+(?:[._-][A-Za-z0-9][A-Za-z0-9._-]*)?", title)
         tag = m.group(0) if m else ""
     notes = re.sub(r"<[^>]+>", " ", entry.findtext("a:content", default="",
                                                    namespaces=ns) or "")
@@ -295,7 +317,7 @@ class _ReleaseLinks(HTMLParser):
 
 def parse_release_assets(raw, tag):
     """Accept only the paired PC attachments actually linked for this tag."""
-    if not re.fullmatch(r'[vV]?[0-9]+(?:\.[0-9]+)+', tag or ''):
+    if not re.fullmatch(r'[vV]?' + RELEASE_VERSION_PATTERN, tag or ''):
         return {}
     parser = _ReleaseLinks()
     parser.feed(raw.decode('utf-8', 'replace'))
@@ -322,7 +344,7 @@ def parse_release_assets(raw, tag):
 def _feed_assets(rel, fetch, head, timeout):
     """The feed has no assets; fetch the public HTML list without API quota."""
     tag = rel.get('tag', '')
-    if not re.fullmatch(r'[vV]?[0-9]+(?:\.[0-9]+)+', tag):
+    if not re.fullmatch(r'[vV]?' + RELEASE_VERSION_PATTERN, tag):
         return dict(rel, asset_error='备用源版本号无效，无法读取附件列表')
     url = DEFAULT_ASSETS + quote(tag, safe='')
     try:
@@ -397,6 +419,11 @@ def check(local_version: str, api_url: str | None = None,
     """
     api = (api_url or "").strip() or DEFAULT_API
     local = str(local_version or "0.0.0")
+    # Only an exact official beta-tag API is allowed this quota-free
+    # fallback. Custom sources never acquire default-repository assets.
+    beta_source = re.fullmatch(re.escape(DEFAULT_TAG_API)
+                               + r'([vV]?[0-9]+(?:\.[0-9]+)+_beta)', api)
+    beta_tag = beta_source.group(1) if beta_source else None
 
     fetch = _fetch or _http_get
     base = {"ok": False, "has_update": False, "local": local, "remote": None,
@@ -417,6 +444,10 @@ def check(local_version: str, api_url: str | None = None,
                 rel = parse_release(payload)
                 if not rel["tag"]:
                     rel, why = None, "更新源返回里没有版本号(tag_name),大概不是 Release 接口"
+                elif api == DEFAULT_API and rel.get('prerelease'):
+                    rel, why = None, "默认更新源返回预发布版本，正在查找正式版本"
+                elif beta_tag and rel['tag'] != beta_tag:
+                    rel, why = None, "更新源返回的标签与指定 beta 标签不一致"
         else:
             why = _why_http(code, api)
     except urllib.error.URLError as e:                  # 断网/代理/DNS
@@ -426,12 +457,22 @@ def check(local_version: str, api_url: str | None = None,
     except Exception as e:                              # 兜底:绝不让面板崩
         why = f"请求出错({type(e).__name__}: {e})"
 
-    # ---- 第二路:Atom版本 + 公开附件列表(不消耗API配额) ----
-    #   ★ 只在用**默认源**时才退这一路:换了 update_url 就说明是别人发的包,
-    #     我们不知道人家的 atom 在哪,乱试一个地址不如如实报错。
+    # ---- 第二路:官方标签/Atom版本 + 公开附件列表(不消耗API配额) ----
+    #   ★ 正式默认源才使用Atom；已限定本仓库的beta标签直接核实该标签附件。
+    #     其它自定义update_url不借用默认仓库的版本或附件。
     #   ★ 注意 API 在 `api.github.com`、feed 在 `github.com` —— **两个域名**,
     #     不能拿 API 的地址去拼 `.atom`(第一版就是这么写的,于是备用源永远试不到)。
     via = "api"
+    if rel is None and beta_tag:
+        fallback = _feed_assets(parse_release({
+            'tag_name': beta_tag, 'prerelease': True,
+            'html_url': RELEASES_PAGE + '/tag/' + quote(beta_tag, safe=''),
+        }), fetch, _head or _http_head, timeout)
+        if (not fallback.get('asset_error') and fallback.get('asset')
+                and fallback.get('manifest_asset')):
+            rel, via = fallback, 'tag_assets'
+        else:
+            why += '；' + fallback.get('asset_error', '指定 beta 的配套附件不可用')
     if rel is None and api == DEFAULT_API:
         try:
             code2, raw2 = fetch(DEFAULT_FEED, timeout)
@@ -450,7 +491,7 @@ def check(local_version: str, api_url: str | None = None,
                url=rel["url"], asset=rel["asset"],
                manifest_asset=rel.get("manifest_asset"),
                notes=rel["notes"], via=via, asset_error=rel.get('asset_error', ''),
-               asset_source=rel.get('asset_source', ''), api_error=why if via == 'feed' else '')
+               asset_source=rel.get('asset_source', ''), api_error=why if via != 'api' else '')
     tail = '' if via == 'api' else ('(备用源)' if not out['asset_error'] else '(备用源;附件信息未取全)')
     if is_newer(rel["tag"], local):
         size = ""

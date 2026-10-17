@@ -156,7 +156,7 @@ TRUST_FIELD_COUNT = False
 class TurnEngine:
     def __init__(self, hwnd, templates, log=print, debug=False,
                  record_kredits=False, use_fast=False, attack=True,
-                 lazy_scan=True):
+                 lazy_scan=True, classic_strategy=False):
         self.hwnd = hwnd
         self.templates = templates
         self.log = log
@@ -168,7 +168,9 @@ class TurnEngine:
         #   实测瓶颈是**探针数**(每个 0.5s 固定等待):全量扫整手牌 14 秒,
         #   而"找到第一张能出的"通常只要前几个探针(2-3 秒)。
         self.lazy_scan = lazy_scan
+        self.classic_strategy = bool(classic_strategy)
         self.scanner = HandScannerV2(hwnd, templates)
+        self.scanner.classic_strategy = self.classic_strategy
         # ★★★ 2026-09-13(第十个会话):**手牌记忆** —— 跨回合按"从左到右的次序"
         #   记住手牌,下一轮跳过那些已知"出不起/不是单位"的探针(用户提的第三个优化)。
         #   规则、风险、两条纪律全在 `hand_memory.py` 的文档里;开关
@@ -1167,6 +1169,8 @@ class TurnEngine:
         return True
 
     def _orange_enabled(self):
+        if getattr(self, 'classic_strategy', False):
+            return False
         import hand_cost_filter
         return (hand_cost_filter.ENABLED and self.lazy_scan
                 and callable(getattr(self.scanner, 'scan_orange', None)))
@@ -1188,7 +1192,8 @@ class TurnEngine:
         n = self._hand_count()
         if n is None or n < BIG_HAND_MIN:
             return False
-        return self.deployed_this_turn >= BIG_HAND_MAX_DEPLOYS
+        limit = 3 if getattr(self, 'classic_strategy', False) else BIG_HAND_MAX_DEPLOYS
+        return self.deployed_this_turn >= limit
 
     # --- one decision pass, returns a status string ---
     def think(self):
@@ -1370,8 +1375,11 @@ class TurnEngine:
             #   这不是浪费:通常前几个探针就能命中,单次约 2-3 秒,
             #   而全量扫描是 14 秒。
             if self.lazy_scan and not self.cards:
+                # Keep the previously requested last 1-kredit play available
+                # when reverting to traditional scanning.
+                min_scan = 1 if getattr(self, 'classic_strategy', False) else MIN_KREDITS_TO_SCAN
                 if (self.kredits_left is not None
-                         and self.kredits_left < MIN_KREDITS_TO_SCAN
+                         and self.kredits_left < min_scan
                          and self._kredits_measured() and not self._orange_enabled()):
                     # ★ 2026-09-13 用户要求:钱太少(< MIN_KREDITS_TO_SCAN)就别扫了,
                     #   省掉一次 3~9 秒的扫描 —— 代价是手里若只有 1 费牌就不出了。
@@ -1381,7 +1389,7 @@ class TurnEngine:
                     #     (实测用例 CASE 30 就是这种情况:费用读不出来 -> 估 1 费,
                     #      但那张 1 费牌本来就该照出。)
                     self.log(f"[turn] 本回合只剩 {self.kredits_left} 费"
-                             f"(< {MIN_KREDITS_TO_SCAN},真读到)-> 按用户规则"
+                             f"(< {min_scan},真读到)-> 按用户规则"
                              f"不扫手牌,直接结束回合")
                 elif self._deploy_capped():
                     # ★ 2026-09-13 用户要求:手牌多时不必把费用用完 ——

@@ -228,7 +228,7 @@ def stage_update(root, release, progress=lambda msg: None, opener=urllib.request
         raise RuntimeError('请先恢复上次中断的更新')
     asset, ma = release.get('asset') or {}, release.get('manifest_asset') or {}
     name = str(asset.get('name', ''))
-    if not re.fullmatch(r'kards-auto_v[0-9.]+_x86_64\.zip', name):
+    if not re.fullmatch(r'kards-auto_v[0-9]+(?:\.[0-9]+)+(?:_beta)?_x86_64\.zip', name):
         raise ValueError('缺少 PC 更新包，不能使用手机版或源码 ZIP')
     if ma.get('name') != name[:-4]+'.manifest.json':
         raise ValueError('PC 包与文件清单不配套')

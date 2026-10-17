@@ -214,7 +214,7 @@ class Controller:
     def __init__(self, proc: str, dry: bool, max_rounds: int, end_turn: bool,
                  play: bool = False, fast_scan: bool = False,
                  attack: bool = True, lazy_scan: bool = True,
-                 ranked: bool = False):
+                 ranked: bool = False, classic_strategy: bool = False):
         self.proc = proc
         self.dry = dry
         self.max_rounds = max_rounds
@@ -225,6 +225,7 @@ class Controller:
         self.ranked = ranked      # 排位模式:只允许点击 ranked_mode_btn 模板
         # ★ 惰性扫描:找到第一张出得起的牌就停,不读整手牌(默认开,见 §11)
         self.lazy_scan = lazy_scan
+        self.classic_strategy = bool(classic_strategy)
         self.turn_engine = None
         self.last_turn_status = None
         self.hwnd = None
@@ -455,11 +456,13 @@ class Controller:
             if self.turn_engine is None:
                 self.turn_engine = TurnEngine(
                     self.hwnd, self.templates, log=log, use_fast=self.fast_scan,
-                    attack=self.attack, lazy_scan=self.lazy_scan)
+                    attack=self.attack, lazy_scan=self.lazy_scan,
+                    classic_strategy=getattr(self, 'classic_strategy', False))
                 log(f"[in_game] turn engine attached "
                     f"({'坐标表直扫' if self.fast_scan else '盲扫'}, "
                     f"攻击={'开' if self.attack else '关'}, "
-                    f"扫描={'惰性(找到第一张可出的就停)' if self.lazy_scan else '全量'})")
+                    f"扫描={'惰性(找到第一张可出的就停)' if self.lazy_scan else '全量'}, "
+                    f"策略={'传统' if self.classic_strategy else '橙色'})")
             if self.hwnd is None:
                 return
             self.turn_engine.hwnd = self.hwnd
@@ -1251,7 +1254,12 @@ def main() -> int:
                     help="关掉**手牌记忆**(退回'每个探针都老实悬停'的老行为)。"
                          "手牌记忆按【从左到右的次序】记住上一轮的牌,跳过已知出不起/"
                          "不是单位的探针;见 src/hand_memory.py。")
+    ap.add_argument('--classic-strategy', action='store_true',
+                    help='绕过橙色筛选/凑费/同点重悬停，使用传统手牌扫描和出牌流程')
     args = ap.parse_args()
+    log('[strategy] ' + ('传统策略：手牌记忆/布局探针，禁用橙色筛选与凑费'
+                         if args.classic_strategy else '当前策略：橙色候选首张扫描')
+        + '；本次启动固定，停止后重新开始可切换')
 
     # 把开关应用到模块(这些模块都是在**调用时**读自己的常量的,所以这里改了就生效)
     import actions as actions_mod
@@ -1388,7 +1396,7 @@ def main() -> int:
     ctl = Controller(args.proc, args.dry_run, args.max_rounds, args.end_turn,
                      play=args.play, fast_scan=args.fast_scan,
                      attack=args.attack, lazy_scan=not args.no_lazy,
-                     ranked=args.ranked)
+                     ranked=args.ranked, classic_strategy=args.classic_strategy)
     ctl.max_ticks = args.max_ticks
     try:
         return ctl.run()

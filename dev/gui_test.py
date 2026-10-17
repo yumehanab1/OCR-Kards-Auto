@@ -68,6 +68,34 @@ def main() -> int:
     check(gui.build_argv({}) == [], "什么都没勾 -> 空 argv(面板据此拒绝启动)")
     check(gui.DEFAULT_ON <= {s["key"] for s in gui.SWITCHES},
           "默认勾选必须是真实存在的开关(写错 key 会静默失效)")
+    check(gui.build_argv({"play": True, "attack": True, "fast_scan": True,
+                          "classic_strategy": True, "max_rounds": "3"})
+          == ["--play", "--attack", "--fast-scan", "--classic-strategy",
+              "--max-rounds", "3"],
+          "传统策略独立传参，并保留其他勾选和局数")
+    check(gui.normalize_options({})["classic_strategy"] is False
+          and "classic_strategy" not in gui.DEFAULT_ON,
+          "传统策略默认关闭，旧配置缺少该字段时也保持关闭")
+    with tempfile.TemporaryDirectory() as d:
+        keep = gui.PROJECT_ROOT
+        gui.PROJECT_ROOT = d
+        try:
+            selected = dict(play=True, attack=False, fast_scan=True,
+                            classic_strategy=True, max_rounds=5)
+            saved = gui.save_options(selected)
+            check(gui.load_options() == saved
+                  and saved["classic_strategy"] is True
+                  and saved["attack"] is False
+                  and saved["fast_scan"] is True
+                  and saved["max_rounds"] == 5,
+                  "传统策略保存后可恢复，其他选项和局数保持原值")
+            selected["classic_strategy"] = False
+            gui.save_options(selected)
+            check(gui.load_options()["classic_strategy"] is False
+                  and "--classic-strategy" not in gui.build_argv(gui.load_options()),
+                  "传统策略关闭后保存为 False，启动参数移除开关")
+        finally:
+            gui.PROJECT_ROOT = keep
 
     print("\n② parse_status:日志 -> 面板上的数")
     st = gui.parse_status(SAMPLE.splitlines())
@@ -142,9 +170,10 @@ def main() -> int:
     v = gui.read_version()
     check(isinstance(v.get("version"), str) and v["version"],
           f"读得到本地版本:实得 {v}")
-    check(v.get("update_url") == "",
-          "update_url 留空 = 用默认的 GitHub 更新源(2026-09-19 起;"
-          "以前留空代表『没机制』,那句『更新源还没配置』已经删掉了)")
+    expected_update_url = (gui.update_check.DEFAULT_TAG_API + 'v' + v['version']
+                           if v['version'].endswith('_beta') else '')
+    check(v.get('update_url', '') == expected_update_url,
+          'beta检查自身标签的修订；正式版留空使用默认更新源')
     # ★★★ 2026-09-19:面板必须**真的**走 update_check,而且"查不到"与"已是最新"
     #   必须是两件事 —— 把查不到说成已是最新就是骗人(update_check_test 里有全套分支)。
     _src = inspect.getsource(gui.Api.check_update)

@@ -421,6 +421,7 @@ class HandScannerV2:
     def __init__(self, hwnd, templates, safe=SAFE_POINT, y=PROBE_Y,
                  x0=X0, x1=X1, step=STEP, hold=HOLD):
         self.hwnd = hwnd
+        self.classic_strategy = False  # fixed by TurnEngine for this process
         self.templates = templates
         self.safe = safe
         self.y = y
@@ -581,7 +582,8 @@ class HandScannerV2:
         import weather_cards
         info = self._classify_name(region, y0=y0, box=box, frame=frame, debug=debug)
         last_client = getattr(self, '_last_client', None)
-        if (not info.get('name') and info.get('cost') is None
+        if (not getattr(self, 'classic_strategy', False)
+                and not info.get('name') and info.get('cost') is None
                 and frame is not None and last_client
                 and last_client[1] == self.y and not self.user_took_over()):
             # Animation/tooltip may swallow the first hover. Reset once at
@@ -833,6 +835,10 @@ class HandScannerV2:
         whole-hand fallback. Full inventory is retained only for offline tools.
         Never put this partial inventory into the positional HandMemory.
         """
+        if getattr(self, 'classic_strategy', False):
+            self.last_reason = '传统策略禁用橙色扫描'
+            self.last_orange = {'disabled': 'classic_strategy'}
+            return None
         import hand_cost_filter as hcf
         import orders
         # Combat uses the same cursor between scans. The previous scan's last
