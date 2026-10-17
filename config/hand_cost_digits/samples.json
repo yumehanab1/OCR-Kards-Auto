@@ -115,5 +115,85 @@
     "system": "runtime-test",
     "date": "2026-10-13",
     "colour": "grey"
+  },
+  {
+    "digit": 5,
+    "box": [
+      412,
+      341,
+      17,
+      25
+    ],
+    "angle": 0,
+    "source": "logs/pc_speed_fix2b_20261017_132651/profile_01_hover_cost_mismatch.png",
+    "source_sha256": "acb4e668da430e0107644abd889465934cd68b9851369a7fb3e86a18d20cfd73",
+    "system": "runtime-test",
+    "date": "2026-10-17",
+    "colour": "orange",
+    "context": "enlarged",
+    "template": "5_hover_20261017.png",
+    "card_name": "F4U-1C 海盗",
+    "verified_with": [
+      {
+        "source": "logs/pc_speed_fix2b_20261017_132651/profile_02_hover_cost_mismatch.png",
+        "box": [
+          533,
+          325,
+          17,
+          24
+        ],
+        "card_name": "A-26 入侵者",
+        "digit": 5
+      }
+    ],
+    "policy": "Original confident bank first; hover supplement only after rejection. Thresholds remain 0.72 and lead 0.10."
+  },
+  {
+    "digit": 8,
+    "box": [
+      406,
+      347,
+      18,
+      24
+    ],
+    "source": "logs/pc_speed_fix3_20261017_134702/profile_01_hover_cost_mismatch.png",
+    "source_sha256": "ef1bb28bfb757e6367d12335a6e8ec86cf8478aa8801e567edd5df3de684cc36",
+    "system": "runtime-test",
+    "date": "2026-10-17",
+    "colour": "orange",
+    "context": "enlarged",
+    "template": "8_hover_20261017.png",
+    "template_sha256": "c4a99ed548636c3f0ab77b6831b3dc8c861df90bf4867bf13882efa2a85afdf0",
+    "card_name": "B-17 飞行堡垒",
+    "angle": 0,
+    "verified_with": [
+      {
+        "source_role": "desktop_pc_runtime",
+        "source": "shots/deploy_drag/1016_112558_x405.png",
+        "box": [
+          377,
+          354,
+          17,
+          25
+        ],
+        "card_name": "B-17 飞行堡垒",
+        "digit": 8,
+        "verified": "visual cost and title"
+      },
+      {
+        "source_role": "desktop_pc_runtime",
+        "source": "shots/deploy_drag/1016_121823_x405.png",
+        "box": [
+          377,
+          354,
+          17,
+          25
+        ],
+        "card_name": "B-17 飞行堡垒",
+        "digit": 8,
+        "verified": "visual cost and title"
+      }
+    ],
+    "policy": "Original confident bank first; hover supplement only after rejection. Thresholds remain 0.72 and lead 0.10."
   }
 ]

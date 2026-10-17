@@ -1509,7 +1509,7 @@ class TurnEngine:
                     self.attempted_x.add(target['x'])
                     self.cards = []
                     self._scanned_full_this_turn = False
-                    self.log(f'[orange] 原扫描回退候选在抓点复核失败: {name}; {why}; 不拖牌')
+                    self.log(f'[orange] 抓点身份/天气效果复核失败: {name}; {why}; 不拖牌')
                     return 'target_changed'
             before = self._field(park=True)
 

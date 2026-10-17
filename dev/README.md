@@ -4,6 +4,9 @@
 
 ## 离线回归
 
+- `orange_speed_test.py`：主牌裁框、嵌套首张截止、禁止过期追加OCR/重悬停、未知身份拒识与部署diff保留；另含天气抓点复核每次重读效果、费用/版本变化拒绝、共享截止恢复及传统入口；使用假帧，不调用OCR、不操作游戏。
+- `orange_identity_ab.py --baseline-ref <提交> [--manifest <样本清单>]`：旧/新分类器真实帧回放，记录卡名/费用/天气版本、OCR次数/面积与耗时；禁用输入和指纹写入。默认另有全帧宽diff压力样本，明确标为合成边界；实际扫描diff需由清单提供neutral或diff_box，不把静态计时视为实机回合速度。
+
 - `beta_version_test.py`：beta/正式版比较、正式Atom过滤、精确beta更新源的附件/HEAD回退、自定义源隔离、配套beta包预备与安装；只操作临时目录。
 
 - `classic_strategy_test.py`：传统模式从面板/CLI传至引擎、绕过橙色与凑费、旧布局/记忆及全量回退、1费继续扫描、大手牌3次成功后收手、零费保护及禁用同点重悬停；不操作游戏。
@@ -136,3 +139,5 @@ $env:PYTHONPATH = (Join-Path $PWD 'src')
 - `guard_adjacency_test.py`：总部相邻守护、非邻接/前线负例和轰炸机目标过滤；可回放本机守护现场帧。
 - `weather_variants_test.py --assets <素材目录>`：27 版本、每组合最多一张天气、54 次原图/缩图 OCR；本机保存的旋风/骤雨失败裁图存在时额外回放。
 - `pc_campaign_watch.py --rounds 5 --minimal-shots --weather-audit`：训练对局天气版本审计；首次天气小裁图总量上限六个，`--resume <目录>` 保留局数与源码分段。
+- `pc_speed_watch.py --label baseline --max-turns 8`：运行生产训练策略并观测完整我方回合、扫描/OCR/截图/等待/监测写盘耗时；默认当前橙色策略，最多五局或八个已观测回合，15秒/回合边界刷盘，复用现有图像最多六张。会操作游戏；`--label fix` 分目录比较，`--resume <目录> --max-turns 16` 续测，按钮消失单独记录而不直接断言超时。
+  已手动选定休闲模式时可用`--mode casual --rounds 1 --max-turns 0`记录完整线上计时对局；不选择排位。

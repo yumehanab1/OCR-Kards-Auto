@@ -1170,8 +1170,18 @@ class Controller:
             #   ★ 顺序同上:`_post_clicks_left <= 0` 必须在**左**(见 L912 那段)。
             if self._post_clicks_left <= 0 and self._max_rounds_hit():
                 break
-            time.sleep(0.8)
+            time.sleep(self._tick_delay())
         return 0
+
+    def _tick_delay(self):
+        """Actions settle inside the engine; promptly schedule its next phase."""
+        engine = self.turn_engine
+        if (self.play and not self.dry and engine is not None
+                and self.current_state == 'in_game'
+                and not getattr(self, 'classic_strategy', False)
+                and engine.phase in ('attack', 'move_front', 'play', 'end_turn')):
+            return 0.15
+        return 0.8
 
     def _max_rounds_hit(self, do_log: bool = True) -> bool:
         """

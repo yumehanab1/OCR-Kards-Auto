@@ -56,25 +56,30 @@ def candidates(frame, zone=ZONE, height_range=(14, 30), colour='orange'):
     return sorted(found, key=lambda c: c['x'])
 
 
-@lru_cache(maxsize=1)
-def _templates():
+@lru_cache(maxsize=2)
+def _templates(enlarged=False):
     root = Path(__file__).resolve().parents[1] / 'config/hand_cost_digits'
     bank = {}
     for p in root.glob('[0-9]*.png'):
+        # Enlarged glyphs have different antialiasing from the small fan.
+        # Do not let a new hover 5 make a previously clear fan 6 ambiguous.
+        if '_hover_' in p.stem and not enlarged:
+            continue
         bank.setdefault(int(p.stem.split('_')[0]), []).append(
             cv2.imread(str(p), cv2.IMREAD_GRAYSCALE))
     return bank
 
 
-@lru_cache(maxsize=1)
-def _normalized_templates():
+@lru_cache(maxsize=2)
+def _normalized_templates(enlarged=False):
     from kredits_templates import normalize_glyph
     return {digit: [n for template in templates
                     if (n := normalize_glyph(template)) is not None]
-            for digit, templates in _templates().items()}
+            for digit, templates in _templates(enlarged=enlarged).items()}
 
 
-def read_candidate_cost(frame, candidate, ocr=None):
+def read_candidate_cost(frame, candidate, ocr=None, *, enlarged=False):
+    candidate['digit_profile'] = 'base'
     if candidate.get('compound'):
         return None  # A two-digit fee must never be truncated to its last digit.
     from kredits_templates import normalize_glyph, score_against
@@ -83,7 +88,7 @@ def read_candidate_cost(frame, candidate, ocr=None):
     mask = ((hsv[:, :, 0] >= 6) & (hsv[:, :, 0] <= 32)
             & (hsv[:, :, 1] >= 120) & (hsv[:, :, 2] >= 115)).astype(np.uint8)*255
     padded = cv2.copyMakeBorder(mask, 20, 20, 20, 20, cv2.BORDER_CONSTANT)
-    scores = {}
+    glyphs = []
     for angle in range(-24, 25, 3):
         hh, ww = padded.shape
         mat = cv2.getRotationMatrix2D((ww/2, hh/2), angle, 1)
@@ -91,17 +96,31 @@ def read_candidate_cost(frame, candidate, ocr=None):
         glyph = normalize_glyph(rotated)
         if glyph is None:
             continue
-        for digit, templates in _normalized_templates().items():
-            for normalized in templates:
-                score = score_against(glyph, normalized)
-                scores[digit] = max(scores.get(digit, -1), score)
-    ranked = sorted(scores.items(), key=lambda p: -p[1])
-    candidate['digit_scores'] = {str(d): round(s, 3) for d, s in ranked}
-    if not ranked or ranked[0][1] < .72:
-        return None
-    if len(ranked) > 1 and ranked[0][1]-ranked[1][1] < .10:
-        return None
-    return ranked[0][0]
+        glyphs.append(glyph)
+
+    def read_bank(bank):
+        scores = {}
+        for glyph in glyphs:
+            for digit, templates in bank.items():
+                for normalized in templates:
+                    score = score_against(glyph, normalized)
+                    scores[digit] = max(scores.get(digit, -1), score)
+        ranked = sorted(scores.items(), key=lambda p: -p[1])
+        candidate['digit_scores'] = {str(d): round(s, 3) for d, s in ranked}
+        if not ranked or ranked[0][1] < .72:
+            return None
+        if len(ranked) > 1 and ranked[0][1]-ranked[1][1] < .10:
+            return None
+        return ranked[0][0]
+
+    # Keep reviewed, already-confident readings stable. Supplementary hover
+    # glyphs resolve only unknowns: a new 5 must not demote an accepted 6 by
+    # merely raising its runner-up score. Both passes keep the same thresholds.
+    value = read_bank(_normalized_templates(enlarged=False))
+    if value is not None or not enlarged:
+        return value
+    candidate['digit_profile'] = 'hover_supplement'
+    return read_bank(_normalized_templates(enlarged=True))
 
 
 def best_combo(cards, budget, unit_slots=4):

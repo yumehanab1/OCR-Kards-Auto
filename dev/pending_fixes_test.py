@@ -27,7 +27,7 @@ assert e._lazy_find_playable() is None
 frame=np.zeros((720,1280,3),np.uint8);frame[300:600,400:650]=200
 scanner=hs.HandScannerV2.__new__(hs.HandScannerV2)
 scanner._baseline=lambda:np.zeros_like(frame);scanner._hover_frame=lambda x:frame
-scanner._move=lambda *a:None;scanner.user_took_over=lambda:False
+scanner._move=lambda *a,**k:None;scanner.user_took_over=lambda:False
 scanner.safe=(1270,360);scanner.orange_cache=[]
 scanner._classify=lambda *a,**k:dict(name='蓝天',type='order',cost=0)
 anchor=dict(x=500,y=630,w=12,h=18,probe_x=528)

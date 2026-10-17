@@ -150,8 +150,8 @@ class OrangeFirst(unittest.TestCase):
                 anchor=dict(x=px-27,y=680,w=11,h=17,probe_x=px)
                 def candidates(image,**kwargs):
                     return actual_candidates(image,**kwargs) if image is frame else [anchor]
-                def cost(image,candidate):
-                    return actual_cost(image,candidate) if image is frame else 1
+                def cost(image,candidate,**kwargs):
+                    return actual_cost(image,candidate,**kwargs) if image is frame else 1
                 for enabled,expected in ((False,0),(True,1)):
                     b=self.scanner([dict(name='丁格犬侦察车',type='tank',cost=1)])
                     b._hover_frame=Mock(return_value=frame)
@@ -162,8 +162,8 @@ class OrangeFirst(unittest.TestCase):
                     self.assertEqual(len(cards),expected)
                     if enabled:self.assertEqual(cards[0]['cost'],1)
                 # The same real hover cannot authorize a different fan fee.
-                def wrong_cost(image,candidate):
-                    return actual_cost(image,candidate) if image is frame else 2
+                def wrong_cost(image,candidate,**kwargs):
+                    return actual_cost(image,candidate,**kwargs) if image is frame else 2
                 b=self.scanner([]);b._hover_frame=Mock(return_value=frame)
                 with patch.object(hcf,'candidates',side_effect=candidates), \
                      patch.object(hcf,'read_candidate_cost',side_effect=wrong_cost),patch.object(hs.time,'sleep'):
