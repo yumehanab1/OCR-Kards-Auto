@@ -7,7 +7,7 @@
 | 项目 | 记录 |
 |---|---|
 | 发布页 | [v0.2.3 / Mobile](https://github.com/yumehanab1/OCR-Kards-Auto/releases/tag/v0.2.3) |
-| APK固定链接 | [KARDS-AUTO-Mobile-v0.2.3.apk](https://github.com/yumehanab1/OCR-Kards-Auto/releases/download/v0.2.3/KARDS-AUTO-Mobile-v0.2.3.apk)，本次附件待切换 |
+| APK固定链接 | [KARDS-AUTO-Mobile-v0.2.3.apk](https://github.com/yumehanab1/OCR-Kards-Auto/releases/download/v0.2.3/KARDS-AUTO-Mobile-v0.2.3.apk)，已同名替换为code151 |
 | versionName / versionCode | `0.2.3 / 151` |
 | 包名 | `com.kards.mobilert` |
 | APK大小 | **159,539,562 bytes** |
@@ -15,16 +15,14 @@
 | 签名证书 SHA-256 | `8f4ee1aa8aeaee673bb9d185dc327e30dcbcee696c461e0f255806d561262724` |
 | 构建、lint、签名与内容检查 | **通过，非debuggable、无DebugReceivers及测试instrumentation、v2签名通过** |
 | exact151覆盖安装与组件检查 | **API35发布12/12组、截图4组78项及浮窗状态组通过；零输入、零触控、零游戏启动** |
-| 公开附件替换及无认证回读 | **待切换、待回读，不计作已完成** |
-| Mobile源码目标提交 | [a2af64b906fb621ada347a868ada7c0c0cdadbb4](https://github.com/yumehanab1/OCR-Kards-Auto/tree/a2af64b906fb621ada347a868ada7c0c0cdadbb4/mobile/source/android-app) |
+| 公开附件替换及无认证回读 | **asset `652867560` 已替换；匿名HTTP200、159,539,562 bytes、全部字节及SHA-256一致** |
+| Mobile源码不可变提交 | [a2af64b906fb621ada347a868ada7c0c0cdadbb4](https://github.com/yumehanab1/OCR-Kards-Auto/tree/a2af64b906fb621ada347a868ada7c0c0cdadbb4/mobile/source/android-app) |
 
-<!-- RELEASE151_PUBLIC_DOWNLOAD_PENDING -->
-
-公开附件待切换为 code151；本段尚未将固定下载链接记为 code151 无认证回读通过。
+**同名 APK 已替换为 code151，可覆盖更新。** GitHub asset `652867560`；固定下载链接已匿名 HTTP200 回读 159,539,562 bytes，全部字节和 SHA-256 `9c8dfae65c3b60e8ec652863a4514f11f034d23ea87520423e90d291c4263cb7` 与本地及已安装正式包一致。原 PC 正文、两个 PC 附件及共享标签保持不变。
 
 最低Android11/API30，包含arm64-v8a及x86_64。沿用既有签名，实际覆盖安装后的base.apk哈希与上述正式APK一致。运行库、OCR模型、引擎及必需模板内置；[安装使用](../../../mobile/README.md)和[源码构建](../../../mobile/source/README.md)不变。
 
-共享v0.2.3标签仍以既有PC发布提交 `34f8ff78468124a22c38b8dad4e52103dfce9a73` 为基线，Mobile源码以独立提交定位；公开附件切换后还需复核PC正文、两项PC附件和标签保持原值。
+共享v0.2.3标签仍以既有PC发布提交 `34f8ff78468124a22c38b8dad4e52103dfce9a73` 为基线，Mobile源码以独立提交定位；公开附件替换后已复核PC正文、两项PC附件稳定元数据和标签保持原值。
 
 ## 本次窗口与派发修复
 
@@ -68,7 +66,7 @@ code150还通过335项派发检查、5张固定截图的浮窗像素比较（差
 
 ## 历史：原code148正式发布与code147十局记录
 
-以下保留原0.2.3/code148发布时的验证与公开回读结论，适用对象为原包及其原附件；其中“正式包”“已上传”“公开回读”均指code148，不指当前待切换的code151。
+以下保留原0.2.3/code148发布时的验证与公开回读结论，适用对象为原包及其原附件；其中“正式包”“已上传”“公开回读”均指code148，不指当前code151。
 
 记录日期：2026-10-18，开发实测系统 `development / 7BEA-50FC`。本文区分 code148 正式包验证和 code147 开发包十局，不将不同哈希的结果合并。
 

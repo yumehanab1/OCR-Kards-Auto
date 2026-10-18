@@ -2,7 +2,7 @@
 
 本目录说明 Android **0.2.3 / versionCode 151** 的独立源码快照。项目位于 [`android-app/`](android-app/)，包括 Java 界面与无障碍边界、Python 识别/行动模块、内置引擎、OCR 模型和识别模板。PC 源码在仓库根目录的 `src/`，两条维护线分开。
 
-手机版源码固定到提交 [`a2af64b906fb621ada347a868ada7c0c0cdadbb4`](https://github.com/yumehanab1/OCR-Kards-Auto/tree/a2af64b906fb621ada347a868ada7c0c0cdadbb4/mobile/source/android-app)。共享 `v0.2.3` 标签保留为既有 PC 发布提交，手机版源码以此不可变链接为准。正式151包已完成构建、签名、安装、API35设备发布12组及78项截图专项、浮窗状态组，均零游戏输入；公开附件切换状态见发布报告。
+手机版源码固定到提交 [`a2af64b906fb621ada347a868ada7c0c0cdadbb4`](https://github.com/yumehanab1/OCR-Kards-Auto/tree/a2af64b906fb621ada347a868ada7c0c0cdadbb4/mobile/source/android-app)。共享 `v0.2.3` 标签保留为既有 PC 发布提交，手机版源码以此不可变链接为准。正式151包已完成构建、签名、安装、API35设备发布12组及78项截图专项、浮窗状态组，均零游戏输入；公开附件及匿名下载核验见发布报告。
 
 直接安装请使用同页 [v0.2.3 Release](https://github.com/yumehanab1/OCR-Kards-Auto/releases/tag/v0.2.3) 的 [KARDS-AUTO-Mobile-v0.2.3.apk](https://github.com/yumehanab1/OCR-Kards-Auto/releases/download/v0.2.3/KARDS-AUTO-Mobile-v0.2.3.apk)。[安装说明](../README.md)及[公开验证报告](../../docs/reports/mobile/APK_0.2.3_RELEASE.md)。APK 不用另装 Python、ADB 或 PC 软件。
 

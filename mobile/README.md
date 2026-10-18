@@ -4,13 +4,11 @@
 
 当前正式构建为 **0.2.3 / versionCode 151**，在原版基础上修复 Android 15 浮窗同步及输入准备超时边界。构建、签名、覆盖安装、12组设备发布检查、78项截图专项及浮窗状态组已通过；详见[发布报告](../docs/reports/mobile/APK_0.2.3_RELEASE.md)和[本次增量说明](releases/0.2.3-android15-window-sync.md)。
 
-<!-- RELEASE151_PUBLIC_DOWNLOAD_PENDING -->
-
-公开附件待切换为 code151；本段尚未将固定下载链接记为 code151 无认证回读通过。
+**同名 APK 已替换为 code151，可覆盖更新。** GitHub asset `652867560`；固定下载链接已匿名 HTTP200 回读 159,539,562 bytes，全部字节和 SHA-256 `9c8dfae65c3b60e8ec652863a4514f11f034d23ea87520423e90d291c4263cb7` 与本地及已安装正式包一致。原 PC 正文、两个 PC 附件及共享标签保持不变。
 
 ## 下载与使用
 
-- [KARDS-AUTO-Mobile-v0.2.3.apk](https://github.com/yumehanab1/OCR-Kards-Auto/releases/download/v0.2.3/KARDS-AUTO-Mobile-v0.2.3.apk)位于同页 [v0.2.3 Release](https://github.com/yumehanab1/OCR-Kards-Auto/releases/tag/v0.2.3)。本次附件切换完成后下载并覆盖安装，无需解压；核对版本号和SHA-256见发布报告。
+- [KARDS-AUTO-Mobile-v0.2.3.apk](https://github.com/yumehanab1/OCR-Kards-Auto/releases/download/v0.2.3/KARDS-AUTO-Mobile-v0.2.3.apk)位于同页 [v0.2.3 Release](https://github.com/yumehanab1/OCR-Kards-Auto/releases/tag/v0.2.3)。下载后覆盖安装，无需解压；核对版本号和SHA-256见发布报告。
 - 最低 Android 11/API30，支持 arm64-v8a 和 x86_64。覆盖更新需要与已有安装使用相同签名；本次正式包沿用既有证书。
 - 已内置 Python、NumPy/OpenCV、OCR 运行库和模型；运行无需 Windows、ADB、Termux、Shizuku 或另装 Python。
 - 安装并登录 KARDS，在系统无障碍设置启用“KARDS 对战助手”。使用简体中文；**画质不限，内容比例设为“原生”，UI 比例调为 1**。
