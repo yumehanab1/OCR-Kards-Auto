@@ -26,7 +26,7 @@ android {
         applicationId = "com.kards.mobilert"
         minSdk = 30
         targetSdk = 35
-        versionCode = 148
+        versionCode = 151
         versionName = "0.2.3"
         testInstrumentationRunner = "com.kards.mobilert.DeviceRegressionInstrumentation"
         ndk {

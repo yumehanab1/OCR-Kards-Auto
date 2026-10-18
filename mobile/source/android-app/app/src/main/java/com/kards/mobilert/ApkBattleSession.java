@@ -16,6 +16,7 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -943,71 +944,7 @@ public final class ApkBattleSession {
         /** Settlement taps go through their own guard: single short tap, only
          *  after a verified result, never on a live control. */
         public String dispatchSettle(String request) throws Exception {
-            requireWorker();
-            JSONObject plan = new JSONObject(request);
-            CountDownLatch latch = new CountDownLatch(1);
-            AtomicReference<String> reply = new AtomicReference<>();
-            AtomicBoolean sent = new AtomicBoolean();
-            AtomicBoolean abandoned = new AtomicBoolean();
-            File ledger = new File(retention==null?directory:roundDirectory, "settle-inputs.jsonl");
-            main.post(() -> service.withoutOverlay(release -> {
-                try {
-                    String rejection = validateSettle(plan);
-                    if (rejection != null || abandoned.get()) {
-                        reply.set(dispatchReply(false, false, rejection == null ? "settle_callback_timeout" : rejection));
-                        latch.countDown(); return;
-                    }
-                    JSONObject frame = lastFrame;
-                    GestureDescription gesture = buildGesture(plan, frame);
-                    rejection = validateSettle(plan);
-                    if (rejection != null || abandoned.get()) {
-                        reply.set(dispatchReply(false, false, rejection == null ? "settle_callback_timeout" : rejection));
-                        latch.countDown(); return;
-                    }
-                    append(ledger, new JSONObject().put("event", "prepared")
-                            .put("elapsed_ms", elapsedRealtime()).put("request", plan).toString());
-                    rejection = validateSettle(plan);
-                    if (rejection != null || abandoned.get()) {
-                        reply.set(dispatchReply(false, false, rejection == null ? "settle_callback_timeout" : rejection));
-                        latch.countDown(); return;
-                    }
-                    boolean accepted = service.dispatchGesture(gesture, new AccessibilityService.GestureResultCallback() {
-                        @Override public void onCompleted(GestureDescription description) {
-                            release.run();
-                            reply.set(dispatchReply(true, true, "gesture_completed_unverified")); latch.countDown();
-                        }
-                        @Override public void onCancelled(GestureDescription description) {
-                            release.run();
-                            reply.set(dispatchReply(true, false, "gesture_cancelled")); latch.countDown();
-                        }
-                    }, main);
-                    sent.set(accepted);
-                    if (accepted) {
-                        consumedFrame = frame.optLong("frame_id");
-                        settleClicks++;
-                        service.noteFloatingAction("settle");
-                    }
-                    else { reply.set(dispatchReply(false, false, "platform_rejected")); latch.countDown(); }
-                    append(ledger, new JSONObject().put("event", "dispatch")
-                            .put("accepted", accepted).put("input_count", settleClicks)
-                            .put("round_index", roundIndex).put("campaign_input_count", totalInputs())
-                            .put("request", plan).toString());
-                } catch (Throwable error) {
-                    reply.set(dispatchReply(sent.get(), false, "settle_boundary_error:" + error));
-                    latch.countDown();
-                } finally { if(!sent.get())release.run(); }
-            }));
-            if (!latch.await(8, TimeUnit.SECONDS)) {
-                abandoned.set(true);
-                inputStatusUncertain = true;
-                cancel("settle_callback_timeout");
-                return dispatchReply(sent.get(), false, "settle_callback_timeout");
-            }
-            String value = reply.get();
-            if(workingEvidence!=null)workingEvidence.select(plan.optLong("frame_id"),"settlement_before");
-            if (value != null && new JSONObject(value).optBoolean("accepted")
-                    && !new JSONObject(value).optBoolean("completed")) inputStatusUncertain = true;
-            return value;
+            return dispatchInternal(request, false, true);
         }
 
         private String validateSettle(JSONObject plan) throws Exception {
@@ -1071,75 +1008,192 @@ public final class ApkBattleSession {
         }
 
         private String dispatchInternal(String request, boolean menu) throws Exception {
+            return dispatchInternal(request, menu, false);
+        }
+
+        private String validateDispatch(JSONObject plan, boolean menu, boolean settle) throws Exception {
+            return settle ? validateSettle(plan) : validate(plan, menu);
+        }
+
+        private String dispatchInternal(String request, boolean menu, boolean settle) throws Exception {
             requireWorker();
             JSONObject plan = new JSONObject(request);
             CountDownLatch latch = new CountDownLatch(1);
-            AtomicReference<String> reply = new AtomicReference<>();
-            AtomicBoolean abandoned = new AtomicBoolean();
+            DispatchAttempt attempt = new DispatchAttempt();
             AtomicBoolean sent = new AtomicBoolean();
-            File ledger = new File(retention==null?directory:roundDirectory, menu ? "menu-inputs.jsonl" : "inputs.jsonl");
-            main.post(() -> service.withoutOverlay(release -> {
+            String boundaryReason = settle ? "settle_boundary_error" : "dispatch_boundary_error";
+            String timeoutReason = settle ? "settle_callback_timeout" : "gesture_callback_timeout";
+            File ledger = new File(retention==null?directory:roundDirectory,
+                    settle ? "settle-inputs.jsonl" : menu ? "menu-inputs.jsonl" : "inputs.jsonl");
+            attempt.stage("queued", elapsedRealtime());
+            boolean posted = main.post(() -> {
+                attempt.stage("main_entered", elapsedRealtime());
+                if (!attempt.isPreparing()) return;
                 try {
-                    String rejection = validate(plan, menu);
-                    if (rejection != null || abandoned.get()) {
-                        reply.set(dispatchReply(false, false, rejection == null ? "dispatch_timeout" : rejection));
-                        latch.countDown(); return;
-                    }
-                    JSONObject frame = lastFrame;
-                    GestureDescription gesture = buildGesture(plan, frame);
-                    // Recheck after the foreground IPC and gesture construction, immediately before input.
-                    rejection = validate(plan, menu);
-                    if (rejection != null || abandoned.get()) {
-                        reply.set(dispatchReply(false, false, rejection == null ? "dispatch_timeout" : rejection));
-                        latch.countDown(); return;
-                    }
-                    append(ledger, new JSONObject().put("event", "prepared")
-                            .put("elapsed_ms", elapsedRealtime()).put("request", plan)
-                            .put("physical_path_points", physicalPathPoints(plan, frame)).toString());
-                    // Evidence writing must not silently use up the remaining age budget.
-                    rejection = validate(plan, menu);
-                    if (rejection != null || abandoned.get()) {
-                        reply.set(dispatchReply(false, false, rejection == null ? "dispatch_timeout" : rejection));
-                        latch.countDown(); return;
-                    }
-                    if(menu)entryGate.sealBootstrap();
-                    boolean accepted = service.dispatchGesture(gesture, new AccessibilityService.GestureResultCallback() {
-                        @Override public void onCompleted(GestureDescription description) {
-                            release.run();
-                            reply.set(dispatchReply(true, true, "gesture_completed_unverified")); latch.countDown();
-                        }
-                        @Override public void onCancelled(GestureDescription description) {
-                            release.run();
-                            reply.set(dispatchReply(true, false, "gesture_cancelled")); latch.countDown();
-                        }
-                    }, main);
-                    sent.set(accepted);
-                    if (accepted) {
-                        consumedFrame = frame.optLong("frame_id");
-                        if (menu) menuInputs++; else inputs++;
-                        if(!menu)service.noteFloatingAction(plan.optString("context"));
-                    } else { reply.set(dispatchReply(false, false, "platform_rejected")); latch.countDown(); }
-                    append(ledger, new JSONObject().put("event", "dispatch")
-                            .put("accepted", accepted).put("input_count", menu ? menuInputs : inputs)
-                            .put("round_index", roundIndex).put("campaign_input_count", totalInputs()).put("request", plan).toString());
+                    attempt.stage("overlay_hide_requested", elapsedRealtime());
+                    service.withoutOverlay(release -> {
+                        attempt.stage("overlay_hidden", elapsedRealtime());
+                        try {
+                            if (!attempt.isPreparing()) return;
+                            attempt.stage("validate_1_started", elapsedRealtime());
+                            String rejection = validateDispatch(plan, menu, settle);
+                            attempt.stage("validate_1_finished", elapsedRealtime());
+                            if (rejection != null || !attempt.isPreparing()) {
+                                if (rejection != null) attempt.rejectPreparation(rejection, elapsedRealtime());
+                                latch.countDown(); return;
+                            }
+                            JSONObject frame = lastFrame;
+                            GestureDescription gesture = buildGesture(plan, frame);
+                            attempt.stage("gesture_built", elapsedRealtime());
+                            // Foreground, freshness and all existing guards are rechecked.
+                            attempt.stage("validate_2_started", elapsedRealtime());
+                            rejection = validateDispatch(plan, menu, settle);
+                            attempt.stage("validate_2_finished", elapsedRealtime());
+                            if (rejection != null || !attempt.isPreparing()) {
+                                if (rejection != null) attempt.rejectPreparation(rejection, elapsedRealtime());
+                                latch.countDown(); return;
+                            }
+                            attempt.stage("prepared_ledger_started", elapsedRealtime());
+                            append(ledger, new JSONObject().put("event", "prepared")
+                                    .put("elapsed_ms", elapsedRealtime()).put("request", plan)
+                                    .put("physical_path_points", physicalPathPoints(plan, frame)).toString());
+                            attempt.stage("prepared_ledger_finished", elapsedRealtime());
+                            // Evidence writing cannot silently consume the frame-age budget.
+                            attempt.stage("validate_3_started", elapsedRealtime());
+                            rejection = validateDispatch(plan, menu, settle);
+                            attempt.stage("validate_3_finished", elapsedRealtime());
+                            if (rejection != null || !attempt.isPreparing()) {
+                                if (rejection != null) attempt.rejectPreparation(rejection, elapsedRealtime());
+                                latch.countDown(); return;
+                            }
+                            AccessibilityService.GestureResultCallback callback = new AccessibilityService.GestureResultCallback() {
+                                @Override public void onCompleted(GestureDescription description) {
+                                    try { release.run(); }
+                                    finally { attempt.callback(true, elapsedRealtime()); latch.countDown(); }
+                                }
+                                @Override public void onCancelled(GestureDescription description) {
+                                    try { release.run(); }
+                                    finally { attempt.callback(false, elapsedRealtime()); latch.countDown(); }
+                                }
+                            };
+                            if (menu) entryGate.sealBootstrap();
+                            // No check-then-act gap: timeout either prevents this claim,
+                            // or observes SUBMITTING and must preserve input uncertainty.
+                            if (!attempt.trySubmit(elapsedRealtime())) { latch.countDown(); return; }
+                            boolean accepted = service.dispatchGesture(gesture, callback, main);
+                            sent.set(accepted);
+                            attempt.submissionReturned(accepted, elapsedRealtime());
+                            if (accepted) {
+                                consumedFrame = frame.optLong("frame_id");
+                                if (settle) settleClicks++; else if (menu) menuInputs++; else inputs++;
+                                if (settle) service.noteFloatingAction("settle");
+                                else if (!menu) service.noteFloatingAction(plan.optString("context"));
+                            } else latch.countDown();
+                            append(ledger, new JSONObject().put("event", "dispatch")
+                                    .put("accepted", accepted).put("input_count", settle ? settleClicks : menu ? menuInputs : inputs)
+                                    .put("round_index", roundIndex).put("campaign_input_count", totalInputs())
+                                    .put("request", plan).toString());
+                            attempt.stage("dispatch_ledger_finished", elapsedRealtime());
+                        } catch (Throwable error) {
+                            attempt.fail(boundaryReason + ":" + error, elapsedRealtime());
+                            if (!isCancelled()) cancel(boundaryReason);
+                            latch.countDown();
+                        } finally { if (!sent.get()) release.run(); }
+                    });
                 } catch (Throwable error) {
-                    cancel("dispatch_boundary_error");
-                    reply.set(dispatchReply(sent.get(), false,
-                            "dispatch_boundary_error:" + error)); latch.countDown();
-                } finally { if(!sent.get())release.run(); }
-            }));
-            if (!latch.await(8, TimeUnit.SECONDS)) {
-                abandoned.set(true);
-                inputStatusUncertain = true;
-                cancel("gesture_callback_timeout_input_status_uncertain");
-                // A missing callback does not prove that no input occurred.
-                return dispatchReply(sent.get(), false, "gesture_callback_timeout");
+                    attempt.fail(boundaryReason + ":" + error, elapsedRealtime());
+                    if (!isCancelled()) cancel(boundaryReason);
+                    latch.countDown();
+                }
+            });
+            if (!posted) {
+                attempt.rejectPreparation("dispatch_main_unavailable", elapsedRealtime());
+                latch.countDown();
             }
-            String value = reply.get();
-            if(workingEvidence!=null)workingEvidence.select(plan.optLong("frame_id"),menu?"menu_before":"action_before");
-            if (value != null && new JSONObject(value).optBoolean("accepted")
-                    && !new JSONObject(value).optBoolean("completed")) inputStatusUncertain = true;
-            return value;
+            boolean timedOut;
+            try { timedOut = !latch.await(8, TimeUnit.SECONDS); }
+            catch (InterruptedException interrupted) {
+                // An interrupted worker must also prevent a queued late dispatch.
+                DispatchAttempt.Result interruptedResult = attempt.timeout(timeoutReason, elapsedRealtime());
+                if (interruptedResult.inputUncertain) inputStatusUncertain = true;
+                recordDispatchDiagnostic(attempt, plan, menu, settle, true);
+                cancel(DispatchAttempt.interruptionReason(interruptedResult));
+                Thread.currentThread().interrupt();
+                throw interrupted;
+            }
+            DispatchAttempt.Result result = timedOut ? attempt.timeout(timeoutReason, elapsedRealtime()) : attempt.result();
+            if (result.inputUncertain) inputStatusUncertain = true;
+            // Sample the blocked main stack before publishing cancellation can
+            // delay this worker or allow the original stall to disappear.
+            recordDispatchDiagnostic(attempt, plan, menu, settle, timedOut);
+            if (result.state == DispatchAttempt.State.TIMED_OUT_BEFORE_INPUT) cancel(result.reason);
+            else if (result.state == DispatchAttempt.State.TIMED_OUT_INPUT_UNCERTAIN)
+                cancel(settle ? "settle_callback_timeout" : "gesture_callback_timeout_input_status_uncertain");
+            if (workingEvidence != null) workingEvidence.select(plan.optLong("frame_id"),
+                    settle ? "settlement_before" : menu ? "menu_before" : "action_before");
+            return dispatchReply(result.accepted, result.completed, result.reason);
+        }
+
+        /** Called only by the worker. Phase collection on main never writes this
+         * file; timeout stack capture and bounded rotation also stay off main. */
+        private void recordDispatchDiagnostic(DispatchAttempt attempt, JSONObject plan,
+                                              boolean menu, boolean settle, boolean waitTimedOut) {
+            try {
+                requireWorker();
+                DispatchAttempt.Result result = attempt.result();
+                JSONArray phases = new JSONArray();
+                long first = -1;
+                for (DispatchAttempt.Stage phase : attempt.stages()) {
+                    if (first < 0) first = phase.elapsedMs;
+                    phases.put(new JSONObject().put("stage", phase.name).put("elapsed_ms", phase.elapsedMs)
+                            .put("since_queued_ms", phase.elapsedMs - first));
+                }
+                JSONObject row = new JSONObject().put("event", "dispatch_diagnostic")
+                        .put("round_index", roundIndex).put("frame_id", plan.optLong("frame_id"))
+                        .put("stage", settle ? "settle" : menu ? "menu" : "battle")
+                        .put("context", plan.optString("context")).put("state", result.state.name())
+                        .put("reason", result.reason).put("accepted", result.accepted)
+                        .put("completed", result.completed).put("input_status_uncertain", result.inputUncertain)
+                        .put("wait_timed_out", waitTimedOut).put("phases", phases);
+                if (waitTimedOut) {
+                    Thread thread = main.getLooper().getThread();
+                    JSONArray stack = new JSONArray();
+                    StackTraceElement[] frames = thread.getStackTrace();
+                    for (int i = 0; i < Math.min(32, frames.length); i++) {
+                        String frame = frames[i].toString();
+                        stack.put(frame.length() > 512 ? frame.substring(0, 512) : frame);
+                    }
+                    row.put("main_thread_state", thread.getState().name()).put("main_thread_stack", stack)
+                            .put("stack_captured_elapsed_ms", elapsedRealtime());
+                }
+                File log = new File(directory, "dispatch-diagnostics.jsonl");
+                byte[] line = (row.toString() + "\n").getBytes(StandardCharsets.UTF_8);
+                final int maxBytes = 128 * 1024;
+                if (line.length > maxBytes / 2) return;
+                if (log.length() + line.length > maxBytes) {
+                    // Retain recent complete rows, including the newest timeout.
+                    byte[] previous = new byte[(int)Math.min(log.length(), maxBytes)];
+                    int size = 0;
+                    try (FileInputStream input = new FileInputStream(log)) {
+                        while (size < previous.length) {
+                            int read = input.read(previous, size, previous.length - size);
+                            if (read < 0) break;
+                            size += read;
+                        }
+                    }
+                    int keep = Math.max(0, size - maxBytes / 2);
+                    while (keep < size && previous[keep] != '\n') keep++;
+                    if (keep < size) keep++;
+                    try (FileOutputStream output = new FileOutputStream(log)) {
+                        output.write(previous, keep, size - keep);
+                        output.write(line);
+                    }
+                } else {
+                    try (FileOutputStream output = new FileOutputStream(log, true)) { output.write(line); }
+                }
+            } catch (Exception error) {
+                android.util.Log.w("KardsBattle", "Cannot save dispatch diagnostic", error);
+            }
         }
 
         private String validate(JSONObject plan, boolean menu) throws Exception {

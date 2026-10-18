@@ -55,7 +55,8 @@ public final class DeviceRegressionInstrumentation extends Instrumentation {
             Bundle diagnostic = new Bundle();
             try {
                 String encoded = android.util.Base64.encodeToString(
-                    ReadOnlySessionRecords.read(getTargetContext(), arguments.getString("sessionId"))
+                    ReadOnlySessionRecords.diagnose(getTargetContext(), arguments.getString("sessionId"),
+                        arguments.getString("relativePath"), arguments.getString("offsetBytes"), arguments.getString("chunkBytes"))
                         .getBytes(StandardCharsets.UTF_8), android.util.Base64.NO_WRAP);
                 for (int offset=0; offset<encoded.length(); offset+=24000) {
                     Bundle chunk = new Bundle();
@@ -138,9 +139,12 @@ public final class DeviceRegressionInstrumentation extends Instrumentation {
                 awaitFloatingServiceGate();
                 startPrototypeActivity(true);
                 runCase("floating_status", item -> item.put("checks", FloatingControlChecks.model()));
+                runCase("dispatch_attempt", item -> item.put("checks", new JSONObject()
+                        .put("passed", true).put("checks", DispatchAttemptChecks.runChecks()).put("device_inputs", 0)));
                 runCase("floating_platform", item -> {
                     JSONObject diagnostic=new JSONObject();item.put("diagnostics",diagnostic);
-                    item.put("checks",FloatingControlChecks.platform(this,activity,outputDirectory,diagnostic));
+                    int cycles = Integer.parseInt(arguments.getString("hideStressIterations", "0"));
+                    item.put("checks",FloatingControlChecks.platform(this,activity,outputDirectory,diagnostic,cycles));
                 });
             } else if ("true".equals(arguments.getString("nativePipelineOnly", "false"))) {
                 runCase("native_saved_pipeline", item -> item.put("checks", NativePipelineChecks.run(getContext(), getTargetContext())));

@@ -478,6 +478,14 @@ public final class KardsAccessibilityService extends AccessibilityService implem
             screenshotHandler.postDelayed(() -> requestFrameWhenAllowed(callback, requestedAtMillis, preserveSourcePixels), delay);
             return;
         }
+        // Native frames on Android 14+ require a game-window screenshot below.
+        // That API excludes accessibility overlays, so do not churn our window's
+        // compositor/accessibility registration for every captured game frame.
+        // A missing or occluded game window still fails in takeFrameNow.
+        if (Build.VERSION.SDK_INT >= 34 && preserveSourcePixels) {
+            takeFrameNow(callback, requestedAtMillis, true);
+            return;
+        }
         withoutOverlay(release -> takeFrameNow(new FrameSource.Callback() {
             @Override public void onFrame(FrameSnapshot snapshot) {
                 try { callback.onFrame(snapshot); } finally { release.run(); }

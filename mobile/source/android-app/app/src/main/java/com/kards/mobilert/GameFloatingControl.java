@@ -62,8 +62,8 @@ final class GameFloatingControl {
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
                         | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
                         | (hidden>0?WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE:0), PixelFormat.TRANSLUCENT);
-        // Hide the attached window's compositor layer as well as its View.
-        // Keeping the attachment preserves its exact accessibility identity.
+        // Keep the attached View visible so hiding does not tear down its Surface.
+        // Window alpha and touch flags hide the compositor layer and block input.
         p.alpha=hidden>0?0f:1f;
         p.gravity=Gravity.TOP|Gravity.RIGHT; p.x=0; p.y=area.top;
         p.setTitle("KARDS局内控制"); return p;
@@ -129,8 +129,13 @@ final class GameFloatingControl {
         expanded=value;message="";rebuild();if(attached)windows.updateViewLayout(root,layout());update(gameVisible);
     }
     void noteAction(String context) { action=FloatingStatus.action(context);actionAt=SystemClock.elapsedRealtime(); }
+    private void updateViewAlpha() {
+        float alpha=hidden>0?0f:1f;
+        if(root.getAlpha()!=alpha) {root.setAlpha(alpha);root.invalidate();}
+    }
     void update(boolean visible) {
         if(destroyed)return;gameVisible=visible;
+        updateViewAlpha();
         FloatingStatus state=FloatingStatus.from(service.battleProgressReport(),
                 SystemClock.elapsedRealtime()-actionAt<3000?action:"");
         if(expanded) {
@@ -147,47 +152,55 @@ final class GameFloatingControl {
         }
         if(visible&&!attached) {
             try {
-                attachedWindowId=-1;root.setVisibility(hidden>0?View.INVISIBLE:View.VISIBLE);
+                attachedWindowId=-1;root.setVisibility(View.VISIBLE);
                 windows.addView(root,layout());attached=true;rememberWindowId();root.post(this::rememberWindowId);
             }
             catch(RuntimeException e) { android.util.Log.w("KardsOverlay","Cannot attach control",e); }
         } else if(!visible&&attached) {windows.removeView(root);attached=false;attachedWindowId=-1;}
-        if(attached) {root.setVisibility(hidden>0?View.INVISIBLE:View.VISIBLE);rememberWindowId();}
+        if(attached)rememberWindowId();
     }
     private int windowId() {
         android.view.accessibility.AccessibilityNodeInfo node=root.createAccessibilityNodeInfo();
         try {return node.getWindowId();} finally {node.recycle();}
     }
     private void rememberWindowId() {
-        // Read the view identity only while visible. INVISIBLE can hide the
-        // accessibility node while the same WindowManager attachment remains.
+        // Alpha-only hiding retains the visible View and its accessibility identity.
         if(!attached || root.getVisibility()!=View.VISIBLE)return;
         int id=windowId();if(id>=0)attachedWindowId=id;
     }
     boolean ownsWindow(int id) { return attached && id!=-1 && id==attachedWindowId; }
     void withoutOverlay(Consumer<Runnable> work) {
         // A lease is idempotent and nested captures/inputs cannot restore each other's overlay.
-        boolean wait=attached;rememberWindowId();hidden++;
-        AtomicBoolean released=new AtomicBoolean();
-        Runnable release=()->{
-            if(!released.compareAndSet(false,true))return;
-            main.post(()->{hidden--;if(!destroyed)update(gameVisible);});
-        };
+        boolean wait=attached,firstLease=hidden==0;rememberWindowId();hidden++;
+        class HideLease implements Runnable {
+            final AtomicBoolean released=new AtomicBoolean();
+            @Override public void run() {
+                if(!released.compareAndSet(false,true))return;
+                main.removeCallbacks(this);
+                main.post(()->{hidden--;if(hidden==0 && !destroyed)update(gameVisible);});
+            }
+        }
+        HideLease release=new HideLease();
         main.postDelayed(release,10_000); // missing system callback cannot leave controls permanently hidden
         try {
-            if(attached) {
-                root.setVisibility(View.INVISIBLE);
-                windows.updateViewLayout(root,layout());
+            if(firstLease) {
+                // Also clear the rendered View content; WindowManager alpha alone
+                // may not be reflected by a display screenshot on every emulator.
+                updateViewAlpha();
+                if(attached)windows.updateViewLayout(root,layout());
             }
         } catch(RuntimeException error) {release.run();throw error;}
         Runnable begin=()->{try{work.accept(release);}catch(RuntimeException e){release.run();throw e;}};
-        // Visibility must reach SurfaceFlinger before screenshot or gesture submission.
+        // Window alpha and touch flags must reach SurfaceFlinger before submission.
         if(wait)main.postDelayed(begin,80);else begin.run();
     }
     void destroy() { destroyed=true;main.removeCallbacks(tick);if(attached){windows.removeView(root);attached=false;}attachedWindowId=-1; }
     // Device tests use the real window manager without launching or touching the game.
     void showForTest(boolean expanded) { setExpanded(expanded);update(true);main.removeCallbacks(tick); }
-    boolean hiddenForTest() { return hidden>0 && root.getVisibility()!=View.VISIBLE; }
+    boolean hiddenForTest() { return hidden>0 && attached && root.getAlpha()==0f && windowAlphaForTest()==0f && windowTouchBlockedForTest(); }
+    float viewAlphaForTest() { return root.getAlpha(); }
+    boolean viewVisibleForTest() { return root.getVisibility()==View.VISIBLE; }
+    boolean attachedForTest() { return attached && root.isAttachedToWindow(); }
     float windowAlphaForTest() { return ((WindowManager.LayoutParams)root.getLayoutParams()).alpha; }
     boolean windowTouchBlockedForTest() {
         return (((WindowManager.LayoutParams)root.getLayoutParams()).flags&WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE)!=0;

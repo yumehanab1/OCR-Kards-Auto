@@ -18,6 +18,7 @@ import java.io.FileOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 /** No gameplay, real game launches or touch dispatch. Capture only the helper Activity. */
@@ -98,12 +99,19 @@ final class FloatingControlChecks {
                                 .put("bitmap_width",s.width()).put("bitmap_height",s.height())
                                 .put("capture_scope",s.captureScope).put("capture_window_id",s.captureWindowId)
                                 .put("capture_bounds",rect(s.captureBounds)).put("captured_at_ms",s.capturedAtMillis());
-                        if(expectHidden)metadata.put("overlay_window_alpha",control.windowAlphaForTest())
-                                .put("overlay_touch_blocked",control.windowTouchBlockedForTest());
+                        if(expectHidden || (nativePixels && android.os.Build.VERSION.SDK_INT>=34))
+                            metadata.put("overlay_window_alpha",control.windowAlphaForTest())
+                                .put("overlay_view_alpha",control.viewAlphaForTest())
+                                .put("overlay_touch_blocked",control.windowTouchBlockedForTest())
+                                .put("overlay_view_visible",control.viewVisibleForTest())
+                                .put("overlay_attached",control.attachedForTest());
                     } catch(Exception failure) {error.set("capture metadata: "+failure);}
                     if(expectHidden && !control.hiddenForTest())error.set("overlay visible during capture");
-                    if(expectHidden && (control.windowAlphaForTest()!=0f || !control.windowTouchBlockedForTest()))
-                        error.set("overlay compositor layer or touch window visible during capture");
+                    if(expectHidden && (control.windowAlphaForTest()!=0f || control.viewAlphaForTest()!=0f
+                            || !control.windowTouchBlockedForTest()))
+                        error.set("overlay compositor, rendered content or touch window visible during capture");
+                    if(expectHidden && (!control.viewVisibleForTest() || !control.attachedForTest()))
+                        error.set("hidden overlay changed its View visibility or attachment");
                     if(expectHidden && (control.cachedWindowIdForTest()<0
                             || !control.ownsWindow(control.cachedWindowIdForTest())))
                         error.set("hidden overlay lost its exact attachment identity");
@@ -293,6 +301,11 @@ final class FloatingControlChecks {
     }
     static JSONObject platform(Instrumentation instrumentation,Activity activity,File outputDirectory,
                                JSONObject diagnostic) throws Exception {
+        return platform(instrumentation,activity,outputDirectory,diagnostic,0);
+    }
+    static JSONObject platform(Instrumentation instrumentation,Activity activity,File outputDirectory,
+                                JSONObject diagnostic,int hideStressIterations) throws Exception {
+        require(hideStressIterations>=0 && hideStressIterations<=1000,"invalid hide stress iteration count");
         File artifacts=new File(outputDirectory,"floating-capture-check");
         require(artifacts.isDirectory() || artifacts.mkdirs(),"helper capture artifact directory");
         JSONArray captures=new JSONArray();diagnostic.put("captures",captures).put("helper_captures_only",true);
@@ -339,6 +352,7 @@ final class FloatingControlChecks {
             instrumentation.waitForIdleSync();Thread.sleep(200);
             onMain(instrumentation,()->{
                 int id=control.windowIdForTest();require(id!=-1,"overlay window not attached");
+                require(control.viewVisibleForTest() && control.attachedForTest(),"overlay View or attachment missing");
                 require(control.cachedWindowIdForTest()==id && control.ownsWindow(id),"visible attachment identity missing");
                 require(!control.ownsWindow(id+100000) && !control.ownsWindow(-1),"unrelated window claimed as own");
             });
@@ -392,20 +406,26 @@ final class FloatingControlChecks {
                 control.withoutOverlay(release->{second.set(release);leases.countDown();});
             });
             require(leases.await(2,TimeUnit.SECONDS),"hide leases not prepared");
-            onMain(instrumentation,()->require(control.windowAlphaForTest()==0f && control.windowTouchBlockedForTest(),
+            onMain(instrumentation,()->require(control.windowAlphaForTest()==0f && control.viewAlphaForTest()==0f
+                    && control.windowTouchBlockedForTest(),
                     "nested leases did not hide compositor and block touch"));
             onMain(instrumentation,()->{first.get().run();first.get().run();});instrumentation.waitForIdleSync();
-            onMain(instrumentation,()->require(control.hiddenForTest() && control.windowAlphaForTest()==0f
+            onMain(instrumentation,()->require(control.hiddenForTest() && control.windowAlphaForTest()==0f && control.viewAlphaForTest()==0f
                     && control.windowTouchBlockedForTest(),"first release restored nested lease"));
             onMain(instrumentation,()->second.get().run());instrumentation.waitForIdleSync();
             onMain(instrumentation,()->{
                 require(!control.hiddenForTest(),"control not restored");
-                require(control.windowAlphaForTest()==1f && !control.windowTouchBlockedForTest(),"final release did not restore compositor and touch");
+                require(control.windowAlphaForTest()==1f && control.viewAlphaForTest()==1f
+                        && !control.windowTouchBlockedForTest(),"final release did not restore compositor, rendered content and touch");
                 require(connected.currentForegroundPackage().equals(connected.getPackageName()),"overlay changed foreground");
                 require(!connected.startFromFloatingControl(true),"started current battle outside KARDS");
                 require(!connected.startFromFloatingControl(false),"started menu outside KARDS");
                 require(!BattleWorkerLease.isOwned(),"negative starts acquired worker");
             });
+            JSONObject hideStress=hideStressIterations==0
+                    ?new JSONObject().put("skipped",true).put("requested_iterations",0)
+                    :hideStress(instrumentation,control,hideStressIterations,diagnostic);
+            diagnostic.put("hide_stress",hideStress);
             return new JSONObject().put("passed",true).put("source_capture_count",5)
                     .put("fixed_warmup_capture_count",1).put("warmup_included_in_comparisons",false)
                     .put("helper_capture_mode","normalized_display_1280x720")
@@ -416,7 +436,8 @@ final class FloatingControlChecks {
                     .put("overlay_sample_bounds",new JSONArray().put(r.left).put(r.top).put(r.right).put(r.bottom))
                     .put("expanded_button_measurements",buttons)
                     .put("overlay_region_mean_pixel_delta",mean).put("nested_and_duplicate_release",true).put("main_assertion_returned_to_worker",true)
-                    .put("window_alpha_and_touch_restored",true)
+                    .put("window_alpha_and_touch_restored",true).put("view_alpha_restored",true)
+                    .put("hide_stress",hideStress)
                     .put("non_game_start_refusals",2).put("game_launches",0).put("touches",0);
         } finally {
             if(warmup!=null)warmup.recycle();
@@ -437,6 +458,111 @@ final class FloatingControlChecks {
         }
     }
 
+    /** Real attached-window cycles only. No screenshot, gesture or game launch is performed here. */
+    private static JSONObject hideStress(Instrumentation instrumentation,GameFloatingControl control,
+                                         int iterations,JSONObject diagnostic) throws Exception {
+        long started=android.os.SystemClock.elapsedRealtime();
+        JSONArray cycles=new JSONArray();
+        JSONObject report=new JSONObject().put("requested_iterations",iterations).put("completed_iterations",0)
+                .put("cycles",cycles).put("touches",0).put("game_launches",0).put("extra_captures",0);
+        diagnostic.put("hide_stress",report);
+        AtomicReference<Integer> identity=new AtomicReference<>();
+        onMain(instrumentation,()->{
+            identity.set(control.windowIdForTest());
+            requireOverlayLeaseState(control,identity.get(),false,"stress start");
+        });
+        for(int cycle=0;cycle<iterations;cycle++) {
+            final int index=cycle+1;
+            long cycleStarted=android.os.SystemClock.elapsedRealtime();
+            AtomicReference<Runnable> outer=new AtomicReference<>(),inner=new AtomicReference<>();
+            AtomicReference<Throwable> asyncFailure=new AtomicReference<>();
+            AtomicBoolean cleanup=new AtomicBoolean();
+            CountDownLatch ready=new CountDownLatch(1);
+            onMain(instrumentation,()->control.withoutOverlay(first->{
+                outer.set(first);
+                if(cleanup.get()){first.run();ready.countDown();return;}
+                try {
+                    control.withoutOverlay(second->{
+                        inner.set(second);
+                        if(cleanup.get()){first.run();second.run();}
+                        ready.countDown();
+                    });
+                } catch(Throwable error) {asyncFailure.set(error);ready.countDown();}
+            }));
+            try {
+                require(ready.await(2,TimeUnit.SECONDS),"stress lease preparation timeout at "+index);
+                require(asyncFailure.get()==null,"stress nested lease failed at "+index+": "+asyncFailure.get());
+                require(outer.get()!=null && inner.get()!=null,"stress lease missing at "+index);
+                onMain(instrumentation,()->{
+                    requireOverlayLeaseState(control,identity.get(),true,"stress hidden "+index);
+                    outer.get().run();outer.get().run();
+                });
+                instrumentation.waitForIdleSync();
+                onMain(instrumentation,()->{
+                    requireOverlayLeaseState(control,identity.get(),true,"stress nested release "+index);
+                    inner.get().run();inner.get().run();
+                });
+                instrumentation.waitForIdleSync();
+                onMain(instrumentation,()->requireOverlayLeaseState(control,identity.get(),false,"stress restored "+index));
+                cycles.put(new JSONObject().put("iteration",index).put("window_id",identity.get())
+                        .put("elapsed_ms",android.os.SystemClock.elapsedRealtime()-cycleStarted)
+                        .put("visible_view_and_attachment_preserved",true).put("render_alpha_zero_while_hidden",true)
+                        .put("nested_duplicate_release_passed",true));
+                report.put("completed_iterations",index);
+            } finally {
+                cleanup.set(true);
+                onMain(instrumentation,()->{
+                    if(outer.get()!=null)outer.get().run();
+                    if(inner.get()!=null)inner.get().run();
+                });
+                instrumentation.waitForIdleSync();
+            }
+        }
+        // Exercise the production 10-second missing-callback fallback without a system input.
+        AtomicReference<Runnable> expiredRelease=new AtomicReference<>();
+        AtomicBoolean timeoutCleanup=new AtomicBoolean();
+        CountDownLatch timeoutReady=new CountDownLatch(1);
+        long timeoutStarted=android.os.SystemClock.elapsedRealtime();
+        onMain(instrumentation,()->control.withoutOverlay(release->{
+            expiredRelease.set(release);if(timeoutCleanup.get())release.run();timeoutReady.countDown();
+        }));
+        try {
+            require(timeoutReady.await(2,TimeUnit.SECONDS),"timeout-cleanup lease preparation timeout");
+            onMain(instrumentation,()->requireOverlayLeaseState(control,identity.get(),true,"timeout-cleanup hidden"));
+            boolean restored=false;
+            while(android.os.SystemClock.elapsedRealtime()-timeoutStarted<12_000) {
+                AtomicReference<Boolean> hidden=new AtomicReference<>();
+                onMain(instrumentation,()->hidden.set(control.hiddenForTest()));
+                if(!hidden.get()){restored=true;break;}
+                Thread.sleep(100);
+            }
+            require(restored,"missing-callback fallback did not restore overlay within 12 seconds");
+            long fallbackElapsed=android.os.SystemClock.elapsedRealtime()-timeoutStarted;
+            require(fallbackElapsed>=9500,"missing-callback lease restored before its fallback");
+            onMain(instrumentation,()->{
+                expiredRelease.get().run();expiredRelease.get().run();
+            });
+            instrumentation.waitForIdleSync();
+            onMain(instrumentation,()->requireOverlayLeaseState(control,identity.get(),false,"timeout-cleanup restored"));
+            return report.put("passed",true).put("stable_window_id",identity.get())
+                    .put("timeout_cleanup_passed",true).put("timeout_cleanup_elapsed_ms",fallbackElapsed)
+                    .put("elapsed_ms",android.os.SystemClock.elapsedRealtime()-started);
+        } finally {
+            timeoutCleanup.set(true);
+            onMain(instrumentation,()->{if(expiredRelease.get()!=null)expiredRelease.get().run();});
+            instrumentation.waitForIdleSync();
+        }
+    }
+
+    private static void requireOverlayLeaseState(GameFloatingControl control,int identity,boolean hidden,String stage) {
+        require(identity>=0 && control.attachedForTest() && control.viewVisibleForTest(),"overlay View/attachment changed at "+stage);
+        require(control.windowIdForTest()==identity && control.cachedWindowIdForTest()==identity && control.ownsWindow(identity),
+                "overlay identity changed at "+stage);
+        require(control.hiddenForTest()==hidden && control.windowAlphaForTest()==(hidden?0f:1f)
+                && control.viewAlphaForTest()==(hidden?0f:1f)
+                && control.windowTouchBlockedForTest()==hidden,"overlay compositor/touch state changed at "+stage);
+    }
+
     static JSONObject gameForeground(Instrumentation instrumentation) throws Exception {
         KardsAccessibilityService candidate=KardsAccessibilityService.instance();
         for(int i=0;candidate==null && i<50;i++){Thread.sleep(100);candidate=KardsAccessibilityService.instance();}
@@ -455,19 +581,35 @@ final class FloatingControlChecks {
         });
         instrumentation.waitForIdleSync();Thread.sleep(200);
         JSONArray buttons=expandedButtons(instrumentation,control);
+        boolean windowCapture=android.os.Build.VERSION.SDK_INT>=34;
+        AtomicReference<Integer> overlayIdentity=new AtomicReference<>();
+        onMain(instrumentation,()->{
+            overlayIdentity.set(control.windowIdForTest());
+            requireOverlayLeaseState(control,overlayIdentity.get(),false,"native capture before");
+        });
+        JSONObject metadata=new JSONObject();
         Bitmap b=null;
         try {
-            b=frame(instrumentation,service,control,true,true);
+            b=frame(instrumentation,service,control,!windowCapture,true,metadata);
+            if(windowCapture)require("game_window".equals(metadata.getString("capture_scope"))
+                    && metadata.getInt("capture_window_id")>=0,"native capture did not use the game window");
+            if(windowCapture)require(metadata.getDouble("overlay_window_alpha")==1.0
+                    && metadata.getDouble("overlay_view_alpha")==1.0
+                    && !metadata.getBoolean("overlay_touch_blocked") && metadata.getBoolean("overlay_view_visible")
+                    && metadata.getBoolean("overlay_attached"),"window capture changed the overlay during delivery");
             instrumentation.waitForIdleSync();
             onMain(instrumentation,()->{
                 require(service.currentForegroundPackage().equals("com.android1939.kards"),"expanded control stole foreground");
                 require(service.gameForegroundGeneration()==generation.get(),"overlay invalidated game admission generation");
                 require(control.expandedForTest(),"capture collapsed panel");
+                requireOverlayLeaseState(control,overlayIdentity.get(),false,"native capture after");
                 require(!BattleWorkerLease.isOwned(),"expanding or capturing automatically started a game");
             });
             return new JSONObject().put("passed",true).put("foreground_generation_unchanged",true)
                     .put("expanded_button_measurements",buttons)
-                    .put("expanded_preserved",true).put("capture_hidden",true).put("game_inputs",0);
+                    .put("expanded_preserved",true).put("capture_hidden",!windowCapture)
+                    .put("capture_scope",metadata.getString("capture_scope"))
+                    .put("overlay_identity_preserved",true).put("game_inputs",0);
         } finally {if(b!=null)b.recycle();onMain(instrumentation,control::restoreAfterTest);}
     }
 }
