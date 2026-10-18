@@ -36,6 +36,7 @@ import java.util.concurrent.Executors;
 /** User control panel. Observing the panel never starts or resumes game input. */
 public final class MainActivity extends Activity {
     private static final int REQUEST_REPLAY_PNG = 4101;
+    private static final int REQUEST_COMPAT_CAPTURE = 4102;
     private static final String LAST_RESULT = "last_result";
     private static final String PANEL_PREFERENCES = "battle_panel";
     private static final String SELECTED_MODE = "selected_mode";
@@ -62,6 +63,7 @@ public final class MainActivity extends Activity {
     private final MobileCore mobileCore = new ReadOnlyMobileCore();
     private ReadOnlyObservationLoop observationLoop;
     private Button monitorButton;
+    private Button compatCaptureButton;
     private final Consumer<Boolean> connectionListener = connected -> refreshDashboard();
 
     @Override
@@ -126,6 +128,17 @@ public final class MainActivity extends Activity {
         rawReport.setText("查看完整运行记录");
         rawReport.setOnClickListener(v -> status.setText(currentReport()));
         root.addView(rawReport, new LinearLayout.LayoutParams(-1, -2));
+
+        compatCaptureButton = new Button(this);
+        compatCaptureButton.setText("启用兼容截图（系统截图黑屏时使用）");
+        compatCaptureButton.setOnClickListener(v -> {
+            if(BattleWorkerLease.isOwned()) {status.setText("请先停止辅助，再切换截图通道。");return;}
+            if(CompatCaptureService.isReady()) {
+                startService(new Intent(this,CompatCaptureService.class).setAction(CompatCaptureService.ACTION_STOP));
+                status.setText("兼容截图已关闭。");
+            } else requestCompatCapture();
+        });
+        root.addView(compatCaptureButton,new LinearLayout.LayoutParams(-1,-2));
 
         Button screenshot = new Button(this);
         screenshot.setText("测试截图能力");
@@ -268,6 +281,19 @@ public final class MainActivity extends Activity {
         }
         if (state != null) dashboard.setDiagnosticsOpen(state.getBoolean("diagnostics_open", false));
         setContentView(dashboard.view());
+        if((getApplicationInfo().flags & android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE)!=0
+                && getIntent().getBooleanExtra("show_compat_capture",false))
+            main.post(this::requestCompatCapture);
+    }
+
+    private void requestCompatCapture() {
+        if(BattleWorkerLease.isOwned()) {status.setText("请先停止辅助，再启用兼容截图。");return;}
+        if(android.os.Build.VERSION.SDK_INT>=34) {status.setText("当前系统使用游戏窗口截图，无需此旧系统兼容通道。");return;}
+        try {
+            android.media.projection.MediaProjectionManager manager=getSystemService(android.media.projection.MediaProjectionManager.class);
+            status.setText("请在安卓系统弹窗中确认屏幕录制授权。启用截图不会开始对局或触控。");
+            startActivityForResult(manager.createScreenCaptureIntent(),REQUEST_COMPAT_CAPTURE);
+        } catch(RuntimeException error){status.setText("无法打开兼容截图授权，请稍后重试。");}
     }
 
     private void openPermissions() {
@@ -298,6 +324,11 @@ public final class MainActivity extends Activity {
         catch (Exception ignored) { }
         String report = useMemory ? memory : savedReport;
         boolean busy = BattleWorkerLease.isOwned();
+        if(compatCaptureButton!=null){
+            compatCaptureButton.setEnabled(!busy);
+            compatCaptureButton.setText(CompatCaptureService.isReady()?"兼容截图已启用 · 点击关闭"
+                    :"启用兼容截图（系统截图黑屏时使用）");
+        }
         boolean connected = service != null;
         if (android.os.SystemClock.elapsedRealtime() < messageUntil && !busy) return;
         if (report.equals(shownReport) && connected == shownConnected && busy == shownBusy
@@ -401,6 +432,16 @@ public final class MainActivity extends Activity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+        if(requestCode==REQUEST_COMPAT_CAPTURE) {
+            if(resultCode==RESULT_OK && data!=null) {
+                try {
+                    startForegroundService(new Intent(this,CompatCaptureService.class)
+                            .putExtra("result_code",resultCode).putExtra("result_data",data));
+                    status.setText("兼容截图正在连接；连接后返回游戏，再开始辅助。");
+                } catch(RuntimeException error){status.setText("兼容截图启动失败，请重新启用。");}
+            } else status.setText("未启用兼容截图；本次没有开始辅助或游戏输入。");
+            return;
+        }
         if (requestCode != REQUEST_REPLAY_PNG || resultCode != RESULT_OK || data == null
                 || data.getData() == null) {
             return;

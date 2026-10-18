@@ -348,6 +348,12 @@ public final class TrainingPanelState {
         if (reason.contains("foreground_changed") || reason.contains("not_game_foreground")) {
             return "游戏已离开前台。回到训练画面后可重新开始。";
         }
+        if (reason.contains("capture_black_frame"))
+            return "系统截图连续返回黑屏。请在工具与诊断中启用兼容截图，再重新开始辅助。";
+        if (reason.contains("compat_capture_incomplete_frame"))
+            return "兼容截图连续不完整，重试后仍未恢复，已停止。请检查模拟器画面与截图设置。";
+        if (reason.contains("compat_capture"))
+            return "兼容截图已中断，请在工具与诊断中重新启用后再开始辅助。";
         if (reason.startsWith("menu_")) return "对战准备未完成，请检查游戏画面后重试。";
         if (reason.startsWith("time_budget") || "input_budget".equals(reason) || "frame_budget".equals(reason)) {
             return "已达到本次训练上限，自动操作已停止。";

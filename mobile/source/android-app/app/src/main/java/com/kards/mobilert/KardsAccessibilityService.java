@@ -498,6 +498,48 @@ public final class KardsAccessibilityService extends AccessibilityService implem
         final Rect displayBounds=new Rect();
         displayBounds.set(getSystemService(android.view.WindowManager.class).getCurrentWindowMetrics().getBounds());
         displayBounds.offsetTo(0,0);
+        if(Build.VERSION.SDK_INT<34 && CompatCaptureService.isReady()) {
+            if(selected.game==null){callback.onFailure("compat_capture_requires_game_foreground");return;}
+            CompatCaptureService.requestFrame(new FrameSource.Callback(){
+                @Override public void onFrame(FrameSnapshot frame) {
+                    FrameSnapshot prepared=null;
+                    Bitmap pixels=null;
+                    String failure=null;
+                    try {
+                        if(screenshotRequestsClosed)failure="compat_capture_service_disconnected";
+                        else {
+                            GameWindowState after=gameWindowState();
+                            if(after.game==null || after.game.id!=selected.game.id || after.occluded
+                                    || frame.width()!=displayBounds.width() || frame.height()!=displayBounds.height())
+                                failure="compat_capture_geometry_or_window_changed";
+                            else if(!CapturePixelQuality.isFullyOpaque(frame.bitmap()))
+                                failure="compat_capture_incomplete_frame";
+                            else if(CapturePixelQuality.isAllBlack(frame.bitmap()))failure="capture_black_frame";
+                            else {
+                                int capturedWidth=frame.sourceWidth(),capturedHeight=frame.sourceHeight();
+                                pixels=preserveSourcePixels?frame.bitmap():normalize(frame.bitmap());
+                                prepared=new FrameSnapshot(pixels,requestedAtMillis,capturedWidth,capturedHeight,
+                                        "media_projection",-1,displayBounds);
+                                sourceWidth=capturedWidth;sourceHeight=capturedHeight;
+                            }
+                        }
+                    } catch(RuntimeException error) {
+                        failure="compat_capture_conversion_"+error.getClass().getSimpleName();
+                    } finally {
+                        if(prepared==null) {
+                            frame.close();
+                            if(pixels!=null && !pixels.isRecycled())pixels.recycle();
+                        }
+                    }
+                    // Deliver outside the conversion catch: a downstream exception must not
+                    // become a second callback. The returned wrapper now owns the bitmap.
+                    if(prepared==null)callback.onFailure(failure);
+                    else callback.onFrame(prepared);
+                }
+                @Override public void onFailure(String reason){callback.onFailure(reason);}
+            },requestedAtMillis);
+            return;
+        }
         final boolean windowCapture=Build.VERSION.SDK_INT>=34 && selected.game!=null;
         if(preserveSourcePixels && Build.VERSION.SDK_INT>=34 && !windowCapture) {
             callback.onFailure("game_window_missing");return;
@@ -523,6 +565,9 @@ public final class KardsAccessibilityService extends AccessibilityService implem
                     if (softwareBitmap == null) {
                         callback.onFailure("截图能力：无法复制为软件 Bitmap。");
                         return;
+                    }
+                    if(CapturePixelQuality.isAllBlack(softwareBitmap)) {
+                        softwareBitmap.recycle();callback.onFailure("capture_black_frame");return;
                     }
                     if(windowCapture) {
                         GameWindowState after=gameWindowState();

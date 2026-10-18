@@ -12,6 +12,9 @@ public final class DebugBattleReceiver extends BroadcastReceiver {
         boolean armedThisRequest = false;
         try {
             String action = intent.getAction();
+            if("com.kards.mobilert.debug.CAPTURE_AUDIT".equals(action)) {
+                setResultCode(0);setResultData(DebugScreenshotAudit.start(service));return;
+            }
             if("com.kards.mobilert.debug.WINDOW_STATUS".equals(action)) {
                 setResultCode(0);setResultData(service.gameWindowDiagnostic());return;
             }

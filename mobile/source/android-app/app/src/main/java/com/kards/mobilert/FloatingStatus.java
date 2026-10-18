@@ -42,7 +42,9 @@ final class FloatingStatus {
             else if(screen.startsWith("result_")) phase="结算核验";
             else if(active && !recentAction.isEmpty()) phase=recentAction;
             if(active && "overlay_wait".equals(p.optString("event")))phase="等待遮挡消失";
-            if(active && "capture_retry".equals(p.optString("event")))phase="等待新截图";
+            if(active && "capture_retry".equals(p.optString("event")))phase=
+                    "capture_black_frame".equals(p.optString("reason"))?"截图黑屏·重试":
+                    "compat_capture_incomplete_frame".equals(p.optString("reason"))?"截图不完整·重试":"等待新截图";
             boolean verified=result!=null && Boolean.TRUE.equals(result.opt("result_verified"));
             String reason=result==null?"":result.optString("stop_reason");
             if(verified && "result_victory".equals(reason)) phase="胜利";

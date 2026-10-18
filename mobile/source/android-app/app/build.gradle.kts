@@ -20,13 +20,14 @@ val publicBuild = providers.environmentVariable("KARDS_PUBLIC_BUILD").orNull == 
 android {
     namespace = "com.kards.mobilert"
     compileSdk = 35
+    buildToolsVersion = "35.0.0"
 
     defaultConfig {
         applicationId = "com.kards.mobilert"
         minSdk = 30
         targetSdk = 35
-        versionCode = 141
-        versionName = "0.2.2"
+        versionCode = 148
+        versionName = "0.2.3"
         testInstrumentationRunner = "com.kards.mobilert.DeviceRegressionInstrumentation"
         ndk {
             abiFilters += listOf("arm64-v8a", "x86_64")

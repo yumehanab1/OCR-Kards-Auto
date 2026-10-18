@@ -749,28 +749,63 @@ public final class ApkBattleSession {
 
         private String captureInternal(boolean nativePixels) throws Exception {
             boolean waited=false;
-            int captureFailures=0;
+            CaptureRetryPolicy retryPolicy=new CaptureRetryPolicy();
+            int captureAttemptNumber=0;
             while(true) {
+                // A new request invalidates the previous dispatch source, including failure paths.
+                lastFrame=null;
                 if(isCancelled())return failure("cancelled");
                 if(elapsedRealtime()>=deadline)return failure("time_budget");
+                captureAttemptNumber++;
                 String result=captureAttempt(nativePixels);
-                if(GameEntryGate.RECAPTURE.equals(new JSONObject(result).optString("reason"))) {
+                JSONObject packet=new JSONObject(result);
+                String captureReason=packet.optString("reason");
+                if(!packet.optBoolean("ok",false)) {
                     lastFrame=null;
+                    CaptureRetryPolicy.Decision retry=retryPolicy.onFailure(captureReason,
+                            isCancelled(),elapsedRealtime()>=deadline);
+                    if(retry.retry) {
+                        recordCaptureRetry(captureAttemptNumber,captureReason,retry,nativePixels);
+                        publish("capture_retry","temporary_window_capture_error".equals(captureReason)
+                                ?"waiting_for_fresh_game_capture":captureReason,null);
+                        // The next loop calls captureAttempt again; no failed or old frame is reused.
+                        Thread.sleep(350);continue;
+                    }
+                    if(retry.exhausted) {
+                        recordCaptureRetry(captureAttemptNumber,captureReason,retry,nativePixels);
+                        return failure(retry.reason);
+                    }
+                    if("cancelled".equals(retry.reason) || "time_budget".equals(retry.reason))
+                        return failure(retry.reason);
+                }
+                if(GameEntryGate.RECAPTURE.equals(captureReason)) {
                     publish("startup_capture_retry","waiting_for_fresh_game_capture",null);
                     Thread.sleep(150);continue;
                 }
-                if("temporary_window_capture_error".equals(new JSONObject(result).optString("reason"))) {
-                    if(++captureFailures>3)return failure("window_capture_retry_exhausted");
-                    publish("capture_retry","waiting_for_fresh_game_capture",null);
-                    Thread.sleep(350);continue;
-                }
-                if(!GameWindowState.OCCLUDED.equals(new JSONObject(result).optString("reason"))) {
+                if(!GameWindowState.OCCLUDED.equals(captureReason)) {
                     if(waited)publish("overlay_wait_finished","game_window_available",null);
                     return result;
                 }
                 if(!waited)publish("overlay_wait","waiting_for_game_window",null);
                 waited=true;
                 Thread.sleep(300);
+            }
+        }
+
+        private void recordCaptureRetry(int attempt,String reason,CaptureRetryPolicy.Decision retry,
+                                        boolean nativePixels) {
+            try {
+                String row=new JSONObject().put("event",retry.retry?"capture_retry":"capture_retry_exhausted")
+                        .put("reason",reason).put("terminal_reason",retry.retry?JSONObject.NULL:retry.reason)
+                        .put("capture_attempt",attempt).put("retry_number",retry.retriesUsed)
+                        .put("max_retries",CaptureRetryPolicy.MAX_RETRIES).put("round_index",roundIndex)
+                        .put("elapsed_ms",elapsedRealtime()-started).put("native_pixels",nativePixels)
+                        .put("total_game_inputs",totalInputs()).put("retry_delay_ms",retry.retry?350:0).toString();
+                File log=new File(directory,"capture-retries.jsonl");
+                // Keep diagnostics bounded even if many separate captures need a retry.
+                if(log.length()+row.getBytes(StandardCharsets.UTF_8).length+1<=128*1024L)append(log,row);
+            } catch(Exception error) {
+                android.util.Log.w("KardsBattle","Cannot save capture retry diagnostic",error);
             }
         }
 

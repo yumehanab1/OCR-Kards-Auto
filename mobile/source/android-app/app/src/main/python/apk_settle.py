@@ -1,6 +1,6 @@
 """Bounded post-match settlement: dismiss the result and tail screens.
 
-Ported from the PC runner's dismiss state machine (src/main_loop.py),
+Ported from the PC runner's dismiss state machine (PC settlement state machine),
 which was corrected repeatedly against real play. What is kept from it:
 
 * the window only opens after a verified victory/defeat, never on an arbitrary

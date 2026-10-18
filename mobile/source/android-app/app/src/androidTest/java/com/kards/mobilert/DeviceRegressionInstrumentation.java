@@ -98,7 +98,13 @@ public final class DeviceRegressionInstrumentation extends Instrumentation {
                 publicSupport = new PublicReleaseTestSupport(getContext(),getTargetContext(),outputDirectory);
                 report.put("public_release_test_support",publicSupport.install());
             }
-            if ("true".equals(arguments.getString("dynamicMenuOnly", "false"))) {
+            if ("true".equals(arguments.getString("captureQualityOnly", "false"))) {
+                runCase("capture_pixel_quality", item -> item.put("checks", CapturePixelQualityChecks.run()));
+                runCase("capture_retry_policy", item -> item.put("checks", new JSONObject()
+                        .put("passed",true).put("checks",CaptureRetryPolicyChecks.runChecks()).put("device_inputs",0)));
+                runCase("rejected_capture_audit", item -> item.put("checks", RejectedCaptureAuditChecks.run(getTargetContext())));
+                runCase("floating_status", item -> item.put("checks", FloatingControlChecks.model()));
+            } else if ("true".equals(arguments.getString("dynamicMenuOnly", "false"))) {
                 runCase("dynamic_menu_controls", item -> item.put("checks", DynamicMenuControlsChecks.run(getContext(),getTargetContext())));
             } else if ("true".equals(arguments.getString("windowPolicyOnly", "false"))) {
                 runCase("game_window_policy", item -> item.put("checks", GameWindowChecks.run()));
