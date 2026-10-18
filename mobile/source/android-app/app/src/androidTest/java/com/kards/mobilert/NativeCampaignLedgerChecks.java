@@ -10,7 +10,7 @@ import org.json.JSONObject;
 final class NativeCampaignLedgerChecks {
     private static JSONObject read(Context context,String name) throws Exception {
         try (InputStream input=context.getAssets().open("campaign-native-regression/"+name+".json")) {
-            return new JSONObject(new String(input.readAllBytes(),StandardCharsets.UTF_8));
+            return new JSONObject(new String(TestStreams.readAll(input),StandardCharsets.UTF_8));
         }
     }
     static JSONObject run(Context context) throws Exception {

@@ -18,7 +18,7 @@ final class NativePipelineChecks {
             for (String name:children) copy(context,asset+"/"+name,new File(destination,name));
         } else {
             try (InputStream input=context.getAssets().open(asset);FileOutputStream output=new FileOutputStream(destination)) {
-                input.transferTo(output);
+                TestStreams.copy(input, output);
             }
         }
     }
@@ -37,7 +37,7 @@ final class NativePipelineChecks {
         copy(target,"mobile-core",core);copy(target,"match-entry",menu);copy(target,"mulligan-one-shot",opening);
         String characters;
         try(InputStream input=target.getAssets().open("native-ocr/characters.json")) {
-            characters=new String(input.readAllBytes(),StandardCharsets.UTF_8);
+            characters=new String(TestStreams.readAll(input),StandardCharsets.UTF_8);
         }
         if(!Python.isStarted()) Python.start(new AndroidPlatform(target));
         JSONObject result=new JSONObject(Python.getInstance().getModule("apk_native_bootstrap")

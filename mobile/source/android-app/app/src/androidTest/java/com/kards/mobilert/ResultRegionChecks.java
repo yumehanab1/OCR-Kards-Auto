@@ -23,7 +23,7 @@ final class ResultRegionChecks {
         File banks=new File(target.getFilesDir(),"native-pipeline-probe");
         String characters;
         try(java.io.InputStream stream=target.getAssets().open("native-ocr/characters.json")) {
-            characters=new String(stream.readAllBytes(),StandardCharsets.UTF_8);
+            characters=new String(TestStreams.readAll(stream),StandardCharsets.UTF_8);
         }
         JSONObject result=new JSONObject(Python.getInstance().getModule("apk_native.result_regions_test")
             .callAttr("run_device",new File(directory,"original.png").getAbsolutePath(),new File(banks,"core").getAbsolutePath(),

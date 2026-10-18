@@ -17,7 +17,7 @@ final class NativeOcrChecks {
     static JSONObject run(Context test, Context target) throws Exception {
         JSONArray manifest;
         try (InputStream in = test.getAssets().open("native-ocr-probe/manifest.json")) {
-            manifest = new JSONArray(new String(in.readAllBytes(), StandardCharsets.UTF_8));
+            manifest = new JSONArray(new String(TestStreams.readAll(in), StandardCharsets.UTF_8));
         }
         JSONArray frames = new JSONArray();
         File directory = new File(target.getFilesDir(), "native-ocr-probe");
@@ -26,14 +26,14 @@ final class NativeOcrChecks {
         NativeOnnxModels engine = NativeOnnxModels.get(target);
         String characters;
         try (InputStream in = target.getAssets().open("native-ocr/characters.json")) {
-            characters = new String(in.readAllBytes(), StandardCharsets.UTF_8);
+            characters = new String(TestStreams.readAll(in), StandardCharsets.UTF_8);
         }
         {
             for (int index = 0; index < manifest.length(); index++) {
                 JSONObject item = manifest.getJSONObject(index);
                 byte[] bytes;
                 try (InputStream in = test.getAssets().open("native-ocr-probe/" + item.getString("file"))) {
-                    bytes = in.readAllBytes();
+                    bytes = TestStreams.readAll(in);
                 }
                 StringBuilder digest = new StringBuilder();
                 for (byte b : MessageDigest.getInstance("SHA-256").digest(bytes)) digest.append(String.format("%02x", b & 255));

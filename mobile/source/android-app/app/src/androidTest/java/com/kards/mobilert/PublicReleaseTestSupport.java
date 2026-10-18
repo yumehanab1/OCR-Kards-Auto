@@ -40,7 +40,7 @@ final class PublicReleaseTestSupport {
     JSONObject install() throws Exception {
         directory=Files.createTempDirectory(output.toPath(),"public-python-").toFile();
         byte[] raw;
-        try(InputStream input=assets.getAssets().open(ASSET+"/manifest.json")){raw=input.readAllBytes();}
+        try(InputStream input=assets.getAssets().open(ASSET+"/manifest.json")){raw=TestStreams.readAll(input);}
         JSONObject manifest=new JSONObject(new String(raw,StandardCharsets.UTF_8));
         if(manifest.getInt("schema")!=1)throw new IllegalStateException("public_support_manifest_schema");
         JSONArray entries=manifest.getJSONArray("files");Set<String> seen=new HashSet<>();
@@ -48,7 +48,7 @@ final class PublicReleaseTestSupport {
             JSONObject entry=entries.getJSONObject(index);String relative=entry.getString("path");
             if(!allowed(relative) || !seen.add(relative))throw new IllegalStateException("public_support_file_name");
             byte[] data;
-            try(InputStream input=assets.getAssets().open(ASSET+"/"+relative)){data=input.readAllBytes();}
+            try(InputStream input=assets.getAssets().open(ASSET+"/"+relative)){data=TestStreams.readAll(input);}
             if(data.length!=entry.getLong("bytes") || !sha256(data).equals(entry.getString("sha256")))
                 throw new IllegalStateException("public_support_source_hash");
             File destination=new File(directory,relative);

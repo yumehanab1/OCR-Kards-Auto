@@ -25,7 +25,7 @@ final class PhoneInsetChecks {
                       new File(directory,"phone114-menu-review.jpg").getAbsolutePath()).toString()));
         String characters;
         try(java.io.InputStream in=target.getAssets().open("native-ocr/characters.json")) {
-            characters=new String(in.readAllBytes(),java.nio.charset.StandardCharsets.UTF_8);
+            characters=new String(TestStreams.readAll(in),java.nio.charset.StandardCharsets.UTF_8);
         }
         result.put("phone_mulligan",new JSONObject(Python.getInstance().getModule("apk_native.phone_mulligan_test")
             .callAttr("run_device",new File(directory,"phone116-mulligan-review.jpg").getAbsolutePath(),opening.getAbsolutePath(),

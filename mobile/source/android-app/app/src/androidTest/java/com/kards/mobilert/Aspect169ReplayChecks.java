@@ -24,7 +24,7 @@ final class Aspect169ReplayChecks {
         }
         File core=new File(directory,"core"),menu=new File(directory,"menu"),opening=new File(directory,"opening");
         NativePipelineChecks.copy(target,"mobile-core",core);NativePipelineChecks.copy(target,"match-entry",menu);NativePipelineChecks.copy(target,"mulligan-one-shot",opening);
-        String characters;try(InputStream in=target.getAssets().open("native-ocr/characters.json")){characters=new String(in.readAllBytes(),StandardCharsets.UTF_8);}
+        String characters;try(InputStream in=target.getAssets().open("native-ocr/characters.json")){characters=new String(TestStreams.readAll(in),StandardCharsets.UTF_8);}
         if(!Python.isStarted())Python.start(new AndroidPlatform(target));
         JSONObject result=new JSONObject(Python.getInstance().getModule("apk_native_bootstrap").callAttr("saved_pipeline",directory.getAbsolutePath(),core.getAbsolutePath(),menu.getAbsolutePath(),opening.getAbsolutePath(),NativeOnnxModels.get(target),characters).toString());
         JSONArray frames=result.getJSONArray("frames");if(frames.length()!=6)throw new IllegalStateException("aspect_missing_frames");
