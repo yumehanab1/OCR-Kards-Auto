@@ -1,8 +1,8 @@
 # 手机版源码
 
-本目录说明 Android **0.2.3 / versionCode 151** 的独立源码快照。项目位于 [`android-app/`](android-app/)，包括 Java 界面与无障碍边界、Python 识别/行动模块、内置引擎、OCR 模型和识别模板。PC 源码在仓库根目录的 `src/`，两条维护线分开。
+本目录说明 Android **0.2.3 / versionCode 152** 的独立源码快照。项目位于 [`android-app/`](android-app/)，包括 Java 界面与无障碍边界、Python 识别/行动模块、内置引擎、OCR 模型和识别模板。PC 源码在仓库根目录的 `src/`，两条维护线分开。
 
-手机版源码固定到提交 [`a2af64b906fb621ada347a868ada7c0c0cdadbb4`](https://github.com/yumehanab1/OCR-Kards-Auto/tree/a2af64b906fb621ada347a868ada7c0c0cdadbb4/mobile/source/android-app)。共享 `v0.2.3` 标签保留为既有 PC 发布提交，手机版源码以此不可变链接为准。正式151包已完成构建、签名、安装、API35设备发布12组及78项截图专项、浮窗状态组，均零游戏输入；公开附件及匿名下载核验见发布报告。
+手机版源码固定到提交 [`8fc0b6944a277a72b548d87e42fbd194960c69d5`](https://github.com/yumehanab1/OCR-Kards-Auto/tree/8fc0b6944a277a72b548d87e42fbd194960c69d5/mobile/source/android-app)。共享 `v0.2.3` 标签保留为既有 PC 发布提交，手机版源码以此不可变链接为准。正式152包已完成构建、签名、覆盖安装、API35设备发布12组、4组截图和3组入口验证，以及真实检测未命中时的手动待命与停止；均零游戏输入。公开附件及匿名下载核验见发布报告。
 
 直接安装请使用同页 [v0.2.3 Release](https://github.com/yumehanab1/OCR-Kards-Auto/releases/tag/v0.2.3) 的 [KARDS-AUTO-Mobile-v0.2.3.apk](https://github.com/yumehanab1/OCR-Kards-Auto/releases/download/v0.2.3/KARDS-AUTO-Mobile-v0.2.3.apk)。[安装说明](../README.md)及[公开验证报告](../../docs/reports/mobile/APK_0.2.3_RELEASE.md)。APK 不用另装 Python、ADB 或 PC 软件。
 
@@ -25,7 +25,7 @@ $env:KARDS_PUBLIC_BUILD = 'true'
 python tools/prepare_mobile_core.py --check --packaged-only
 ```
 
-源码提交的 Git archive 已核对573个文件、23,471,078 bytes，预期文件集合完整、提交与工作副本原字节一致。内置引擎230个文件、943,893 bytes的清单检查通过。公开副本仅净化 `apk_settle.py` 模块文档字符串中的本机路径，其他AST未变；源码正文检查未发现私有路径。
+源码提交的 Git archive 已核对575个文件、23,486,190 bytes，预期文件集合完整、提交与工作副本原字节一致。内置引擎230个文件、943,893 bytes的清单检查通过。公开副本仅净化 `apk_settle.py` 模块文档字符串中的本机路径，其他AST未变；源码正文检查未发现私有路径。
 
 私有实机截图、原始日志、回放图片和构建/运行环境不上传。Python 测试及 Android 测试源代码保留，需要真实图像的回归须自行准备测试资产；没有这些资产不能将相应回放记为通过。正式 APK 已核对排除测试模块和私有夹具，保留运行必需的模型、裁剪模板与蓝图纹理 atlas/mask，详情见发布报告。
 
