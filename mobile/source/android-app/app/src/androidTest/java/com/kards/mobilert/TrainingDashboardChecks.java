@@ -24,6 +24,7 @@ public final class TrainingDashboardChecks {
         TrainingDashboardChecks test = new TrainingDashboardChecks();
         test.interactions(activity);
         test.numericInput(activity);
+        test.manualWithoutDetection(activity);
         return new JSONObject().put("checks", test.checks).put("check_count", test.checks.length())
                 .put("failure_count", test.failures).put("device_inputs", 0)
                 .put("uses_real_service", false).put("activity_content_replaced", false);
@@ -75,7 +76,7 @@ public final class TrainingDashboardChecks {
                 && actions.permissions == 3 && actions.total() == 3);
 
         dashboard.render(empty, true, false, false, "");
-        check("missing_game_disables_both_entry_actions", !primary.isEnabled() && !manual.isEnabled() && !stop.isEnabled());
+        check("missing_game_keeps_manual_entry_available", !primary.isEnabled() && manual.isEnabled() && !stop.isEnabled());
         dashboard.render(empty, true, true, false, "");
         check("ready_environment_enables_selected_mode", primary.isEnabled()
                 && "开始休闲辅助".contentEquals(primary.getText()) && !stop.isEnabled());
@@ -241,6 +242,42 @@ public final class TrainingDashboardChecks {
                 && actions.total() == callbacks && primary.isEnabled() && manual.isEnabled());
         count.setText("0003");
         check("leading_zero_integer_preserves_its_value", dashboard.selectedMatchCount() == 3 && dashboard.validMatchCount());
+    }
+
+    private void manualWithoutDetection(Activity activity) throws Exception {
+        FakeActions actions = new FakeActions();
+        TrainingDashboard dashboard = new TrainingDashboard(activity, actions, "test");
+        View view = dashboard.view();
+        Button primary = view.findViewById(R.id.panel_start);
+        Button manual = view.findViewWithTag("panel_manual_start");
+        EditText count = view.findViewWithTag("panel_match_count");
+        TrainingPanelState empty = TrainingPanelState.from("{}");
+        dashboard.render(empty, true, false, false, "");
+        primary.performClick();
+        check("undetected_game_auto_entry_cannot_start", actions.total() == 0 && !primary.isEnabled());
+        manual.performClick();
+        check("undetected_game_manual_entry_can_arm", actions.starts == 1 && !actions.lastOpenGame
+                && "casual".equals(actions.lastStartedMode) && actions.lastMatchCount == 1
+                && containsText(view, "未检测到游戏，可使用下方手动入口"));
+        dashboard.setSelectedMode("ranked");
+        count.setText("0");
+        manual.performClick();
+        check("undetected_game_manual_preserves_mode_and_unlimited_count", actions.starts == 2
+                && !actions.lastOpenGame && "ranked".equals(actions.lastStartedMode) && actions.lastMatchCount == 0);
+        count.setText("-1");
+        manual.performClick();
+        check("undetected_game_manual_still_rejects_invalid_count", !manual.isEnabled() && actions.starts == 2);
+        count.setText("1");
+        dashboard.render(empty, false, false, false, "");
+        manual.performClick();
+        check("undetected_game_manual_requires_permissions", actions.permissions == 1 && actions.starts == 2);
+        for (TrainingPanelState blocked : new TrainingPanelState[]{state("armed", true, "waiting_for_game"),
+                state("engine", true, "capture"), state("stopping", false, "user_stop"), empty}) {
+            dashboard.render(blocked, true, false, true, "");
+            manual.performClick();
+            check("undetected_game_busy_manual_cannot_restart_" + checks.length(),
+                    !manual.isEnabled() && actions.starts == 2);
+        }
     }
 
     private static TrainingPanelState state(String event, boolean active, String reason) throws Exception {

@@ -99,7 +99,38 @@ public final class DeviceRegressionInstrumentation extends Instrumentation {
                 publicSupport = new PublicReleaseTestSupport(getContext(),getTargetContext(),outputDirectory);
                 report.put("public_release_test_support",publicSupport.install());
             }
-            if ("true".equals(arguments.getString("captureQualityOnly", "false"))) {
+            if ("true".equals(arguments.getString("entryControlsOnly", "false"))) {
+                runCase("game_package_identity", item -> {
+                    JSONObject checks = GamePackageChecks.run();
+                    require(checks.getInt("failure_count") == 0, "Game package identity checks failed");
+                    item.put("checks", checks);
+                });
+                runCase("package_manager_visibility", item -> {
+                    android.content.pm.PackageManager manager = getTargetContext().getPackageManager();
+                    Intent original = manager.getLaunchIntentForPackage(GamePackages.DEFAULT);
+                    Intent alternative = manager.getLaunchIntentForPackage(GamePackages.APK);
+                    Intent selected = GamePackages.findLaunchable(manager::getLaunchIntentForPackage);
+                    item.put("original_launchable", original != null)
+                            .put("alternative_launchable", alternative != null)
+                            .put("selected_package", selected == null ? "" : selected.getComponent().getPackageName());
+                    require(selected != null, "No installed supported KARDS launcher resolved");
+                    require(GamePackages.isGame(selected.getComponent().getPackageName()), "Unexpected game package");
+                });
+                runCase("training_dashboard_controls", item -> {
+                    startPrototypeActivity();
+                    onMain(() -> {
+                        try {
+                            JSONObject checks = TrainingDashboardChecks.run(activity);
+                            item.put("checks", checks);
+                            require(checks.getInt("failure_count") == 0, "Training dashboard checks failed");
+                        } catch (Exception error) {
+                            throw new AssertionError("Training dashboard checks could not complete", error);
+                        }
+                    });
+                });
+            } else if ("true".equals(arguments.getString("packageIdentityOnly", "false"))) {
+                runCase("game_package_identity", item -> item.put("checks", GamePackageChecks.run()));
+            } else if ("true".equals(arguments.getString("captureQualityOnly", "false"))) {
                 runCase("capture_pixel_quality", item -> item.put("checks", CapturePixelQualityChecks.run()));
                 runCase("capture_retry_policy", item -> item.put("checks", new JSONObject()
                         .put("passed",true).put("checks",CaptureRetryPolicyChecks.runChecks()).put("device_inputs",0)));

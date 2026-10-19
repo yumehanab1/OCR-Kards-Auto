@@ -51,6 +51,7 @@ final class TrainingDashboard {
     private int selectedMatchCount = 1;
     private boolean primaryCanStart;
     private boolean entryAvailable;
+    private boolean manualEntryAvailable;
     private boolean editingCount;
     private String countText = "1";
     private boolean permissionRequired = true;
@@ -167,7 +168,7 @@ final class TrainingDashboard {
         manualStart.setOnClickListener(v -> {
             if (!manualStart.isEnabled()) return;
             if (permissionRequired) actions.permissions();
-            else if (primaryCanStart && validMatchCount()) actions.start(selectedMode, false, selectedMatchCount());
+            else if (manualEntryAvailable && validMatchCount()) actions.start(selectedMode, false, selectedMatchCount());
         });
         add(hero, manualStart, 10);
         TextView stopHint = text("进入游戏后，返回此面板或切出游戏会停止操作", 11,
@@ -272,7 +273,7 @@ final class TrainingDashboard {
                     actions.matchCountChanged(parsed);
                 }
                 updateCountValidation();
-                if (entryAvailable) heroBody.setText(idleDescription());
+                if (manualEntryAvailable) heroBody.setText(idleDescription());
             }
         });
     }
@@ -303,12 +304,12 @@ final class TrainingDashboard {
         matchCountInput.setText(countText);
         editingCount = false;
         updateCountValidation();
-        if (entryAvailable) heroBody.setText(idleDescription());
+        if (manualEntryAvailable) heroBody.setText(idleDescription());
     }
     private void updateCountValidation() {
         matchCountInput.setError(validMatchCount() ? null : activity.getString(R.string.match_count_invalid));
         start.setEnabled(entryAvailable && validMatchCount());
-        manualStart.setEnabled(start.isEnabled());
+        manualStart.setEnabled(manualEntryAvailable && validMatchCount());
         start.setAlpha(start.isEnabled() ? 1f : .48f);
         manualStart.setAlpha(manualStart.isEnabled() ? 1f : .48f);
     }
@@ -352,7 +353,7 @@ final class TrainingDashboard {
 
     void render(TrainingPanelState state, boolean connected, boolean gameInstalled, boolean busy, String date) {
         gameSymbol.setText(gameInstalled ? "✓" : "!");
-        gameValue.setText(gameInstalled ? "已安装" : "请先在设备上安装 KARDS");
+        gameValue.setText(gameInstalled ? "已安装" : "未检测到游戏，可使用下方手动入口");
         serviceSymbol.setText(connected ? "✓" : "!");
         serviceValue.setText(connected ? "已连接 · 可以识别和操作" : "未开启 · 点击下方完成授权");
         serviceSymbol.setTextColor(connected ? OLIVE : Color.rgb(145, 102, 41));
@@ -360,16 +361,17 @@ final class TrainingDashboard {
         boolean stopping = "stopping".equals(state.statusKind) || (busy && !state.active);
         boolean waiting = state.active && "waiting".equals(state.statusKind);
         readiness.setText(stopping ? "●  正在停止" : waiting ? "●  辅助已待命" : state.active ? "●  辅助运行中"
-                : !gameInstalled ? "○  尚未安装游戏" : connected ? "●  权限已就绪" : "○  等待授权");
+                : !connected ? "○  等待授权" : !gameInstalled ? "●  可手动打开游戏" : "●  权限已就绪");
         heroTitle.setText(stopping ? "正在结束本次辅助" : state.active ? state.title
-                : !gameInstalled ? "先准备好 KARDS" : connected ? "准备好下一场对战" : "开启你的对战助手");
+                : !connected ? "开启你的对战助手" : !gameInstalled ? "可以手动启动辅助" : "准备好下一场对战");
         heroBody.setText(stopping ? "正在收尾并保存运行记录。\n结束后可以再次开始。" : state.active ? state.summary
                 : idleDescription());
         permissionRequired = !connected;
         primaryCanStart = !state.active && !stopping && !busy && gameInstalled && connected;
         start.setText(stopping ? "正在停止…" : waiting ? "等待游戏" : state.active ? "正在运行" : !connected ? "开启权限"
                 : "ranked".equals(selectedMode) ? "开始排位辅助" : "开始休闲辅助");
-        entryAvailable = !state.active && !stopping && !busy && gameInstalled;
+        manualEntryAvailable = !state.active && !stopping && !busy;
+        entryAvailable = manualEntryAvailable && gameInstalled;
         updateCountValidation();
         casual.setEnabled(!state.active && !stopping && !busy);
         ranked.setEnabled(!state.active && !stopping && !busy);

@@ -569,14 +569,17 @@ final class FloatingControlChecks {
         final KardsAccessibilityService service=candidate;require(service!=null,"service required");
         GameFloatingControl control=service.floatingControlForTest();
         AtomicReference<Long> generation=new AtomicReference<>();
+        AtomicReference<String> gamePackage=new AtomicReference<>();
         onMain(instrumentation,()->{
-            require(service.currentForegroundPackage().equals("com.android1939.kards"),"game must be foreground");
+            String owner=service.currentForegroundPackage();
+            require(GamePackages.isGame(owner),"game must be foreground");
+            gamePackage.set(owner);
             require(!BattleWorkerLease.isOwned(),"no battle worker during read-only UI check");
             generation.set(service.gameForegroundGeneration());control.showForTest(false);
         });
         instrumentation.waitForIdleSync();Thread.sleep(200);
         onMain(instrumentation,()->{
-            require(service.currentForegroundPackage().equals("com.android1939.kards"),"collapsed control stole foreground");
+            require(gamePackage.get().equals(service.currentForegroundPackage()),"collapsed control stole foreground");
             control.setExpanded(true);
         });
         instrumentation.waitForIdleSync();Thread.sleep(200);
@@ -599,7 +602,7 @@ final class FloatingControlChecks {
                     && metadata.getBoolean("overlay_attached"),"window capture changed the overlay during delivery");
             instrumentation.waitForIdleSync();
             onMain(instrumentation,()->{
-                require(service.currentForegroundPackage().equals("com.android1939.kards"),"expanded control stole foreground");
+                require(gamePackage.get().equals(service.currentForegroundPackage()),"expanded control stole foreground");
                 require(service.gameForegroundGeneration()==generation.get(),"overlay invalidated game admission generation");
                 require(control.expandedForTest(),"capture collapsed panel");
                 requireOverlayLeaseState(control,overlayIdentity.get(),false,"native capture after");

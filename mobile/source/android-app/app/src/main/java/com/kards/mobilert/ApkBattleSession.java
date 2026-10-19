@@ -32,7 +32,6 @@ public final class ApkBattleSession {
     private final EvidenceRetention retention;
     private WorkingFrameEvidence workingEvidence;
     private int lastRecordedRound;
-    private static final String GAME = "com.android1939.kards";
     private static final long FRAME_MAX_AGE_MS = 3000;
     private final KardsAccessibilityService service;
     private final Handler main = new Handler(Looper.getMainLooper());

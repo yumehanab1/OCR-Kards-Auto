@@ -29,7 +29,7 @@ import java.util.function.Consumer;
  * enqueueing an unchecked gesture would defeat cancellation and freshness.</p>
  */
 public final class BoundedMulliganSession {
-    public static final String GAME_PACKAGE = "com.android1939.kards";
+    public static final String GAME_PACKAGE = GamePackages.DEFAULT;
     public static final String ACTION_SCOPE = "mulligan_confirm";
     public static final long TIME_BUDGET_MS = 90_000L;
     // Opponent-first starts include their turn, our turn banner, and the draw animation.
@@ -64,7 +64,7 @@ public final class BoundedMulliganSession {
         /**
          * Synchronously attempt this one normalized tap. Return the Android
          * dispatch acceptance value, which is NOT verification of game success.
-         * Recheck GAME_PACKAGE at the actual dispatch boundary; do not queue it.
+         * Recheck the admitted game package at the actual dispatch boundary; do not queue it.
          */
         boolean dispatchTap(float xNormalized, float yNormalized, TapCallback callback);
     }

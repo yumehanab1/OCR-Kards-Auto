@@ -44,7 +44,6 @@ final class SettleDispatchGuard {
      *  exercised on a host JVM without the Android build. */
     static final int[][] DEFAULT_POINTS = {
             {640, 665}, {400, 501}, {880, 501}, {153, 633}, {1126, 633}};
-    private static final String GAME = "com.android1939.kards";
 
     private SettleDispatchGuard() { }
 
@@ -88,7 +87,7 @@ final class SettleDispatchGuard {
                                                        frame.optInt("source_height"))) {
             return "unsupported_frame_size";
         }
-        if (!GAME.equals(foreground) || generation != frame.getLong("foreground_generation")) {
+        if (!GamePackages.isGame(foreground) || generation != frame.getLong("foreground_generation")) {
             return "foreground_changed";
         }
         long age = now - frame.getLong("captured_elapsed_ms");

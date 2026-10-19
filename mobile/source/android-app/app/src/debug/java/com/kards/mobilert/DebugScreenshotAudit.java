@@ -27,7 +27,7 @@ final class DebugScreenshotAudit {
     static String start(KardsAccessibilityService service) throws Exception {
         if (BattleWorkerLease.isOwned() || new JSONObject(service.battleProgressReport()).optBoolean("active"))
             throw new IllegalStateException("capture_audit_requires_inactive");
-        if (!"com.android1939.kards".equals(service.currentForegroundPackage()))
+        if (!GamePackages.isGame(service.currentForegroundPackage()))
             throw new IllegalStateException("capture_audit_requires_game_foreground");
         if (!RUNNING.compareAndSet(false, true)) throw new IllegalStateException("capture_audit_busy");
         try {
@@ -49,7 +49,7 @@ final class DebugScreenshotAudit {
     private void next() {
         if(finished)return;
         if(index>=18){finish("");return;}
-        if(BattleWorkerLease.isOwned() || !"com.android1939.kards".equals(service.currentForegroundPackage())) {
+        if(BattleWorkerLease.isOwned() || !GamePackages.isGame(service.currentForegroundPackage())) {
             finish("foreground_or_worker_changed");return;
         }
         final int number=++index;

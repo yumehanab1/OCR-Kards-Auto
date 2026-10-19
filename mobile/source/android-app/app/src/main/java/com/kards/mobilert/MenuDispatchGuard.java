@@ -6,7 +6,6 @@ import org.json.JSONObject;
 /** Final menu tap boundary. It cannot authorize a battle action or retry a consumed frame. */
 final class MenuDispatchGuard {
     static final int MAX_INPUTS = 16;
-    private static final String GAME = "com.android1939.kards";
 
     private MenuDispatchGuard() { }
 
@@ -35,7 +34,7 @@ final class MenuDispatchGuard {
                 || !BattleDispatchGuard.supportedFrame(frame.optInt("source_width"), frame.optInt("source_height"))) {
             return "unsupported_frame_size";
         }
-        if (!GAME.equals(foreground) || generation != frame.getLong("foreground_generation")) return "foreground_changed";
+        if (!GamePackages.isGame(foreground) || generation != frame.getLong("foreground_generation")) return "foreground_changed";
         long age = now - frame.getLong("captured_elapsed_ms");
         if (age < 0 || age > (nativePixels ? 5000 : BattleDispatchGuard.FRAME_MAX_AGE_MS)) return "frame_age_expired";
         if (!"tap".equals(plan.opt("kind"))) return "menu_tap_required";

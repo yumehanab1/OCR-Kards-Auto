@@ -16,7 +16,7 @@ final class ForegroundDepartureTracker {
             if (window.ownOverlay || window.type != 1 || window.bounds.isEmpty()
                     || (!window.active && !window.focused) || window.owner == null
                     || window.owner.isEmpty() || "com.android.systemui".equals(window.owner)) continue;
-            if (GameWindowState.GAME.equals(window.owner)) currentGame = true;
+            if (GamePackages.isGame(window.owner)) currentGame = true;
             else if (externalApplication == null || window.layer > externalApplication.layer
                     || (window.layer == externalApplication.layer
                     && window.owner.compareTo(externalApplication.owner) > 0)) externalApplication = window;

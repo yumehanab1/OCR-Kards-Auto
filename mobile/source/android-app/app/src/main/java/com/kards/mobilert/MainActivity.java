@@ -233,7 +233,7 @@ public final class MainActivity extends Activity {
         confirmOpening.setText("起手确认测试（最多点击一次）");
         confirmOpening.setOnClickListener(v -> {
             KardsAccessibilityService service = KardsAccessibilityService.instance();
-            Intent game = getPackageManager().getLaunchIntentForPackage("com.android1939.kards");
+            Intent game = GamePackages.findLaunchable(getPackageManager()::getLaunchIntentForPackage);
             if (service == null || game == null) {
                 status.setText(R.string.mulligan_unavailable);
                 return;
@@ -386,13 +386,19 @@ public final class MainActivity extends Activity {
             return;
         }
         KardsAccessibilityService service = KardsAccessibilityService.instance();
-        Intent game = getPackageManager().getLaunchIntentForPackage("com.android1939.kards");
-        if (service == null || game == null) {
-            panelMessage("还差一步准备", "请先安装 KARDS，并开启对战助手的无障碍权限。");
+        if (service == null) {
+            panelMessage("还差一步准备", "请先开启对战助手的无障碍权限。");
+            return;
+        }
+        boolean launchGame = openGame || readOnly || "training".equals(mode);
+        // Manual entry arms the foreground gate without querying installed packages.
+        Intent game = launchGame
+                ? GamePackages.findLaunchable(getPackageManager()::getLaunchIntentForPackage) : null;
+        if (launchGame && game == null) {
+            panelMessage("未检测到可启动的 KARDS", "请确认游戏可以正常打开，或使用“仅启动辅助 · 手动打开游戏”。");
             return;
         }
         if (observationLoop != null) observationLoop.stop();
-        boolean launchGame = openGame || readOnly || "training".equals(mode);
         boolean armedThisRequest = false;
         try {
             JSONObject options = battleOptions(readOnly, mode, matchCount);
@@ -489,7 +495,7 @@ public final class MainActivity extends Activity {
     protected void onResume() {
         super.onResume();
         visible = true;
-        gameInstalled = getPackageManager().getLaunchIntentForPackage("com.android1939.kards") != null;
+        gameInstalled = GamePackages.findLaunchable(getPackageManager()::getLaunchIntentForPackage) != null;
         main.removeCallbacks(refresh);
         main.post(refresh);
         loadLatestRecord();

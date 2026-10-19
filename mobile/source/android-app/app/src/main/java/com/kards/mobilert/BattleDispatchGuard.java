@@ -6,7 +6,6 @@ import org.json.JSONObject;
 /** Pure final-input checks; all platform facts must be freshly supplied by the bridge. */
 final class BattleDispatchGuard {
     static final long FRAME_MAX_AGE_MS = 3000;
-    private static final String GAME = "com.android1939.kards";
 
     private BattleDispatchGuard() { }
 
@@ -33,7 +32,7 @@ final class BattleDispatchGuard {
                 || !supportedFrame(frame.getInt("source_width"), frame.getInt("source_height"))) {
             return "unsupported_frame_size";
         }
-        if (!GAME.equals(foreground) || generation != frame.getLong("foreground_generation")) return "foreground_changed";
+        if (!GamePackages.isGame(foreground) || generation != frame.getLong("foreground_generation")) return "foreground_changed";
         long age = now - frame.getLong("captured_elapsed_ms");
         if (age < 0 || age > FRAME_MAX_AGE_MS) return "frame_age_expired";
         String kind = plan.getString("kind");

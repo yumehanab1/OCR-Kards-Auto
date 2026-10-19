@@ -36,7 +36,7 @@ final class GameFloatingControl {
     private long actionAt;
     private final Runnable tick=new Runnable() { public void run() {
         if(destroyed)return;
-        update("com.android1939.kards".equals(service.currentForegroundPackage()));
+        update(GamePackages.isGame(service.currentForegroundPackage()));
         main.postDelayed(this,700);
     }};
 

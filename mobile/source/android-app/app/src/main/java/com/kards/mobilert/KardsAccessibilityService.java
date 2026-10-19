@@ -30,7 +30,6 @@ import java.util.function.Consumer;
 public final class KardsAccessibilityService extends AccessibilityService implements FrameSource {
     private static KardsAccessibilityService current;
     private static final Set<Consumer<Boolean>> connectionListeners = new HashSet<>();
-    private static final String GAME_PACKAGE = "com.android1939.kards";
     private String foregroundPackage = "";
     private long foregroundGeneration;
     private final ForegroundDepartureTracker foregroundDepartures = new ForegroundDepartureTracker();
@@ -129,8 +128,8 @@ public final class KardsAccessibilityService extends AccessibilityService implem
         if(windows.game!=null) {
             if(admittedGameWindowId>=0 && admittedGameWindowId!=windows.game.id)foregroundGeneration++;
             admittedGameWindowId=windows.game.id;
-            updateForeground(GAME_PACKAGE);
-            return GAME_PACKAGE;
+            updateForeground(windows.game.owner);
+            return windows.game.owner;
         }
         admittedGameWindowId=-1;
         if(Build.VERSION.SDK_INT>=34) {updateForeground(windows.foreground);return windows.foreground;}
@@ -187,7 +186,7 @@ public final class KardsAccessibilityService extends AccessibilityService implem
         ForegroundSnapshot snapshot=foregroundSnapshot();
         String foreground=snapshot.foregroundPackage;GameWindowState state=snapshot.windowState;
         org.json.JSONObject result=new org.json.JSONObject().put("game_present",state.game!=null)
-                .put("occluded",state.occluded).put("foreground_game",GAME_PACKAGE.equals(foreground))
+                .put("occluded",state.occluded).put("foreground_game",GamePackages.isGame(foreground))
                 .put("foreground_package",foreground).put("departure_epoch",snapshot.departureEpoch)
                 .put("generation",snapshot.generation).put("window_capture_supported",Build.VERSION.SDK_INT>=34);
         if(state.game!=null)result.put("window_id",state.game.id)
@@ -226,7 +225,7 @@ public final class KardsAccessibilityService extends AccessibilityService implem
                 if (owner != null && (battleSession != owner || !owner.canContinueOpening()
                         || !BattleWorkerLease.isOwnedBy(owner))) return false;
                 long before = foregroundGeneration;
-                if (!GAME_PACKAGE.equals(activePackage()) || before != foregroundGeneration || gameInputOccluded()
+                if (!GamePackages.isGame(activePackage()) || before != foregroundGeneration || gameInputOccluded()
                         || mulliganSession == null || !mulliganSession.isRunning()
                         || !FrameAspectProfile.supported(sourceWidth, sourceHeight)
                         || !Float.isFinite(x) || !Float.isFinite(y)

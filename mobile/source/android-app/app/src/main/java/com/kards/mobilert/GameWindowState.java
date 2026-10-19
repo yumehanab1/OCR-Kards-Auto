@@ -6,7 +6,7 @@ import java.util.ArrayList;
 
 /** Window metadata only. Never inspects text or notification content. */
 final class GameWindowState {
-    static final String GAME="com.android1939.kards";
+    static final String GAME=GamePackages.DEFAULT;
     static final String OCCLUDED="temporary_game_window_occluded";
     static final class Window {
         final int id,type,layer;final String owner;final Rect bounds;final boolean active,focused,ownOverlay;
@@ -29,7 +29,7 @@ final class GameWindowState {
                     || "com.android.systemui".equals(window.owner))continue;
             if(application==null || window.layer>application.layer)application=window;
         }
-        if(application==null && previousGame!=null && !windows.isEmpty()) {
+        if(application==null && previousGame!=null && GamePackages.isGame(previousGame.owner) && !windows.isEmpty()) {
             boolean onlySystem=true,systemUi=false;
             for(Window window:windows) {
                 if(window.ownOverlay)continue;
@@ -39,10 +39,10 @@ final class GameWindowState {
             if(onlySystem && systemUi) {
                 // A fully expanded shade hides underlying app windows from
                 // accessibility. Previous identity grants WAITING only.
-                return new GameWindowState(previousGame,true,GAME);
+                return new GameWindowState(previousGame,true,previousGame.owner);
             }
         }
-        if(application==null || !GAME.equals(application.owner))
+        if(application==null || !GamePackages.isGame(application.owner))
             return new GameWindowState(null,false,application==null?"":application.owner);
         boolean blocked=false;
         ArrayList<Rect> obstructions=new ArrayList<>();
@@ -56,7 +56,7 @@ final class GameWindowState {
                         || visible.width()<=application.bounds.width()*.04);
             if(!thinBar)blocked=true;
         }
-        GameWindowState result=new GameWindowState(application,blocked,GAME);
+        GameWindowState result=new GameWindowState(application,blocked,application.owner);
         result.obstructions.addAll(obstructions);return result;
     }
     boolean blocksPath(float[][] points) {

@@ -11,13 +11,13 @@ final class GameEntryGate {
     static final String CURRENT_GAME = "current_game";
     static final String WAITING = "waiting_for_new_game_foreground";
     static final String RECAPTURE = "bootstrap_window_changed";
-    private static final String GAME = "com.android1939.kards";
 
     final String mode;
     final String armedPackage;
     final long armedGeneration;
     final long armedElapsed;
     private long admittedGeneration = -1;
+    private String admittedPackage = "";
     private boolean invalidated;
     private boolean bootstrapEnabled;
     private boolean bootstrapSealed;
@@ -39,24 +39,28 @@ final class GameEntryGate {
             throw new IllegalArgumentException("invalid_entry_mode");
         }
         if (generation < 0 || elapsed < 0) throw new IllegalArgumentException("invalid_entry_snapshot");
-        if (CURRENT_GAME.equals(mode) && !GAME.equals(foreground)) {
+        if (CURRENT_GAME.equals(mode) && !GamePackages.isGame(foreground)) {
             throw new IllegalArgumentException("current_game_not_foreground");
         }
         this.mode = mode;
         armedPackage = foreground == null ? "" : foreground;
         armedGeneration = generation;
         armedElapsed = elapsed;
-        if (CURRENT_GAME.equals(mode)) admittedGeneration = generation;
+        if (CURRENT_GAME.equals(mode)) {
+            admittedGeneration = generation;
+            admittedPackage = foreground;
+        }
     }
 
     /** Only launch mode can admit a later entry, and only once. */
     synchronized String check(String foreground, long generation) {
         if (invalidated) return "foreground_changed";
         if (admittedGeneration < 0) {
-            if (!GAME.equals(foreground) || generation <= armedGeneration) return WAITING;
+            if (!GamePackages.isGame(foreground) || generation <= armedGeneration) return WAITING;
             admittedGeneration = generation;
+            admittedPackage = foreground;
         }
-        if (!GAME.equals(foreground) || generation != admittedGeneration) {
+        if (!admittedPackage.equals(foreground) || generation != admittedGeneration) {
             invalidated = true;
             return "foreground_changed";
         }
@@ -83,15 +87,18 @@ final class GameEntryGate {
         if (invalidated) return "foreground_changed";
         if (departureEpoch != bootstrapDepartureEpoch) return invalidate();
         if (foreground == null || foreground.isEmpty()) return WAITING;
-        if (!GAME.equals(foreground)) {
+        if (!GamePackages.isGame(foreground)) {
             if (admittedGeneration < 0 && armedPackage.equals(foreground)) return WAITING;
             return invalidate();
         }
+        // Startup windows may rebind only within the actual admitted distribution.
+        if (admittedGeneration >= 0 && !admittedPackage.equals(foreground)) return invalidate();
         if (admittedGeneration < 0 && generation <= armedGeneration) return WAITING;
         if (admittedGeneration >= 0 && generation < admittedGeneration) return invalidate();
         if (generation != admittedGeneration) {
             if (admittedGeneration >= 0) bootstrapRebindings++;
             admittedGeneration = generation;
+            admittedPackage = foreground;
             bootstrapGenerations.add(generation);
         }
         return null;
@@ -132,7 +139,8 @@ final class GameEntryGate {
     synchronized JSONObject evidence() throws Exception {
         return new JSONObject().put("entry_mode", mode).put("armed_package", armedPackage)
                 .put("armed_generation", armedGeneration).put("armed_elapsed_ms", armedElapsed)
-                .put("admitted_generation", admittedGeneration).put("invalidated", invalidated)
+                .put("admitted_generation", admittedGeneration).put("admitted_package", admittedPackage)
+                .put("invalidated", invalidated)
                 .put("bootstrap_enabled", bootstrapEnabled).put("bootstrap_sealed", bootstrapSealed)
                 .put("bootstrap_departure_epoch", bootstrapDepartureEpoch)
                 .put("bootstrap_rebindings", bootstrapRebindings);

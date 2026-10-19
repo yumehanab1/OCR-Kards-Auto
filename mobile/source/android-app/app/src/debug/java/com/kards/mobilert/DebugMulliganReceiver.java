@@ -17,7 +17,7 @@ public final class DebugMulliganReceiver extends BroadcastReceiver {
             if ("com.kards.mobilert.debug.STOP_MULLIGAN".equals(intent.getAction())) {
                 service.cancelMulligan();
             } else if ("com.kards.mobilert.debug.START_MULLIGAN".equals(intent.getAction())) {
-                Intent game = context.getPackageManager().getLaunchIntentForPackage("com.android1939.kards");
+                Intent game = GamePackages.findLaunchable(context.getPackageManager()::getLaunchIntentForPackage);
                 if (game == null) throw new IllegalStateException("game_not_installed");
                 if (!service.startMulliganOnce()) {
                     setResultCode(3);
