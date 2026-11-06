@@ -14,9 +14,10 @@ def normalized(crop):
 
 class Objects:
     def __init__(self,bank):
-        needles=np.stack([normalized(bank[name]).astype(np.float64).ravel() for name in TYPES])
+        needles=np.stack([normalized(bank[name]).astype(np.float32).ravel() for name in TYPES])
         self.centered=needles-needles.mean(axis=1,keepdims=True)
         self.norms=np.sqrt(np.einsum('ij,ij->i',self.centered,self.centered))
+        self.norms[self.norms<=0]=1.
 
     def inspect(self,frame,features=None):
         h,w=frame.shape[:2];scale=h/720
@@ -26,13 +27,11 @@ class Objects:
         result=[]
         for x,y,bw,bh,area in stats[1:]:
             if not (18*scale<=bw<=42*scale and 18*scale<=bh<=44*scale and area>=.55*bw*bh):continue
-            glyph=normalized(frame[y:y+bh,x:x+bw]).astype(np.float64).ravel()
+            glyph=normalized(frame[y:y+bh,x:x+bw]).astype(np.float32).ravel()
             centered=glyph-glyph.mean()
             norm=float(np.sqrt(centered@centered))
             if norm<=0:continue
-            denominator=self.norms*norm
-            scores=np.divide(self.centered@centered,denominator,
-                             out=np.full(len(TYPES),-1.),where=denominator>0)
+            scores=(self.centered@centered)/(self.norms*norm)
             names=sorted(range(len(TYPES)),key=lambda i:-scores[i])
             first,second=names[0],names[1]
             if scores[first]>=.90 and scores[first]-scores[second]>=.12:
