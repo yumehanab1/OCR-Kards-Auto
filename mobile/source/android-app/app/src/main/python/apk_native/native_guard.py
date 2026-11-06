@@ -8,6 +8,23 @@ class Guards:
     def __init__(self,bank):
         self.bank={name:cv2.cvtColor(bank[name],cv2.COLOR_BGR2GRAY)
                    for name in ('guard_unit','guard_hq')}
+        self.variants={}
+
+    def variants_for(self,scale):
+        key=round(scale,4)
+        cached=self.variants.get(key)
+        if cached is not None:return cached
+        if len(self.variants)>=8:self.variants.clear()
+        cached={}
+        for name,template in self.bank.items():
+            items=[]
+            for factor in (.9,1.,1.1):
+                needle=cv2.resize(template,(round(template.shape[1]*scale*factor),round(template.shape[0]*scale*factor)))
+                items.append(needle)
+                if name=='guard_hq':items.append(cv2.flip(needle,1))
+            cached[name]=items
+        self.variants[key]=cached
+        return cached
 
     def inspect(self,frame,box,features,geometry_verified=False):
         x,y,w,h=box;scale=frame.shape[0]/720
@@ -16,14 +33,12 @@ class Guards:
         win=features.get('gray')[y0:y1,x0:x1]
         if win.size==0 or float(win.std())<5:return {'state':'unknown','scores':{}}
         scores={};locations={}
-        for name,template in self.bank.items():
+        for name,variants in self.variants_for(scale).items():
             best=(-1.,None)
-            for factor in (.9,1.,1.1):
-                needle=cv2.resize(template,(round(template.shape[1]*scale*factor),round(template.shape[0]*scale*factor)))
-                for variant in (needle,cv2.flip(needle,1)) if name=='guard_hq' else (needle,):
-                    if variant.shape[0]>win.shape[0] or variant.shape[1]>win.shape[1]:continue
-                    _,score,_,point=cv2.minMaxLoc(cv2.matchTemplate(win,variant,cv2.TM_CCOEFF_NORMED))
-                    if score>best[0]:best=(float(score),[x0+point[0],y0+point[1]])
+            for variant in variants:
+                if variant.shape[0]>win.shape[0] or variant.shape[1]>win.shape[1]:continue
+                _,score,_,point=cv2.minMaxLoc(cv2.matchTemplate(win,variant,cv2.TM_CCOEFF_NORMED))
+                if score>best[0]:best=(float(score),[x0+point[0],y0+point[1]])
             scores[name]=best[0];locations[name]=best[1]
         names=sorted(scores,key=scores.get,reverse=True)
         state='unknown'

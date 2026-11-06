@@ -14,23 +14,29 @@ def normalized(crop):
 
 class Objects:
     def __init__(self,bank):
-        self.bank={name:normalized(bank[name]) for name in TYPES}
+        needles=np.stack([normalized(bank[name]).astype(np.float64).ravel() for name in TYPES])
+        self.centered=needles-needles.mean(axis=1,keepdims=True)
+        self.norms=np.sqrt(np.einsum('ij,ij->i',self.centered,self.centered))
 
     def inspect(self,frame,features=None):
         h,w=frame.shape[:2];scale=h/720
-        # Same dark-component idea as production. Detect complete components
-        # on the entire source before evaluating footprint, never crop a plate.
         hsv=features.get('hsv') if features is not None else cv2.cvtColor(frame,cv2.COLOR_BGR2HSV)
         mask=(hsv[:,:,2]<65).astype(np.uint8)
         _,_,stats,_=cv2.connectedComponentsWithStats(mask,8)
         result=[]
         for x,y,bw,bh,area in stats[1:]:
             if not (18*scale<=bw<=42*scale and 18*scale<=bh<=44*scale and area>=.55*bw*bh):continue
-            glyph=normalized(frame[y:y+bh,x:x+bw])
-            scores={name:float(cv2.matchTemplate(glyph,needle,cv2.TM_CCOEFF_NORMED)[0,0]) for name,needle in self.bank.items()}
-            names=sorted(scores,key=scores.get,reverse=True)
-            if scores[names[0]]>=.90 and scores[names[0]]-scores[names[1]]>=.12:
-                result.append({'box':[int(x),int(y),int(bw),int(bh)],'type':names[0],
-                    'score':scores[names[0]],'margin':scores[names[0]]-scores[names[1]],
+            glyph=normalized(frame[y:y+bh,x:x+bw]).astype(np.float64).ravel()
+            centered=glyph-glyph.mean()
+            norm=float(np.sqrt(centered@centered))
+            if norm<=0:continue
+            denominator=self.norms*norm
+            scores=np.divide(self.centered@centered,denominator,
+                             out=np.full(len(TYPES),-1.),where=denominator>0)
+            names=sorted(range(len(TYPES)),key=lambda i:-scores[i])
+            first,second=names[0],names[1]
+            if scores[first]>=.90 and scores[first]-scores[second]>=.12:
+                result.append({'box':[int(x),int(y),int(bw),int(bh)],'type':TYPES[first],
+                    'score':float(scores[first]),'margin':float(scores[first]-scores[second]),
                     'side':'unknown','input_authorized':False})
         return result

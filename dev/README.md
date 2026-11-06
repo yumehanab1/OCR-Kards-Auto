@@ -2,6 +2,11 @@
 
 `dev/` 不参与运行时。这里的脚本分为离线回归、图像判据分析、现场取证和文档生成四类。
 
+## 图像判据基准
+
+- `mobile_matcher_bench/bench.py`：用 6 张内置模板生成 282 帧（3 组种子、5 档噪声、3 档亮度、遮挡、空帧），对比 `TemplateMatcher` 与原实现的耗时、分数和位置；需要 JDK17，不访问游戏。
+- `mobile_vision_bench.py`：从 `f9dfc0e` 取原版 `page_detector.py`、`native_objects.py`、`native_guard.py`，与当前版本跑同一批合成帧，逐字段比对输出；需要 cv2 和 numpy。
+
 ## 离线回归
 
 - `orange_speed_test.py`：主牌裁框、嵌套首张截止、禁止过期追加OCR/重悬停、未知身份拒识与部署diff保留；另含天气抓点复核每次重读效果、费用/版本变化拒绝、共享截止恢复及传统入口；使用假帧，不调用OCR、不操作游戏。
