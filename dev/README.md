@@ -6,6 +6,10 @@
 
 - `mobile_matcher_bench/bench.py`：用 6 张内置模板生成 282 帧（3 组种子、5 档噪声、3 档亮度、遮挡、空帧），对比 `TemplateMatcher` 与原实现的耗时、分数和位置；需要 JDK17，不访问游戏。
 - `mobile_vision_bench.py`：从 `f9dfc0e` 取原版 `page_detector.py`、`native_objects.py`、`native_guard.py`，与当前版本跑同一批合成帧，逐字段比对输出；需要 cv2 和 numpy。
+- `mobile_matcher_bench/bench_extended.py`：444 帧，3 张模板 × 3 类背景（含 2 张仓库内 1280×720 真实整帧）× 7 档噪声 × 3 档亮度 × 2 组种子，另含 90%/110% 尺度、15%/30%/45% 遮挡、2 档模糊和空帧。1.375ms 对 4.3921ms，3.194 倍；441 个植入位置命中 417 个；位置不一致 0 例，分数下降 0 例，最大分数差 0.00000000。
+- `mobile_vision_extended.py`：2 张真实整帧 × 5 档噪声 × 3 档亮度共 30 帧。Detector 67283.350→44607.548ms（1.508 倍）、Guards 14.527→12.089ms（1.202 倍）、Objects 747.908→782.597ms（0.956 倍，真实帧候选数少，差异来自连通域固定开销）；三个模块输出均 30/30 逐字段一致。
+- `mobile_objects_variants.py`：对比 5 种 Objects 实现，候选数 0/1/30/117 的 4 帧总计 float32 38.082ms、原 float64 矩阵实现 42.476ms、`f9dfc0e` 原实现 62.998ms；float32 输出 4/4 一致。另以 40 组植入模板帧扫描 1200 个命中，判定差异 0 例，最大分数差 0.000004232。
+- `api29_runtime_check.py`：用可控 SDK_INT 桩在 JVM 上执行 `DisplayBounds.get`。SDK_INT=29 时 getRealMetrics 调用 1 次、getCurrentWindowMetrics 0 次；30/35 时相反；三档均返回 0,0,1280,720。
 
 ## 离线回归
 
