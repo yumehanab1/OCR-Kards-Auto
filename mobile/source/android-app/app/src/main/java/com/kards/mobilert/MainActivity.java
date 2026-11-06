@@ -69,7 +69,7 @@ public final class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle state) {
         super.onCreate(state);
-        getWindow().setDecorFitsSystemWindows(false);
+        if(android.os.Build.VERSION.SDK_INT>=30) getWindow().setDecorFitsSystemWindows(false);
         getWindow().setStatusBarColor(Color.TRANSPARENT);
         getWindow().setNavigationBarColor(Color.TRANSPARENT);
         String version = "0.6.1";
@@ -130,7 +130,7 @@ public final class MainActivity extends Activity {
         root.addView(rawReport, new LinearLayout.LayoutParams(-1, -2));
 
         compatCaptureButton = new Button(this);
-        compatCaptureButton.setText("启用兼容截图（系统截图黑屏时使用）");
+        compatCaptureButton.setText(compatCaptureLabel());
         compatCaptureButton.setOnClickListener(v -> {
             if(BattleWorkerLease.isOwned()) {status.setText("请先停止辅助，再切换截图通道。");return;}
             if(CompatCaptureService.isReady()) {
@@ -286,12 +286,19 @@ public final class MainActivity extends Activity {
             main.post(this::requestCompatCapture);
     }
 
+    private String compatCaptureLabel() {
+        return android.os.Build.VERSION.SDK_INT==29
+                ?"启用兼容截图（Android 10 必须启用）":"启用兼容截图（系统截图黑屏时使用）";
+    }
+
     private void requestCompatCapture() {
         if(BattleWorkerLease.isOwned()) {status.setText("请先停止辅助，再启用兼容截图。");return;}
         if(android.os.Build.VERSION.SDK_INT>=34) {status.setText("当前系统使用游戏窗口截图，无需此旧系统兼容通道。");return;}
         try {
             android.media.projection.MediaProjectionManager manager=getSystemService(android.media.projection.MediaProjectionManager.class);
-            status.setText("请在安卓系统弹窗中确认屏幕录制授权。启用截图不会开始对局或触控。");
+            status.setText(android.os.Build.VERSION.SDK_INT==29
+                    ?"Android 10 需要屏幕共享授权才能读取画面。请在系统弹窗中确认。"
+                    :"请在安卓系统弹窗中确认屏幕录制授权。启用截图不会开始对局或触控。");
             startActivityForResult(manager.createScreenCaptureIntent(),REQUEST_COMPAT_CAPTURE);
         } catch(RuntimeException error){status.setText("无法打开兼容截图授权，请稍后重试。");}
     }
@@ -326,8 +333,7 @@ public final class MainActivity extends Activity {
         boolean busy = BattleWorkerLease.isOwned();
         if(compatCaptureButton!=null){
             compatCaptureButton.setEnabled(!busy);
-            compatCaptureButton.setText(CompatCaptureService.isReady()?"兼容截图已启用 · 点击关闭"
-                    :"启用兼容截图（系统截图黑屏时使用）");
+            compatCaptureButton.setText(CompatCaptureService.isReady()?"兼容截图已启用 · 点击关闭":compatCaptureLabel());
         }
         boolean connected = service != null;
         if (android.os.SystemClock.elapsedRealtime() < messageUntil && !busy) return;

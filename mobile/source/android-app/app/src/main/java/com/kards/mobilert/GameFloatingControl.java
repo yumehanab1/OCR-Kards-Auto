@@ -55,7 +55,7 @@ final class GameFloatingControl {
         return new Rect(w-width,Math.max(0,bottom-height),w,bottom);
     }
     private WindowManager.LayoutParams layout() {
-        Rect screen=windows.getCurrentWindowMetrics().getBounds();
+        Rect screen=DisplayBounds.get(windows);
         Rect area=bounds(screen.width(),screen.height(),service.getResources().getDisplayMetrics().density,expanded);
         WindowManager.LayoutParams p=new WindowManager.LayoutParams(area.width(),area.height(),
                 WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
@@ -211,5 +211,5 @@ final class GameFloatingControl {
     Button[] buttonsForTest() { return new Button[]{attach,stop,start,collapse}; }
     ScrollView scrollForTest() { return expandedScroll; }
     void restoreAfterTest() { update(false);main.post(tick); }
-    Rect boundsForTest() { WindowManager.LayoutParams p=layout();Rect s=windows.getCurrentWindowMetrics().getBounds();return new Rect(s.width()-p.width,p.y,s.width(),p.y+p.height); }
+    Rect boundsForTest() { WindowManager.LayoutParams p=layout();Rect s=DisplayBounds.get(windows);return new Rect(s.width()-p.width,p.y,s.width(),p.y+p.height); }
 }

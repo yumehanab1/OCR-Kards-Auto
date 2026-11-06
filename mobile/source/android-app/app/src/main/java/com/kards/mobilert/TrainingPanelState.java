@@ -348,6 +348,8 @@ public final class TrainingPanelState {
         if (reason.contains("foreground_changed") || reason.contains("not_game_foreground")) {
             return "游戏已离开前台。回到训练画面后可重新开始。";
         }
+        if (reason.contains("android10_requires_compat_capture"))
+            return "Android 10 无系统截图接口。请在工具与诊断中启用兼容截图并完成屏幕共享授权，再重新开始辅助。";
         if (reason.contains("capture_black_frame"))
             return "系统截图连续返回黑屏。请在工具与诊断中启用兼容截图，再重新开始辅助。";
         if (reason.contains("compat_capture_incomplete_frame"))
