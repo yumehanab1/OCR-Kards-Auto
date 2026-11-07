@@ -37,6 +37,7 @@ import java.util.concurrent.Executors;
 public final class MainActivity extends Activity {
     private static final int REQUEST_REPLAY_PNG = 4101;
     private static final int REQUEST_COMPAT_CAPTURE = 4102;
+    private static final int REQUEST_NOTIFICATION = 4103;
     private static final String LAST_RESULT = "last_result";
     private static final String PANEL_PREFERENCES = "battle_panel";
     private static final String SELECTED_MODE = "selected_mode";
@@ -46,7 +47,7 @@ public final class MainActivity extends Activity {
     private boolean gameInstalled;
     private String savedReport = "{}";
     private String shownReport = "";
-    private boolean shownConnected, shownBusy, shownInstalled;
+    private boolean shownConnected, shownBusy, shownInstalled, shownRequiredReady;
     private TrainingPanelState panelState = TrainingPanelState.from("{}");
     private final Handler main = new Handler(Looper.getMainLooper());
     private final ExecutorService historyReader = Executors.newSingleThreadExecutor();
@@ -90,6 +91,7 @@ public final class MainActivity extends Activity {
                 refreshDashboard();
             }
             @Override public void permissions() { openPermissions(); }
+            @Override public void openPermission(String key) { MainActivity.this.openPermission(key); }
             @Override public void details() { showTrainingDetails(); }
         }, version);
         dashboard.setSelectedMode(getSharedPreferences(PANEL_PREFERENCES, MODE_PRIVATE)
@@ -304,8 +306,17 @@ public final class MainActivity extends Activity {
     }
 
     private void openPermissions() {
-        try { startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)); }
-        catch (RuntimeException error) { panelMessage("无法打开系统设置", "请在系统设置中找到无障碍，开启 KARDS 对战助手。"); }
+        String key = PermissionGate.firstMissing(this);
+        openPermission(key.isEmpty() ? PermissionGate.ACCESSIBILITY : key);
+    }
+
+    private void openPermission(String key) {
+        if (PermissionGate.CAPTURE.equals(key) && status != null) {
+            status.setText(android.os.Build.VERSION.SDK_INT == 29
+                    ? "Android 10 需要屏幕共享授权才能读取画面。请在系统弹窗中确认。"
+                    : "请在系统弹窗中确认屏幕录制授权。启用截图不会开始对局或触控。");
+        }
+        PermissionGate.open(this, key, REQUEST_COMPAT_CAPTURE, REQUEST_NOTIFICATION);
     }
 
     private void panelMessage(String title, String message) {
@@ -324,6 +335,8 @@ public final class MainActivity extends Activity {
 
     private void refreshDashboard() {
         if (dashboard == null) return;
+        dashboard.renderPermissions(PermissionGate.check(this));
+        boolean requiredReady = PermissionGate.canStart(this);
         KardsAccessibilityService service = KardsAccessibilityService.instance();
         String memory = service == null ? "{}" : service.battleProgressReport();
         boolean useMemory = false;
@@ -338,11 +351,12 @@ public final class MainActivity extends Activity {
         boolean connected = service != null;
         if (android.os.SystemClock.elapsedRealtime() < messageUntil && !busy) return;
         if (report.equals(shownReport) && connected == shownConnected && busy == shownBusy
-                && gameInstalled == shownInstalled) return;
+                && gameInstalled == shownInstalled && requiredReady == shownRequiredReady) return;
         shownReport = report;
         shownConnected = connected;
         shownBusy = busy;
         shownInstalled = gameInstalled;
+        shownRequiredReady = requiredReady;
         panelState = useMemory ? TrainingPanelState.from(report) : TrainingPanelState.fromSaved(report);
         dashboard.render(panelState, connected, gameInstalled, busy, sessionDate(report));
     }
@@ -389,6 +403,12 @@ public final class MainActivity extends Activity {
         }
         if (!("training".equals(mode) || "casual".equals(mode) || "ranked".equals(mode))) {
             panelMessage("请选择对局模式", "选择休闲或排位后再开始。");
+            return;
+        }
+        if (!PermissionGate.canStart(this)) {
+            panelMessage("还差一步准备", PermissionGate.missingMessage(this));
+            String missing = PermissionGate.firstMissing(this);
+            if (!missing.isEmpty()) openPermission(missing);
             return;
         }
         KardsAccessibilityService service = KardsAccessibilityService.instance();

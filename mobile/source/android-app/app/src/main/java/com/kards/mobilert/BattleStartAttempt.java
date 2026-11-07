@@ -44,6 +44,7 @@ final class BattleStartAttempt {
             case "current_game_not_foreground": return "游戏尚未在前台。请先打开 KARDS，再启动本次调试。";
             case "opening_start_failed": return "开局辅助未能启动。请检查游戏画面和无障碍服务后再试。";
             case "worker_start_failed": return "后台引擎未能启动。请查看诊断记录后重试。";
+            case "permission_missing": return "必需权限未开启。请返回主界面完成授权后再开始。";
             default: return "本次辅助未能启动（" + reason + "）。请查看诊断记录后重试。";
         }
     }

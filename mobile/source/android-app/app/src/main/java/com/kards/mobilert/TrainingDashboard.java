@@ -28,7 +28,20 @@ final class TrainingDashboard {
         void matchCountChanged(int matchCount);
         void stop();
         void permissions();
+        void openPermission(String key);
         void details();
+    }
+
+    private static final class PermissionRow {
+        final LinearLayout line;
+        final TextView symbol, value;
+        final Button action;
+        PermissionRow(LinearLayout line, TextView symbol, TextView value, Button action) {
+            this.line = line;
+            this.symbol = symbol;
+            this.value = value;
+            this.action = action;
+        }
     }
 
     private static final int PAPER = Color.rgb(245, 245, 239);
@@ -56,6 +69,8 @@ final class TrainingDashboard {
     private boolean editingCount;
     private String countText = "1";
     private boolean permissionRequired = true;
+    private boolean requiredReady;
+    private final java.util.LinkedHashMap<String, PermissionRow> permissionRows = new java.util.LinkedHashMap<>();
 
     TrainingDashboard(Activity activity, Actions actions, String version) {
         this.activity = activity;
@@ -183,21 +198,29 @@ final class TrainingDashboard {
 
         LinearLayout preparation = card(Color.WHITE, 22);
         preparation.addView(text("运行准备", 17, INK, true));
-        add(preparation, text("首次使用，只需完成以下准备", 12, MUTED, false), 6);
-        LinearLayout gameRow = readinessRow("KARDS", "检查游戏安装情况");
-        gameSymbol = (TextView) gameRow.getChildAt(0);
-        gameValue = (TextView) ((LinearLayout) gameRow.getChildAt(1)).getChildAt(1);
-        add(preparation, gameRow, 23);
-        add(preparation, divider(), 16);
-        LinearLayout serviceRow = readinessRow("无障碍权限", "用于识别画面和执行操作");
-        serviceSymbol = (TextView) serviceRow.getChildAt(0);
-        serviceValue = (TextView) ((LinearLayout) serviceRow.getChildAt(1)).getChildAt(1);
+        add(preparation, text("必需项未完成前不会启动辅助", 12, MUTED, false), 6);
+        PermissionRow gameRow = permissionRow("KARDS", "检查游戏安装情况", PermissionGate.GAME);
+        gameSymbol = gameRow.symbol;
+        gameValue = gameRow.value;
+        add(preparation, gameRow.line, 20);
+        add(preparation, divider(), 12);
+        PermissionRow serviceRow = permissionRow("无障碍权限", "用于识别画面和执行操作", PermissionGate.ACCESSIBILITY);
+        serviceSymbol = serviceRow.symbol;
+        serviceValue = serviceRow.value;
         serviceValue.setId(R.id.panel_service_state);
-        add(preparation, serviceRow, 16);
-        settings = button("管理权限", Color.rgb(239, 242, 233), OLIVE, 0);
+        add(preparation, serviceRow.line, 12);
+        for (String[] spec : new String[][]{
+                {"画面比例", "自动归一化到识别基准", PermissionGate.SCREEN},
+                {"屏幕共享授权", "读取游戏画面", PermissionGate.CAPTURE},
+                {"后台运行", "避免服务被系统回收", PermissionGate.BATTERY},
+                {"通知权限", "前台服务常驻", PermissionGate.NOTIFICATION}}) {
+            add(preparation, divider(), 12);
+            add(preparation, permissionRow(spec[0], spec[1], spec[2]).line, 12);
+        }
+        settings = button("前往授权", Color.rgb(239, 242, 233), OLIVE, 0);
         settings.setId(R.id.panel_permissions);
         settings.setOnClickListener(v -> actions.permissions());
-        add(preparation, settings, 22);
+        add(preparation, settings, 18);
 
         if (wide) {
             workspace.addView(hero, new LinearLayout.LayoutParams(0, -2, 1.65f));
@@ -357,13 +380,54 @@ final class TrainingDashboard {
         diagnosticsToggle.setContentDescription(open ? "收起工具与诊断" : "展开工具与诊断");
     }
 
+    void renderPermissions(java.util.List<PermissionGate.Item> items) {
+        requiredReady = true;
+        for (PermissionGate.Item item : items) {
+            if (item.required && !item.ok) requiredReady = false;
+            PermissionRow row = permissionRows.get(item.key);
+            if (row == null) continue;
+            row.symbol.setText(item.ok ? "✓" : "!");
+            row.symbol.setTextColor(item.ok ? OLIVE : Color.rgb(145, 102, 41));
+            row.value.setText(item.detail + (item.required ? " · 必需" : ""));
+            row.action.setVisibility(item.actionable ? View.VISIBLE : View.GONE);
+            row.action.setText(item.required ? "去开启" : "去设置");
+            row.action.setEnabled(!item.ok);
+            row.action.setAlpha(item.ok ? .5f : 1f);
+        }
+    }
+
+    private PermissionRow permissionRow(String title, String hint, String key) {
+        LinearLayout line = row();
+        TextView symbol = text("!", 16, Color.rgb(145, 102, 41), true);
+        symbol.setGravity(Gravity.CENTER);
+        symbol.setBackground(shape(Color.rgb(238, 243, 229), 12, 0));
+        line.addView(symbol, new LinearLayout.LayoutParams(dp(34), dp(34)));
+        LinearLayout label = column();
+        label.addView(text(title, 14, INK, true));
+        TextView value = text(hint, 12, MUTED, false);
+        add(label, value, 4);
+        LinearLayout.LayoutParams labelParams = new LinearLayout.LayoutParams(0, -2, 1);
+        labelParams.setMarginStart(dp(10));
+        line.addView(label, labelParams);
+        Button action = button("开启", Color.rgb(239, 242, 233), OLIVE, 0);
+        action.setTextSize(12);
+        action.setMinHeight(dp(38));
+        action.setMinimumHeight(dp(38));
+        action.setPadding(dp(12), dp(6), dp(12), dp(6));
+        action.setOnClickListener(v -> actions.openPermission(key));
+        line.addView(action, new LinearLayout.LayoutParams(-2, -2));
+        PermissionRow created = new PermissionRow(line, symbol, value, action);
+        permissionRows.put(key, created);
+        return created;
+    }
+
     void render(TrainingPanelState state, boolean connected, boolean gameInstalled, boolean busy, String date) {
         gameSymbol.setText(gameInstalled ? "✓" : "!");
         gameValue.setText(gameInstalled ? "已安装" : "未检测到游戏，可使用下方手动入口");
         serviceSymbol.setText(connected ? "✓" : "!");
         serviceValue.setText(connected ? "已连接 · 可以识别和操作" : "未开启 · 点击下方完成授权");
         serviceSymbol.setTextColor(connected ? OLIVE : Color.rgb(145, 102, 41));
-        settings.setText(connected ? "管理权限" : "开启无障碍权限");
+        settings.setText(requiredReady ? "管理权限" : "前往授权");
         boolean stopping = "stopping".equals(state.statusKind) || (busy && !state.active);
         boolean waiting = state.active && "waiting".equals(state.statusKind);
         readiness.setText(stopping ? "●  正在停止" : waiting ? "●  辅助已待命" : state.active ? "●  辅助运行中"
@@ -372,9 +436,10 @@ final class TrainingDashboard {
                 : !connected ? "开启你的对战助手" : !gameInstalled ? "可以手动启动辅助" : "准备好下一场对战");
         heroBody.setText(stopping ? "正在收尾并保存运行记录。\n结束后可以再次开始。" : state.active ? state.summary
                 : idleDescription());
-        permissionRequired = !connected;
-        primaryCanStart = !state.active && !stopping && !busy && gameInstalled && connected;
-        start.setText(stopping ? "正在停止…" : waiting ? "等待游戏" : state.active ? "正在运行" : !connected ? "开启权限"
+        permissionRequired = !requiredReady;
+        primaryCanStart = !state.active && !stopping && !busy && gameInstalled && connected && requiredReady;
+        start.setText(stopping ? "正在停止…" : waiting ? "等待游戏" : state.active ? "正在运行"
+                : permissionRequired ? "去完成授权"
                 : "ranked".equals(selectedMode) ? "开始排位辅助" : "开始休闲辅助");
         manualEntryAvailable = !state.active && !stopping && !busy;
         entryAvailable = manualEntryAvailable && gameInstalled;

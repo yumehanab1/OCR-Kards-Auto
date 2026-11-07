@@ -275,6 +275,12 @@ public final class KardsAccessibilityService extends AccessibilityService implem
     }
 
     private synchronized boolean startBattle(String options, boolean currentBattle) {
+        if (!PermissionGate.canStart(this)) {
+            lastStartAttempt = BattleStartAttempt.report(false, "battle", "permission_missing",
+                    android.os.SystemClock.elapsedRealtime(), priorSessionId(), false, "",
+                    BattleWorkerLease.snapshot(), PermissionGate.missingMessage(this));
+            return false;
+        }
         // A previous Python worker must finish before its process-global core can be reused.
         if (!admitStart("battle")) return false;
         ApkBattleSession campaign = null;
