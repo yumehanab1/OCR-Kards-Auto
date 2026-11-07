@@ -2,6 +2,14 @@
 
 `dev/` 不参与运行时。这里的脚本分为离线回归、图像判据分析、现场取证和文档生成四类。
 
+## 图像判据基准
+
+- `mobile_matcher_bench/bench.py`：合成帧对比 `TemplateMatcher` 与原实现的耗时、分数和位置。
+- `mobile_matcher_bench/bench_extended.py`：在真实整帧、噪声、亮度、尺度、遮挡和模糊条件下重复上述对比。
+- `mobile_vision_bench.py`、`mobile_vision_extended.py`：逐字段比对 `page_detector.py`、`native_objects.py`、`native_guard.py` 改动前后的输出与耗时。
+- `mobile_objects_variants.py`：比较 Objects 的多种计算实现。
+- `api29_runtime_check.py`：用可控 SDK_INT 桩在 JVM 上检查 API29 分支是否触碰 API30+ 方法。
+
 ## 离线回归
 
 - `orange_speed_test.py`：主牌裁框、嵌套首张截止、禁止过期追加OCR/重悬停、未知身份拒识与部署diff保留；另含天气抓点复核每次重读效果、费用/版本变化拒绝、共享截止恢复及传统入口；使用假帧，不调用OCR、不操作游戏。

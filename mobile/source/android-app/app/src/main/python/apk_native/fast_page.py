@@ -102,8 +102,11 @@ class FastPage:
                               ('orange',cv2.inRange(hsv,(5,80,80),(35,255,255)))]:
             text_mask=cv2.morphologyEx(text_mask,cv2.MORPH_CLOSE,np.ones((3,11),np.uint8))
             contours,_=cv2.findContours(text_mask,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE)
-            boxes[key]=[cv2.boundingRect(c) for c in contours
-                if cv2.boundingRect(c)[2]>=12 and cv2.boundingRect(c)[3]>=8]
+            found=[]
+            for c in contours:
+                x,y,bw,bh=cv2.boundingRect(c)
+                if bw>=12 and bh>=8:found.append((x,y,bw,bh))
+            boxes[key]=found
         evidence={}
         for name in ('defeat_banner','defeat_btn','victory_btn'):
             self.detector.text_boxes=boxes['orange' if name=='victory_btn' else 'white']
