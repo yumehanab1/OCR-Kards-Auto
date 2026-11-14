@@ -4,6 +4,7 @@
 
 ## 图像判据基准
 
+- `menu_samples_test.py`：用真实截图回归开始菜单状态机，`KARDS_SAMPLES=<目录>` 指向样本文件夹；输出每张图的 state、targets 与橙色像素证据。
 - `mobile_matcher_bench/bench.py`：合成帧对比 `TemplateMatcher` 与原实现的耗时、分数和位置。
 - `mobile_matcher_bench/bench_extended.py`：在真实整帧、噪声、亮度、尺度、遮挡和模糊条件下重复上述对比。
 - `mobile_vision_bench.py`、`mobile_vision_extended.py`：逐字段比对 `page_detector.py`、`native_objects.py`、`native_guard.py` 改动前后的输出与耗时。
