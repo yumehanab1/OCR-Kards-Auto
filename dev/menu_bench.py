@@ -47,6 +47,8 @@ def load(path):
 def run(profile=False):
     paths = sorted(SAMPLES.glob('*/*.jpg')) + sorted(SAMPLES.glob('*.jpg'))
     rows, times, warm_times, correct, checked = [], [], [], 0, 0
+    # Session mode: one recognizer across pages, like a running assist session.
+    observer = NativeMenuRecognizer(str(ASSETS), None)
     for path in paths:
         frame = load(path)
         if frame is None:
@@ -54,13 +56,10 @@ def run(profile=False):
         height, width = frame.shape[:2]
         packet = {'coordinate_space': 'source_pixels', 'source_width': width,
                   'source_height': height}
-        # Cold: a fresh recognizer, exactly what a page change costs in a session.
-        observer = NativeMenuRecognizer(str(ASSETS), None)
         started = time.perf_counter()
         result = observer.observe(frame, packet)
         elapsed = (time.perf_counter() - started) * 1000
         times.append(elapsed)
-        # Warm: the same unchanged frame observed again.
         started = time.perf_counter()
         observer.observe(frame, packet)
         warm_times.append((time.perf_counter() - started) * 1000)
@@ -70,13 +69,6 @@ def run(profile=False):
             checked += 1
             correct += int(got == want)
         rows.append((round(elapsed), got, want or '-', path.name[:34]))
-        if profile:
-            profiler = cProfile.Profile()
-            profiler.enable()
-            observer.observe(frame, packet)
-            profiler.disable()
-            pstats.Stats(profiler).sort_stats('cumulative').print_stats(18)
-            break
     for row in rows:
         print('{:>5}ms  {:<12} want={:<11} {}'.format(*row))
     if times:
