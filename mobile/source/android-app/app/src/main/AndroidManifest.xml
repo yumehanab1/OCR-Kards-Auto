@@ -27,6 +27,8 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <activity android:name=".LogViewActivity" android:exported="false"
+            android:label="调试日志" />
         <service
             android:name=".KardsAccessibilityService"
             android:description="@string/accessibility_service_description"

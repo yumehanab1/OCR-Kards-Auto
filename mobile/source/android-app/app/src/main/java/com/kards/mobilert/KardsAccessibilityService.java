@@ -69,6 +69,8 @@ public final class KardsAccessibilityService extends AccessibilityService implem
     @Override
     protected void onServiceConnected() {
         super.onServiceConnected();
+        DebugLog.init(this);
+        DebugLog.log("SERVICE", "无障碍服务已连接 sdk=" + android.os.Build.VERSION.SDK_INT);
         current = this;
         floatingControl = new GameFloatingControl(this);
         publishConnection(true);
@@ -76,6 +78,7 @@ public final class KardsAccessibilityService extends AccessibilityService implem
 
     @Override
     public void onDestroy() {
+        DebugLog.log("SERVICE", "无障碍服务销毁");
         screenshotRequestsClosed = true;
         if (floatingControl != null) floatingControl.destroy();
         cancelBattle();
@@ -106,6 +109,8 @@ public final class KardsAccessibilityService extends AccessibilityService implem
 
     private void updateForeground(String packageName) {
         if (!foregroundPackage.equals(packageName)) {
+            DebugLog.log("FOREGROUND",foregroundPackage + " -> " + packageName
+                    + " game=" + GamePackages.isGame(packageName));
             foregroundPackage = packageName;
             foregroundGeneration++;
         }
@@ -276,13 +281,19 @@ public final class KardsAccessibilityService extends AccessibilityService implem
 
     private synchronized boolean startBattle(String options, boolean currentBattle) {
         if (!PermissionGate.canStart(this)) {
+            DebugLog.log("BATTLE", "拒绝：必需权限缺失 " + PermissionGate.firstMissing(this));
             lastStartAttempt = BattleStartAttempt.report(false, "battle", "permission_missing",
                     android.os.SystemClock.elapsedRealtime(), priorSessionId(), false, "",
                     BattleWorkerLease.snapshot(), PermissionGate.missingMessage(this));
             return false;
         }
         // A previous Python worker must finish before its process-global core can be reused.
-        if (!admitStart("battle")) return false;
+        if (!admitStart("battle")) {
+            DebugLog.log("BATTLE", "拒绝：admitStart 未通过 " + lastStartAttempt);
+            return false;
+        }
+        DebugLog.log("BATTLE", "启动接受 currentBattle=" + currentBattle
+                + " options=" + (options == null ? "null" : options));
         ApkBattleSession campaign = null;
         try {
             org.json.JSONObject config = new org.json.JSONObject(options == null ? "{}" : options);
@@ -504,23 +515,34 @@ public final class KardsAccessibilityService extends AccessibilityService implem
     }
 
     private void takeFrameNow(FrameSource.Callback callback,long requestedAtMillis,boolean preserveSourcePixels) {
-        if(screenshotRequestsClosed){callback.onFailure("截图能力：服务已断开。");return;}
+        if(screenshotRequestsClosed){DebugLog.log("CAPTURE","拒绝：服务已断开");callback.onFailure("截图能力：服务已断开。");return;}
         try {
             final GameWindowState selected=gameWindowState();
-            if(selected.occluded){callback.onFailure(GameWindowState.OCCLUDED);return;}
+            DebugLog.log("CAPTURE","取帧请求 sdk=" + Build.VERSION.SDK_INT
+                    + " preserve=" + preserveSourcePixels
+                    + " game=" + (selected.game!=null)
+                    + " occluded=" + selected.occluded
+                    + " foreground=" + foregroundPackage);
+            if(selected.occluded){DebugLog.log("CAPTURE","拒绝：画面被遮挡");callback.onFailure(GameWindowState.OCCLUDED);return;}
             final Rect displayBounds=DisplayBounds.get(getSystemService(android.view.WindowManager.class));
             displayBounds.offsetTo(0,0);
             final boolean compat=Build.VERSION.SDK_INT<34 && CompatCaptureService.isReady();
+            DebugLog.log("CAPTURE","bounds=" + displayBounds.width() + "x" + displayBounds.height()
+                    + " compat=" + compat + " compatRequired=" + (Build.VERSION.SDK_INT<30));
             if(Build.VERSION.SDK_INT<30 && !compat) {
+                DebugLog.log("CAPTURE","拒绝：android10_requires_compat_capture");
                 callback.onFailure("android10_requires_compat_capture");return;
             }
-            if(compat){takeCompatFrame(callback,requestedAtMillis,preserveSourcePixels,selected,displayBounds);return;}
+            if(compat){DebugLog.log("CAPTURE","通道：MediaProjection 兼容截图");takeCompatFrame(callback,requestedAtMillis,preserveSourcePixels,selected,displayBounds);return;}
             final boolean windowCapture=Build.VERSION.SDK_INT>=34 && selected.game!=null;
             if(preserveSourcePixels && Build.VERSION.SDK_INT>=34 && !windowCapture) {
+                DebugLog.log("CAPTURE","拒绝：game_window_missing");
                 callback.onFailure("game_window_missing");return;
             }
+            DebugLog.log("CAPTURE","通道：系统截图 windowCapture=" + windowCapture);
             takeSystemFrame(callback,requestedAtMillis,preserveSourcePixels,selected,displayBounds,windowCapture);
         } catch (RuntimeException error) {
+            DebugLog.error("CAPTURE","取帧异常",error);
             callback.onFailure("截图能力：请求失败：" + error.getClass().getSimpleName());
         }
     }

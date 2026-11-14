@@ -29,6 +29,7 @@ final class TrainingDashboard {
         void stop();
         void permissions();
         void openPermission(String key);
+        void logs();
         void details();
     }
 
@@ -221,6 +222,10 @@ final class TrainingDashboard {
         settings.setId(R.id.panel_permissions);
         settings.setOnClickListener(v -> actions.permissions());
         add(preparation, settings, 18);
+        Button logs = button("查看调试日志（详细）", Color.rgb(239, 242, 233), OLIVE, 0);
+        logs.setTag("panel_debug_log");
+        logs.setOnClickListener(v -> actions.logs());
+        add(preparation, logs, 10);
 
         if (wide) {
             workspace.addView(hero, new LinearLayout.LayoutParams(0, -2, 1.65f));
