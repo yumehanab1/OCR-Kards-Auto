@@ -531,11 +531,12 @@ class NativeMenuRecognizer:
             state = 'card_collection'
         elif has('home_play') and has('home_tasks'):
             state,targets = 'home',{'menu_home_start':match('home_play')['bounds']}
-        elif layout_for_shape(frame.shape).name == 'standard_16_9' and (
-                (has('battle_unselected') and has('training_selected')) or
+        elif ((has('battle_unselected') and has('training_selected')) or
                 (has('battle_selected') and has('training_unselected'))):
-            # Legacy 16:9 text templates correlate in both gray and orange.
-            # Selection comes from current color, and a list requires full cards.
+            # Gray-scale text templates correlate in both gray and orange, so the selected
+            # row must come from current color. This holds on every landscape profile: the
+            # 19.5:9 layout renders the same list, only shifted, and skipping the color probe
+            # there made the caller tap the already-selected row forever.
             battle=max((match('battle_unselected'),match('battle_selected')),key=lambda v:v['score'])
             training=max((match('training_unselected'),match('training_selected')),key=lambda v:v['score'])
             b,t=battle['bounds'],training['bounds'];h,w=frame.shape[:2]
