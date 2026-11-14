@@ -27,7 +27,9 @@ class Detector:
                 self.locations[name]=found
                 return found
         # Scale templates isotropically. The source image stays untouched.
-        for factor in (.8,.9,1.,1.1,1.2,1.3,1.4):
+        # Ordered by measured likelihood: the true factor for current builds sits
+        # near 1.3, so the common case stops after a single match.
+        for factor in (1.3,1.4,1.2,1.1,1.,0.9,0.8):
             scale = base*factor
             key = (name, gray.shape[0], factor)
             if key not in self.scaled:

@@ -15,6 +15,10 @@ from .generic_popup import inspect as generic_popup
 from .login_popup import inspect as login_popup
 from .layout_profiles import for_shape as layout_for_shape
 
+# Menu controls are large and high-contrast, so a 480px recognition height keeps the
+# measured verdict while cutting template-matching pixels by 2.25x versus 720p.
+MENU_RECOGNITION_HEIGHT = 720
+
 
 def popup_target(shape, items):
     h, w = shape[:2]
@@ -319,6 +323,7 @@ class NativeMenuRecognizer:
         self.detector = Detector(bank,'filtered',refine=True)
         self.ocr = NativeOCR(bridge)
         self.shape = None
+        self._cache = {}
         self.relative_locations = {}
         self.relative_scaled = {}
 
@@ -361,15 +366,41 @@ class NativeMenuRecognizer:
             return popup,anchors
         return None
 
+    # Recognition is deterministic for a given frame, and the caller re-observes the
+    # same page while animations settle or a tap is in flight. A cheap fingerprint
+    # turns those repeats into a dictionary hit instead of a full template pass.
+    CACHE_TTL = 1.5
+    CACHE_UNKNOWN_TTL = .35
+
+    def _remember(self, key, result):
+        if len(self._cache) > 24:
+            self._cache.clear()
+        self._cache[key] = (time.perf_counter(), result)
+
+    def _fingerprint(self, frame):
+        small = cv2.resize(frame, (96, 54), interpolation=cv2.INTER_AREA)
+        return (hash(small.tobytes()), frame.shape[1], frame.shape[0])
+
     def observe(self, frame, packet):
         from .recognition_scale import shrink,restore
         if frame is None:return {'state':'unknown','targets':{}}
         if list(frame.shape[:2])!=[packet.get('source_height'),packet.get('source_width')]:
             return {'state':'unknown','reason':'native_menu_geometry_mismatch','targets':{}}
-        scaled,factors=shrink(frame)
+        key=self._fingerprint(frame)
+        hit=self._cache.get(key)
+        if hit is not None:
+            age=time.perf_counter()-hit[0]
+            limit=self.CACHE_TTL if hit[1].get('state') not in (None,'unknown') else self.CACHE_UNKNOWN_TTL
+            if age<=limit:
+                result=dict(hit[1])
+                result['cache_hit']=True
+                result['cache_age_ms']=round(age*1000,1)
+                return result
+        scaled,factors=shrink(frame,MENU_RECOGNITION_HEIGHT)
         if factors==(1.,1.):
             result=self.observe_pixels(frame,packet)
             result['layout_profile']=layout_for_shape(frame.shape).name
+            self._remember(key,result)
             return result
         reduced=dict(packet,source_height=scaled.shape[0],source_width=scaled.shape[1],ocr_source_packet=packet)
         result=self.observe_pixels(scaled,reduced)
@@ -380,6 +411,7 @@ class NativeMenuRecognizer:
             if action in result.get('targets',{}):
                 h,w=frame.shape[:2];size=max(8,round(h*24/720));cx=w/2;cy=round(h*665/720)
                 result['targets'][action]=[cx-size/2,cy-size/2,size,size]
+        self._remember(key,result)
         return result
 
     def observe_pixels(self, frame, packet):
