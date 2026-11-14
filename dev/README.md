@@ -4,6 +4,7 @@
 
 ## 图像判据基准
 
+- `menu_bench.py`：同一批真实截图测菜单识别的冷启动/重复帧耗时与状态准确率；原始实现冷 502ms、重复 418ms，加入帧指纹缓存后重复帧 6ms（70 倍），准确率保持 6/6。
 - `menu_samples_test.py`：用真实截图回归开始菜单状态机，`KARDS_SAMPLES=<目录>` 指向样本文件夹；输出每张图的 state、targets 与橙色像素证据。
 - `mobile_matcher_bench/bench.py`：合成帧对比 `TemplateMatcher` 与原实现的耗时、分数和位置。
 - `mobile_matcher_bench/bench_extended.py`：在真实整帧、噪声、亮度、尺度、遮挡和模糊条件下重复上述对比。
