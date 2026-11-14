@@ -83,6 +83,13 @@ final class PermissionGate {
             width = bounds.width();
             height = bounds.height();
         } catch (RuntimeException ignored) { }
+        // The game is always landscape, so a portrait-held device must be judged on its
+        // rotated geometry instead of the current window orientation.
+        if (height > width) {
+            int swap = width;
+            width = height;
+            height = swap;
+        }
         String profile = FrameAspectProfile.classify(width, height);
         boolean aspectOk = FrameAspectProfile.supported(width, height);
         String readable = "unsupported".equals(profile) ? "比例不支持"

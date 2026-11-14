@@ -35,6 +35,13 @@ android {
     }
 
     signingConfigs {
+        // Older device installers only accept JAR (v1) signatures, so keep v1+v2 for debug
+        // builds; v3 alone is reported as "not signed" by those installers.
+        getByName("debug") {
+            enableV1Signing = true
+            enableV2Signing = true
+            enableV3Signing = false
+        }
         if (distributionKeyStore != null) {
             create("distribution") {
                 storeFile = file(distributionKeyStore)

@@ -48,6 +48,7 @@ public final class MainActivity extends Activity {
     private String savedReport = "{}";
     private String shownReport = "";
     private boolean shownConnected, shownBusy, shownInstalled, shownRequiredReady;
+    private String lastPermissionSignature = "";
     private TrainingPanelState panelState = TrainingPanelState.from("{}");
     private final Handler main = new Handler(Looper.getMainLooper());
     private final ExecutorService historyReader = Executors.newSingleThreadExecutor();
@@ -70,12 +71,16 @@ public final class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle state) {
         super.onCreate(state);
+        DebugLog.init(this);
+        DebugLog.device(this);
         if(android.os.Build.VERSION.SDK_INT>=30) getWindow().setDecorFitsSystemWindows(false);
         getWindow().setStatusBarColor(Color.TRANSPARENT);
         getWindow().setNavigationBarColor(Color.TRANSPARENT);
         String version = "0.6.1";
         try { version = getPackageManager().getPackageInfo(getPackageName(), 0).versionName; }
         catch (Exception ignored) { }
+        DebugLog.log("APP", "MainActivity onCreate version=" + version
+                + " state=" + (state == null ? "fresh" : "restored"));
         dashboard = new TrainingDashboard(this, new TrainingDashboard.Actions() {
             @Override public void start(String mode, boolean openGame, int matchCount) { launchBattle(false, mode, openGame, matchCount); }
             @Override public void modeChanged(String mode) {
@@ -92,6 +97,7 @@ public final class MainActivity extends Activity {
             }
             @Override public void permissions() { openPermissions(); }
             @Override public void openPermission(String key) { MainActivity.this.openPermission(key); }
+            @Override public void logs() { openLogs(); }
             @Override public void details() { showTrainingDetails(); }
         }, version);
         dashboard.setSelectedMode(getSharedPreferences(PANEL_PREFERENCES, MODE_PRIVATE)
@@ -305,12 +311,19 @@ public final class MainActivity extends Activity {
         } catch(RuntimeException error){status.setText("无法打开兼容截图授权，请稍后重试。");}
     }
 
+    private void openLogs() {
+        DebugLog.log("UI", "打开调试日志面板");
+        try { startActivity(new Intent(this, LogViewActivity.class)); }
+        catch (RuntimeException error) { DebugLog.error("UI", "无法打开日志面板", error); }
+    }
+
     private void openPermissions() {
         String key = PermissionGate.firstMissing(this);
         openPermission(key.isEmpty() ? PermissionGate.ACCESSIBILITY : key);
     }
 
     private void openPermission(String key) {
+        DebugLog.log("PERM", "打开授权页 key=" + key);
         if (PermissionGate.CAPTURE.equals(key) && status != null) {
             status.setText(android.os.Build.VERSION.SDK_INT == 29
                     ? "Android 10 需要屏幕共享授权才能读取画面。请在系统弹窗中确认。"
@@ -335,7 +348,16 @@ public final class MainActivity extends Activity {
 
     private void refreshDashboard() {
         if (dashboard == null) return;
-        dashboard.renderPermissions(PermissionGate.check(this));
+        java.util.List<PermissionGate.Item> items = PermissionGate.check(this);
+        dashboard.renderPermissions(items);
+        StringBuilder signature = new StringBuilder();
+        for (PermissionGate.Item item : items)
+            signature.append(item.key).append('=').append(item.ok ? '1' : '0').append(';');
+        String current = signature.toString();
+        if (!current.equals(lastPermissionSignature)) {
+            DebugLog.log("PERM", current);
+            lastPermissionSignature = current;
+        }
         boolean requiredReady = PermissionGate.canStart(this);
         KardsAccessibilityService service = KardsAccessibilityService.instance();
         String memory = service == null ? "{}" : service.battleProgressReport();
@@ -401,11 +423,15 @@ public final class MainActivity extends Activity {
             panelMessage("请检查局数", getString(R.string.match_count_invalid));
             return;
         }
+        DebugLog.log("BATTLE", "请求启动 mode=" + mode + " openGame=" + openGame
+                + " count=" + matchCount + " readOnly=" + readOnly);
         if (!("training".equals(mode) || "casual".equals(mode) || "ranked".equals(mode))) {
+            DebugLog.log("BATTLE", "拒绝：模式无效 " + mode);
             panelMessage("请选择对局模式", "选择休闲或排位后再开始。");
             return;
         }
         if (!PermissionGate.canStart(this)) {
+            DebugLog.log("BATTLE", "拒绝：必需权限缺失 " + PermissionGate.firstMissing(this));
             panelMessage("还差一步准备", PermissionGate.missingMessage(this));
             String missing = PermissionGate.firstMissing(this);
             if (!missing.isEmpty()) openPermission(missing);
@@ -447,6 +473,16 @@ public final class MainActivity extends Activity {
         }
     }
 
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] results) {
+        super.onRequestPermissionsResult(requestCode, permissions, results);
+        StringBuilder text = new StringBuilder("request=" + requestCode);
+        for (int i = 0; i < permissions.length; i++)
+            text.append(' ').append(permissions[i]).append('=')
+                    .append(i < results.length ? results[i] : -1);
+        DebugLog.log("PERM", "权限请求返回 " + text);
+    }
+
     /** Build the same validated options for both launch buttons without starting anything. */
     static JSONObject battleOptions(boolean readOnly, String mode, int matchCount) throws Exception {
         if (matchCount < 0) throw new IllegalArgumentException("invalid_match_count");
@@ -464,6 +500,8 @@ public final class MainActivity extends Activity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+        DebugLog.log("RESULT", "request=" + requestCode + " result=" + resultCode
+                + " data=" + (data != null));
         if(requestCode==REQUEST_COMPAT_CAPTURE) {
             if(resultCode==RESULT_OK && data!=null) {
                 try {
@@ -491,9 +529,8 @@ public final class MainActivity extends Activity {
             if (!"image/png".equals(bounds.outMimeType)) {
                 throw new IllegalArgumentException("所选文件不是有效 PNG");
             }
-            if (!((bounds.outWidth == 1280 && bounds.outHeight == 720)
-                    || (bounds.outWidth == 1920 && bounds.outHeight == 1080))) {
-                throw new IllegalArgumentException("只接受 1280×720 或 1920×1080 PNG");
+            if (!FrameAspectProfile.supported(bounds.outWidth, bounds.outHeight)) {
+                throw new IllegalArgumentException("画面比例不支持：" + bounds.outWidth + "×" + bounds.outHeight);
             }
             BitmapFactory.Options options = new BitmapFactory.Options();
             options.inScaled = false;
@@ -507,11 +544,14 @@ public final class MainActivity extends Activity {
             String json = FrameReplay.analyze(bitmap, uri.toString(), mobileCore);
             java.io.File result = FrameReplay.writeResult(this, json);
             JSONObject observation = new JSONObject(json);
+            DebugLog.log("REPLAY", DebugLog.clip(json));
             status.setText(getString(R.string.replay_result, observation.getString("state"),
                     bounds.outWidth, bounds.outHeight,
                     observation.getJSONObject("diagnostics").getInt("candidate_count"),
                     result.getAbsolutePath()));
         } catch (Exception error) {
+            DebugLog.log("REPLAY", "失败 " + error.getClass().getSimpleName()
+                    + " " + error.getMessage());
             status.setText(getString(R.string.replay_failure,
                     error.getClass().getSimpleName(), String.valueOf(error.getMessage())));
         }
@@ -543,11 +583,8 @@ public final class MainActivity extends Activity {
     protected void onPause() {
         visible = false;
         main.removeCallbacks(refresh);
-        if (observationLoop != null && observationLoop.isRunning()) {
-            observationLoop.stop();
-            status.setText("只读观察已暂停（应用离开前台）；动作授权：否");
-        }
-        if (monitorButton != null) monitorButton.setText("开始只读观察回路");
+        // Read-only observation must survive this activity going to the background: capturing a
+        // game frame requires KARDS in front, so stopping here would make the loop unusable.
         super.onPause();
     }
 

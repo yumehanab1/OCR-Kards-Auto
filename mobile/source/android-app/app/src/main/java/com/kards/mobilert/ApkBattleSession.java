@@ -678,6 +678,13 @@ public final class ApkBattleSession {
         public void emit(String json) {
             try {
                 JSONObject payload = new JSONObject(json);
+                String kind = payload.optString("kind");
+                JSONObject valueForLog = payload.optJSONObject("value");
+                DebugLog.log("ENGINE", ("menu".equals(stage) ? "menu" : "engine") + " " + kind
+                        + (valueForLog == null ? "" : " state=" + valueForLog.optString("state")
+                        + " candidates=" + (valueForLog.optJSONArray("candidates") == null
+                            ? "-" : String.valueOf(valueForLog.optJSONArray("candidates").length())))
+                        + " " + DebugLog.clip(json));
                 if(workingEvidence!=null){
                     JSONObject value=payload.optJSONObject("value");
                     if(value!=null && "native_observation".equals(payload.optString("kind"))){
@@ -896,6 +903,9 @@ public final class ApkBattleSession {
                     OriginalPng.write(frame.bitmap(),stream);
                 }
                 long encodeElapsed=SystemClock.elapsedRealtime()-encodeStarted;
+                DebugLog.log("FRAME", "seq=" + sequence + " " + frame.width() + "x" + frame.height()
+                        + " source=" + frame.sourceWidth() + "x" + frame.sourceHeight()
+                        + " channel=" + frame.captureScope + " encode=" + encodeElapsed + "ms stage=" + stage);
                 File capturedPng = png;
                 String evidenceCopyMode = "original";
                 if (retention==null && "battle".equals(stage)) {
@@ -1283,7 +1293,10 @@ public final class ApkBattleSession {
         try { return new JSONObject().put("accepted", accepted).put("completed", completed).put("reason", reason).toString(); }
         catch (Exception impossible) { throw new IllegalStateException(impossible); }
     }
-    private static String failure(String reason) throws Exception { return new JSONObject().put("ok", false).put("reason", reason).toString(); }
+    private static String failure(String reason) throws Exception {
+        DebugLog.log("SESSION", "失败 " + reason);
+        return new JSONObject().put("ok", false).put("reason", reason).toString();
+    }
     private File prepareCore() throws Exception {
         java.security.MessageDigest digest = java.security.MessageDigest.getInstance("SHA-256");
         try (InputStream input = service.getAssets().open("mobile-core/manifest.json")) {
