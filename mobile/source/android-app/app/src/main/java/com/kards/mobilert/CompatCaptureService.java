@@ -45,6 +45,11 @@ public final class CompatCaptureService extends Service {
     }
 
     @Override public int onStartCommand(Intent intent, int flags, int startId) {
+        DebugLog.init(this);
+        DebugLog.log("COMPAT", "onStartCommand action="
+                + (intent == null ? "null" : intent.getAction())
+                + " resultCode=" + (intent == null ? -1 : intent.getIntExtra("result_code", -1))
+                + " hasData=" + (intent != null && intent.getParcelableExtra("result_data") != null));
         if (intent != null && ACTION_STOP.equals(intent.getAction())) {
             lastStatus = "兼容截图已关闭（compat_capture_stopped）";
             shutdown(lastStatus);
@@ -59,6 +64,7 @@ public final class CompatCaptureService extends Service {
                     : intent.getIntExtra("result_code", Activity.RESULT_CANCELED);
             Intent resultData = intent == null ? null : intent.getParcelableExtra("result_data");
             if (resultCode != Activity.RESULT_OK || resultData == null) {
+                DebugLog.log("COMPAT", "拒绝：未获得屏幕共享授权 resultCode=" + resultCode);
                 lastStatus = "兼容截图未获得屏幕共享授权（compat_capture_consent_missing）";
                 stopSelf();
                 return START_NOT_STICKY;
@@ -76,7 +82,9 @@ public final class CompatCaptureService extends Service {
             });
             activeSource = ownedSource;
             lastStatus = ownedSource.status();
+            DebugLog.log("COMPAT", "屏幕共享已就绪 status=" + lastStatus);
         } catch (RuntimeException error) {
+            DebugLog.error("COMPAT", "启动失败 " + error.getClass().getSimpleName(), error);
             lastStatus = "兼容截图启动失败（compat_capture_service_"
                     + error.getClass().getSimpleName() + "）";
             shutdown(lastStatus);

@@ -6,11 +6,11 @@ BOXES={'box','boxes','bounds','regions','target_bounds','panel_bounds','card_box
        'label_bounds','hq_box','rectangles','support_rectangles','unclassified_support_rectangles','unknown_rectangles','sharp_unknown_rectangles'}
 POINTS={'center','digit_center','digit_center_source','grab_source','drop_source','point','at','grab','position'}
 
-def shrink(frame):
+def shrink(frame, height=720):
     h,w=frame.shape[:2]
-    if h<=720:return frame,(1.,1.)
-    width=round(w*720/h)
-    return cv2.resize(frame,(width,720),interpolation=cv2.INTER_AREA),(w/width,h/720)
+    if h<=height:return frame,(1.,1.)
+    width=round(w*height/h)
+    return cv2.resize(frame,(width,height),interpolation=cv2.INTER_AREA),(w/width,h/height)
 
 def coordinates(value,sx,sy,key=''):
     if isinstance(value,np.generic):value=value.item()

@@ -603,11 +603,11 @@ public final class ApkBattleSession {
                     return failure("native_ocr_capture_mismatch");
             }
             long age = elapsedRealtime() - frame.getLong("captured_elapsed_ms");
-            if (age < 0 || age > ("menu".equals(stage) ? 5000 : 3000)) return failure("native_ocr_capture_expired");
+            if (age < 0 || age > ("menu".equals(stage) ? 9000 : 3000)) return failure("native_ocr_capture_expired");
             String rejection = checkEntry(service.foregroundSnapshot());
             if (rejection != null) return failure(rejection);
             age = elapsedRealtime() - frame.getLong("captured_elapsed_ms");
-            if (age < 0 || age > ("menu".equals(stage) ? 5000 : 3000)) return failure("native_ocr_capture_expired");
+            if (age < 0 || age > ("menu".equals(stage) ? 9000 : 3000)) return failure("native_ocr_capture_expired");
             {
                 JSONObject result;
                 if("opening_controls".equals(supplied.optString("ocr_scope"))) {
@@ -650,14 +650,14 @@ public final class ApkBattleSession {
                 } else result=NativeOriginalOcr.inspect(service,new File(frame.getString("png_path")),720);
                 age = elapsedRealtime() - frame.getLong("captured_elapsed_ms");
                 if (isCancelled()) return failure("cancelled");
-                if (lastFrame != frame || age < 0 || age > ("menu".equals(stage) ? 5000 : 3000)) return new JSONObject(failure("native_ocr_capture_expired"))
+                if (lastFrame != frame || age < 0 || age > ("menu".equals(stage) ? 9000 : 3000)) return new JSONObject(failure("native_ocr_capture_expired"))
                         .put("frame_age_ms", age).put("elapsed_ms", result.optDouble("elapsed_ms"))
                         .put("model_stage_ms", result.optJSONArray("model_stage_ms")).toString();
                 rejection = checkEntry(service.foregroundSnapshot());
                 if (rejection != null) return failure(rejection);
                 age = elapsedRealtime() - frame.getLong("captured_elapsed_ms");
                 if (isCancelled()) return failure("cancelled");
-                if (lastFrame != frame || age < 0 || age > ("menu".equals(stage) ? 5000 : 3000))
+                if (lastFrame != frame || age < 0 || age > ("menu".equals(stage) ? 9000 : 3000))
                     return failure("native_ocr_capture_expired");
                 for (String key : new String[]{"frame_id", "captured_elapsed_ms", "foreground_generation",
                         "source_width", "source_height", "png_path"}) result.put(key, frame.get(key));
@@ -678,6 +678,13 @@ public final class ApkBattleSession {
         public void emit(String json) {
             try {
                 JSONObject payload = new JSONObject(json);
+                String kind = payload.optString("kind");
+                JSONObject valueForLog = payload.optJSONObject("value");
+                DebugLog.log("ENGINE", ("menu".equals(stage) ? "menu" : "engine") + " " + kind
+                        + (valueForLog == null ? "" : " state=" + valueForLog.optString("state")
+                        + " candidates=" + (valueForLog.optJSONArray("candidates") == null
+                            ? "-" : String.valueOf(valueForLog.optJSONArray("candidates").length())))
+                        + " " + DebugLog.clip(json));
                 if(workingEvidence!=null){
                     JSONObject value=payload.optJSONObject("value");
                     if(value!=null && "native_observation".equals(payload.optString("kind"))){
@@ -708,7 +715,7 @@ public final class ApkBattleSession {
             JSONObject frame = lastFrame;
             if (frame == null) return failure("missing_frame");
             long age = elapsedRealtime() - frame.getLong("captured_elapsed_ms");
-            if (age < 0 || age > 5000) return failure("frame_age_expired");
+            if (age < 0 || age > 9000) return failure("frame_age_expired");
             if ("source_pixels".equals(frame.optString("coordinate_space"))) {
                 File assets = new File(service.getFilesDir(), "native-opening/" + directory.getName());
                 if (!new File(assets, "mulligan_title.png").isFile()) copyAssets("mulligan-one-shot", assets);
@@ -896,6 +903,9 @@ public final class ApkBattleSession {
                     OriginalPng.write(frame.bitmap(),stream);
                 }
                 long encodeElapsed=SystemClock.elapsedRealtime()-encodeStarted;
+                DebugLog.log("FRAME", "seq=" + sequence + " " + frame.width() + "x" + frame.height()
+                        + " source=" + frame.sourceWidth() + "x" + frame.sourceHeight()
+                        + " channel=" + frame.captureScope + " encode=" + encodeElapsed + "ms stage=" + stage);
                 File capturedPng = png;
                 String evidenceCopyMode = "original";
                 if (retention==null && "battle".equals(stage)) {
@@ -1283,7 +1293,10 @@ public final class ApkBattleSession {
         try { return new JSONObject().put("accepted", accepted).put("completed", completed).put("reason", reason).toString(); }
         catch (Exception impossible) { throw new IllegalStateException(impossible); }
     }
-    private static String failure(String reason) throws Exception { return new JSONObject().put("ok", false).put("reason", reason).toString(); }
+    private static String failure(String reason) throws Exception {
+        DebugLog.log("SESSION", "失败 " + reason);
+        return new JSONObject().put("ok", false).put("reason", reason).toString();
+    }
     private File prepareCore() throws Exception {
         java.security.MessageDigest digest = java.security.MessageDigest.getInstance("SHA-256");
         try (InputStream input = service.getAssets().open("mobile-core/manifest.json")) {

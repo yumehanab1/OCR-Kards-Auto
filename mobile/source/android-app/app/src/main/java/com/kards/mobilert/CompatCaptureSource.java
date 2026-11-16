@@ -130,8 +130,9 @@ final class CompatCaptureSource {
             return;
         }
         try {
-            if (!size.sameGeometry(readDisplay())) {
-                close("屏幕尺寸已变化，请重新授权兼容截图（compat_capture_geometry_changed）");
+            DisplaySpec current = readDisplay();
+            if (!size.sameGeometry(current) && !reconfigure(current)) {
+                finishFailure(request, "兼容截图切换屏幕方向失败（compat_capture_resize_failed）");
                 return;
             }
             display.setSurface(null);
@@ -147,6 +148,29 @@ final class CompatCaptureSource {
         } catch (RuntimeException error) {
             finishFailure(request, "兼容截图请求失败（compat_capture_request_"
                     + error.getClass().getSimpleName() + "）");
+        }
+    }
+
+    /**
+     * A rotation changes the mirrored geometry. Resize the existing projection instead of
+     * dropping the user's consent, otherwise every portrait-to-landscape switch would kill
+     * the capture source right when the game starts.
+     */
+    private boolean reconfigure(DisplaySpec next) {
+        try {
+            if (display != null) display.setSurface(null);
+            drainImages();
+            if (reader != null) {
+                reader.setOnImageAvailableListener(null, null);
+                reader.close();
+            }
+            reader = ImageReader.newInstance(next.width, next.height, PixelFormat.RGBA_8888, 3);
+            reader.setOnImageAvailableListener(this::imageAvailable, capture);
+            display.resize(next.width, next.height, next.densityDpi);
+            size = next;
+            return true;
+        } catch (RuntimeException error) {
+            return false;
         }
     }
 
@@ -167,12 +191,7 @@ final class CompatCaptureSource {
                 finishFailure(request, "兼容截图等待新帧超时（compat_capture_timeout）");
                 return;
             }
-            if (!size.sameGeometry(readDisplay()) || image.getWidth() != size.width
-                    || image.getHeight() != size.height
-                    || !image.getCropRect().equals(new Rect(0, 0, size.width, size.height))) {
-                close("屏幕尺寸已变化，请重新授权兼容截图（compat_capture_geometry_changed）");
-                return;
-            }
+            if (image.getWidth() != size.width || image.getHeight() != size.height) return;
             long copyStartedAt = SystemClock.uptimeMillis();
             pixels = copyRgba(image, size.width, size.height);
             long copyCompletedAt = SystemClock.uptimeMillis();

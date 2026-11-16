@@ -130,9 +130,12 @@ public final class MulliganRecognizer {
     }
 
     private static double orangeRatio(Bitmap bitmap, int l, int t, int r, int b) {
+        int width=r-l, height=b-t;
+        int[] pixels=new int[width*height];
+        bitmap.getPixels(pixels,0,width,l,t,width,height);
         int hit = 0, count = 0;
-        for (int y = t; y < b; y += 2) for (int x = l; x < r; x += 2) {
-            int p = bitmap.getPixel(x, y);
+        for (int y = 0; y < height; y += 2) for (int x = 0; x < width; x += 2) {
+            int p = pixels[y * width + x];
             int red = (p >>> 16) & 255, green = (p >>> 8) & 255, blue = p & 255;
             if (red > 120 && red > green * 1.25 && green > 35 && blue < 130) hit++;
             count++;

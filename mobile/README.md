@@ -7,7 +7,7 @@
 ## 下载与使用
 
 - [KARDS-AUTO-Mobile-v0.2.3.apk](https://github.com/yumehanab1/OCR-Kards-Auto/releases/download/v0.2.3/KARDS-AUTO-Mobile-v0.2.3.apk)位于同页 [v0.2.3 Release](https://github.com/yumehanab1/OCR-Kards-Auto/releases/tag/v0.2.3)。下载后覆盖安装，无需解压；核对版本号和SHA-256见发布报告。
-- 最低 Android 11/API30，支持 arm64-v8a 和 x86_64。覆盖更新需要与已有安装使用相同签名；本次正式包沿用既有证书。
+- 最低 Android 11/API30 指已发布的 0.2.3 / code152 APK；仓库源码快照已改为 minSdk=29 / code153，自行构建可装在 Android 10/API29。API29 需先在主界面启用兼容截图并完成屏幕共享授权。
 - 已内置 Python、NumPy/OpenCV、OCR 运行库和模型；运行无需 Windows、ADB、Termux、Shizuku 或另装 Python。
 - 安装并登录 KARDS，在系统无障碍设置启用“KARDS 对战助手”。使用简体中文；**画质不限，内容比例设为“原生”，UI 比例调为 1**。
 - Android 14 及以上使用游戏窗口截图。Android 11—13 若系统截图黑屏，可在助手主界面启用“兼容截图”，亲自在系统屏幕共享弹窗确认后返回游戏。进程重启或授权撤销后需要重新授权；部分 MuMu 环境还需处理助手虚拟屏旋转，适用范围见发布报告。

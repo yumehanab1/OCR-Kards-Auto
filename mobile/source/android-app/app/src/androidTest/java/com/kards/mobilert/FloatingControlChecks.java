@@ -7,6 +7,7 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Rect;
+import android.os.Build;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
@@ -136,9 +137,14 @@ final class FloatingControlChecks {
             try {
                 Rect visible=new Rect();boolean visibleRect=fixture.getGlobalVisibleRect(visible);
                 int[] location=new int[2];fixture.getLocationOnScreen(location);
-                Rect display=service.getSystemService(android.view.WindowManager.class).getCurrentWindowMetrics().getBounds();
+                Rect display=DisplayBounds.get(service.getSystemService(android.view.WindowManager.class));
                 android.view.WindowInsets insets=fixture.getRootWindowInsets();
-                android.graphics.Insets bars=insets==null?null:insets.getInsetsIgnoringVisibility(android.view.WindowInsets.Type.systemBars());
+                android.graphics.Insets bars=null;
+                if(insets!=null) {
+                    if(Build.VERSION.SDK_INT>=30)bars=insets.getInsetsIgnoringVisibility(android.view.WindowInsets.Type.systemBars());
+                    else bars=android.graphics.Insets.of(insets.getSystemWindowInsetLeft(),insets.getSystemWindowInsetTop(),
+                            insets.getSystemWindowInsetRight(),insets.getSystemWindowInsetBottom());
+                }
                 JSONObject state=new JSONObject().put("activity_identity",System.identityHashCode(activity))
                         .put("activity_destroyed",activity.isDestroyed()).put("activity_finishing",activity.isFinishing())
                         .put("activity_window_focus",activity.hasWindowFocus()).put("same_content",activity.findViewById(android.R.id.content)==parent)
@@ -189,7 +195,7 @@ final class FloatingControlChecks {
             JSONObject after=fixtureState(instrumentation,activity,parent,fixture,service);record.put("after",after);
             requireFixture(after,geometry,stage+" after");
             require("display".equals(metadata.getString("capture_scope")),"helper capture switched scope: "+metadata);
-            Rect display=service.getSystemService(android.view.WindowManager.class).getCurrentWindowMetrics().getBounds();
+            Rect display=DisplayBounds.get(service.getSystemService(android.view.WindowManager.class));
             require(metadata.getInt("source_width")==display.width() && metadata.getInt("source_height")==display.height(),
                     "helper capture source geometry changed: "+metadata);
             return bitmap;
@@ -366,7 +372,7 @@ final class FloatingControlChecks {
             AtomicReference<Rect> region=new AtomicReference<>(),display=new AtomicReference<>();
             onMain(instrumentation,()->{
                 region.set(control.boundsForTest());
-                display.set(connected.getSystemService(android.view.WindowManager.class).getCurrentWindowMetrics().getBounds());
+                display.set(DisplayBounds.get(connected.getSystemService(android.view.WindowManager.class)));
             });
             // requestFrame normalizes the helper display to 1280x720. Sampling
             // must map the physical overlay rectangle into that bitmap space.
