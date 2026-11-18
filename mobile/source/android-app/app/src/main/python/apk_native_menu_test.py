@@ -15,6 +15,22 @@ def text(value, score=.99, box=None):
 
 
 class NativeMenuTests(unittest.TestCase):
+    def test_ultrawide_aspect_and_uniform_source_coordinates(self):
+        from apk_native.pipeline import Pipeline
+        from apk_native.recognition_scale import shrink,restore
+        from apk_native.layout_profiles import for_shape
+        for width,height in ((1280,720),(2400,1080),(2520,1080),(2580,1080),(2592,1080)):
+            frame=np.zeros((height,width,3),np.uint8)
+            Pipeline._validate(frame)
+            small,factors=shrink(frame)
+            self.assertEqual(round(width*720/height),small.shape[1])
+            restored=restore({'target_bounds':[10,20,30,40]},frame,small,factors)
+            self.assertEqual([15,30,45,60] if height==1080 else [10,20,30,40],
+                             restored['target_bounds'])
+            self.assertEqual('standard_16_9' if width==1280 else 'wide',for_shape(frame.shape).name)
+        for width,height in ((720,1280),(1080,1080),(2593,1080),(3200,1080),(0,720)):
+            with self.assertRaises(ValueError):Pipeline._validate(np.zeros((height,width,3),np.uint8))
+
     def test_generic_close_requires_panel_and_corner_x(self):
         rng=np.random.default_rng(9)
         cross=rng.integers(0,256,(25,25,3),dtype=np.uint8)

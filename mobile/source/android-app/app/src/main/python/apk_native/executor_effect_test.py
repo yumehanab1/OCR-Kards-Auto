@@ -179,10 +179,11 @@ def run():
               and executor.isolated==[('attack_hq',[500,400])] and executor.failed_inputs==3)
 
         for expected,options in (
-                ('attack_hq',[dict(kind='movefront',unit=dict(card=dict(cx=500,cy=450))),
+                ('movefront',[dict(kind='movefront',unit=dict(card=dict(cx=500,cy=450))),
                               dict(kind='attack_hq',unit=dict(card=dict(cx=550,cy=450)),target=dict(cx=640,cy=100))]),
                 ('movefront',[dict(kind='movefront',unit=dict(card=dict(cx=500,cy=450)))])):
             bridge,pipeline,executor,partial,packet=local_ready();pipeline.full['combat']['options']=options
+            pipeline.full['plan']=dict(action='skip_deploy',reason='all_observed_fee_numerals_unavailable')
             reused=executor.take_ready_observation()
             check('complete_planning_retains_priority_'+expected,reused[0]['selected_action']['action']==expected)
 

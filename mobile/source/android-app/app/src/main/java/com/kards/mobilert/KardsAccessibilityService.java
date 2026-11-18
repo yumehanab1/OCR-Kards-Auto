@@ -1,5 +1,6 @@
 package com.kards.mobilert;
 
+import android.content.Intent;
 import android.accessibilityservice.AccessibilityService;
 import android.accessibilityservice.GestureDescription;
 import android.graphics.Path;
@@ -35,6 +36,7 @@ public final class KardsAccessibilityService extends AccessibilityService implem
     private final ForegroundDepartureTracker foregroundDepartures = new ForegroundDepartureTracker();
     private int admittedGameWindowId=-1;
     private GameWindowState.Window lastVisibleGameWindow;
+    private volatile ArrayList<GameWindowState.Window> lastWindowInventory=new ArrayList<>();
     private int sourceWidth;
     private int sourceHeight;
     private BoundedMulliganSession mulliganSession;
@@ -48,6 +50,12 @@ public final class KardsAccessibilityService extends AccessibilityService implem
     private final ScreenshotRequestPacer screenshotPacer = new ScreenshotRequestPacer();
     private boolean screenshotRequestsClosed;
     private GameFloatingControl floatingControl;
+    private final android.content.BroadcastReceiver packageChanges = new android.content.BroadcastReceiver() {
+        @Override public void onReceive(android.content.Context context, android.content.Intent intent) {
+            GamePackageDiscovery.refresh(context);
+        }
+    };
+    private boolean watchingPackages;
 
     public static KardsAccessibilityService instance() {
         return current;
@@ -71,6 +79,15 @@ public final class KardsAccessibilityService extends AccessibilityService implem
     protected void onServiceConnected() {
         super.onServiceConnected();
         current = this;
+        GamePackageDiscovery.refresh(this);
+        android.content.IntentFilter filter = new android.content.IntentFilter();
+        filter.addAction(android.content.Intent.ACTION_PACKAGE_ADDED);
+        filter.addAction(android.content.Intent.ACTION_PACKAGE_REMOVED);
+        filter.addAction(android.content.Intent.ACTION_PACKAGE_CHANGED);
+        filter.addDataScheme("package");
+        if (Build.VERSION.SDK_INT >= 33) registerReceiver(packageChanges, filter, android.content.Context.RECEIVER_NOT_EXPORTED);
+        else registerReceiver(packageChanges, filter);
+        watchingPackages = true;
         floatingControl = new GameFloatingControl(this);
         publishConnection(true);
     }
@@ -78,6 +95,7 @@ public final class KardsAccessibilityService extends AccessibilityService implem
     @Override
     public void onDestroy() {
         screenshotRequestsClosed = true;
+        if (watchingPackages) { unregisterReceiver(packageChanges); watchingPackages = false; }
         if (floatingControl != null) floatingControl.destroy();
         cancelBattle();
         cancelMulligan();
@@ -162,6 +180,8 @@ public final class KardsAccessibilityService extends AccessibilityService implem
                 if(!ownOverlay)root=window.getRoot();
                 String owner=ownOverlay?getPackageName():root==null || root.getPackageName()==null?"":root.getPackageName().toString();
                 Rect bounds=new Rect();window.getBoundsInScreen(bounds);
+                if(!ownOverlay && floatingControl!=null)
+                    ownOverlay=floatingControl.ownsWindow(id,window.getType(),owner,bounds);
                 inventory.add(new GameWindowState.Window(id,window.getType(),window.getLayer(),owner,bounds,
                         window.isActive(),window.isFocused(),ownOverlay));
             } finally {if(root!=null)root.recycle();window.recycle();}
@@ -169,6 +189,7 @@ public final class KardsAccessibilityService extends AccessibilityService implem
         KeyguardManager keyguard=(KeyguardManager)getSystemService(KEYGUARD_SERVICE);
         boolean locked=keyguard!=null && keyguard.isKeyguardLocked();
         foregroundDepartures.observe(inventory,locked);
+        lastWindowInventory=inventory;
         GameWindowState state=GameWindowState.inspect(inventory,locked,lastVisibleGameWindow);
         lastVisibleGameWindow=state.game;
         return state;
@@ -192,12 +213,27 @@ public final class KardsAccessibilityService extends AccessibilityService implem
         if(state.game!=null)result.put("window_id",state.game.id)
                 .put("bounds",new org.json.JSONArray().put(state.game.bounds.left).put(state.game.bounds.top)
                     .put(state.game.bounds.width()).put(state.game.bounds.height()));
+        org.json.JSONArray inventory=new org.json.JSONArray();
+        for(GameWindowState.Window window:lastWindowInventory) {
+            inventory.put(new org.json.JSONObject().put("id",window.id).put("type",window.type)
+                    .put("layer",window.layer).put("owner",window.owner)
+                    .put("active",window.active).put("focused",window.focused).put("own_overlay",window.ownOverlay)
+                    .put("bounds_ltrb",new org.json.JSONArray().put(window.bounds.left).put(window.bounds.top)
+                            .put(window.bounds.right).put(window.bounds.bottom)));
+        }
+        result.put("window_inventory",inventory);
         return result.toString();
+    }
+
+    synchronized boolean targetSelectionLocked() {
+        return BattleWorkerLease.isOwned() || (battleSession != null && battleSession.isActive())
+                || (mulliganSession != null && mulliganSession.isRunning());
     }
 
     public boolean startMulliganOnce() {
         cancelBattle();
         if (BattleWorkerLease.isOwned()) return false;
+        GamePackageDiscovery.refresh(this);
         return startMulliganOnce(null);
     }
 
@@ -275,6 +311,7 @@ public final class KardsAccessibilityService extends AccessibilityService implem
     private synchronized boolean startBattle(String options, boolean currentBattle) {
         // A previous Python worker must finish before its process-global core can be reused.
         if (!admitStart("battle")) return false;
+        GamePackageDiscovery.refresh(this);
         ApkBattleSession campaign = null;
         try {
             org.json.JSONObject config = new org.json.JSONObject(options == null ? "{}" : options);
@@ -370,6 +407,12 @@ public final class KardsAccessibilityService extends AccessibilityService implem
     /** UI clicks are the only callers; polling/rendering never starts a worker. */
     boolean startFromFloatingControl(boolean currentBattle) {
         try {
+            if(Build.VERSION.SDK_INT<34 && !CompatCaptureService.isReady()) {
+                startActivity(new Intent(this,MainActivity.class)
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                        .putExtra("show_compat_capture",true));
+                return answerStart(false,"battle","compat_capture_required","Confirm screen capture, return to game and click Start again.");
+            }
             android.content.SharedPreferences prefs=getSharedPreferences("floating-control",MODE_PRIVATE);
             String mode=prefs.getString("mode",MatchEntryOptions.CASUAL);
             org.json.JSONObject config=MainActivity.battleOptions(false,mode,
@@ -395,6 +438,7 @@ public final class KardsAccessibilityService extends AccessibilityService implem
      * foreground transition is fabricated. */
     public synchronized boolean startSettleOnce(String options) {
         if (!admitStart("settle")) return false;
+        GamePackageDiscovery.refresh(this);
         ApkBattleSession campaign = null;
         try {
             org.json.JSONObject config = new org.json.JSONObject(options == null ? "{}" : options);
@@ -505,8 +549,8 @@ public final class KardsAccessibilityService extends AccessibilityService implem
         final Rect displayBounds=new Rect();
         displayBounds.set(getSystemService(android.view.WindowManager.class).getCurrentWindowMetrics().getBounds());
         displayBounds.offsetTo(0,0);
-        if(Build.VERSION.SDK_INT<34 && CompatCaptureService.isReady()) {
-            if(selected.game==null){callback.onFailure("compat_capture_requires_game_foreground");return;}
+        if(ProjectionFramePolicy.useConsentSource(Build.VERSION.SDK_INT,CompatCaptureService.hasSource())) {
+            if(selected.game==null){callback.onFailure("game_window_missing");return;}
             CompatCaptureService.requestFrame(new FrameSource.Callback(){
                 @Override public void onFrame(FrameSnapshot frame) {
                     FrameSnapshot prepared=null;
@@ -516,9 +560,11 @@ public final class KardsAccessibilityService extends AccessibilityService implem
                         if(screenshotRequestsClosed)failure="compat_capture_service_disconnected";
                         else {
                             GameWindowState after=gameWindowState();
-                            if(after.game==null || after.game.id!=selected.game.id || after.occluded
-                                    || frame.width()!=displayBounds.width() || frame.height()!=displayBounds.height())
-                                failure="compat_capture_geometry_or_window_changed";
+                            if(after.occluded)failure=GameWindowState.OCCLUDED;
+                            else if(frame.width()!=displayBounds.width() || frame.height()!=displayBounds.height())
+                                failure="compat_capture_geometry_changed";
+                            else if(after.game==null || after.game.id!=selected.game.id)
+                                failure="game_window_changed";
                             else if(!CapturePixelQuality.isFullyOpaque(frame.bitmap()))
                                 failure="compat_capture_incomplete_frame";
                             else if(CapturePixelQuality.isAllBlack(frame.bitmap()))failure="capture_black_frame";
@@ -583,11 +629,27 @@ public final class KardsAccessibilityService extends AccessibilityService implem
                             softwareBitmap.recycle();callback.onFailure("game_window_changed");return;
                         }
                         if(after.occluded) {softwareBitmap.recycle();callback.onFailure(GameWindowState.OCCLUDED);return;}
+                        // Some window inventories round the bottom edge down by
+                        // one pixel (2520x1079) while the platform supplies the
+                        // complete 2520x1080 surface. Accept only that full-display
+                        // raster case, never an arbitrary cropped/scaled buffer.
+                        boolean exactWindow=softwareBitmap.getWidth()==area.width()
+                                && softwareBitmap.getHeight()==area.height();
+                        boolean fullDisplayRaster=area.left==0 && area.top==0
+                                && displayBounds.right-area.right>=0 && displayBounds.right-area.right<=1
+                                && displayBounds.bottom-area.bottom>=0 && displayBounds.bottom-area.bottom<=1
+                                && softwareBitmap.getWidth()==displayBounds.width()
+                                && softwareBitmap.getHeight()==displayBounds.height();
                         if(area.left<0 || area.top<0 || !displayBounds.contains(area)
-                            || softwareBitmap.getWidth()!=area.width() || softwareBitmap.getHeight()!=area.height()) {
+                            || (!exactWindow && !fullDisplayRaster)) {
+                            android.util.Log.w("KardsCaptureTrace","geometry_rejected window="+area
+                                    +" display="+displayBounds+" bitmap="+sourceWidth+"x"+sourceHeight);
                             softwareBitmap.recycle();callback.onFailure("game_window_geometry_unconfirmed");return;
                         }
-                        if(!area.equals(displayBounds)) {
+                        if(!CapturePixelQuality.isFullyOpaque(softwareBitmap)) {
+                            softwareBitmap.recycle();callback.onFailure("capture_incomplete_frame");return;
+                        }
+                        if(!area.equals(displayBounds) && !fullDisplayRaster) {
                             Bitmap display=Bitmap.createBitmap(displayBounds.width(),displayBounds.height(),Bitmap.Config.ARGB_8888);
                             new Canvas(display).drawBitmap(softwareBitmap,area.left,area.top,null);
                             softwareBitmap.recycle();softwareBitmap=display;
@@ -597,10 +659,16 @@ public final class KardsAccessibilityService extends AccessibilityService implem
                     Bitmap normalized = preserveSourcePixels ? softwareBitmap : normalize(softwareBitmap);
                     KardsAccessibilityService.this.sourceWidth = sourceWidth;
                     KardsAccessibilityService.this.sourceHeight = sourceHeight;
+                    if ((getApplicationInfo().flags & android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0)
+                        android.util.Log.d("KardsCaptureTrace", "route=" + (windowCapture?"game_window":"display")
+                                + " requested_at_wall_ms=" + requestedAtMillis
+                                + " screenshot_timestamp_ms=" + screenshot.getTimestamp()
+                                + " output_width=" + normalized.getWidth() + " output_height=" + normalized.getHeight()
+                                + " window_id=" + (windowCapture?selected.game.id:-1));
                     // Use request start as a conservative age bound, including capture/conversion latency.
                     callback.onFrame(new FrameSnapshot(normalized, requestedAtMillis,
                             sourceWidth, sourceHeight,windowCapture?"game_window":"display",
-                            windowCapture?selected.game.id:-1,windowCapture?selected.game.bounds:displayBounds));
+                            windowCapture?selected.game.id:-1,windowCapture?selected.game.bounds:displayBounds,screenshot.getTimestamp()));
                 } catch (RuntimeException error) {
                     callback.onFailure("截图能力：Bitmap 转换失败：" + error.getClass().getSimpleName());
                 } finally {

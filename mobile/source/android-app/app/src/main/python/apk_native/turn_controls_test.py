@@ -63,8 +63,8 @@ def run():
         if state=='battle':check('end_gate_accepts_current_scoped_control',end_control(observed) is not None)
     result=[row('胜利',560,390,160,60),row('继续',600,645,80,42)]
     clock,engine,page=make([own],result);clock.value=5.;observed=page.observe(frame)
-    check('partial_turn_text_does_not_block_due_result_probe',observed['state']=='result_victory'
-          and observed['result_proof']['ready'] and [r['scope'] for r in engine.requests]==['turn_controls','result_controls'])
+    check('due_result_probe_precedes_expensive_turn_text',observed['state']=='result_victory'
+          and observed['result_proof']['ready'] and [r['scope'] for r in engine.requests]==['result_controls'])
     clock,engine,page=make([own]);page.detector.result=True;observed=page.observe(frame)
     check('current_result_overlay_has_priority_over_turn_control',observed['state']=='result_victory'
           and observed['result_proof']['ready'] and engine.full_calls==0)

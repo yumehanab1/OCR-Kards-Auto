@@ -23,6 +23,9 @@ public final class CompatCaptureService extends Service {
     private static volatile String lastStatus = "兼容截图未开启（compat_capture_off）";
     private CompatCaptureSource ownedSource;
 
+    /** A consent-owned source may be initializing; do not silently bypass it. */
+    public static boolean hasSource() { return activeSource != null; }
+
     public static boolean isReady() {
         CompatCaptureSource source = activeSource;
         return source != null && source.isReady();

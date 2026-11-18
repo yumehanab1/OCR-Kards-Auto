@@ -85,7 +85,7 @@ def _cross_shape(component):
                 fill_ratio=fill,shape_score=score,score=score,basis='current_close_x_geometry')
 
 
-def inspect_geometry(frame):
+def inspect_geometry(frame, *, wide_offer=False):
     h,w=frame.shape[:2];gray=cv2.cvtColor(frame,cv2.COLOR_BGR2GRAY)
     hsv=cv2.cvtColor(frame,cv2.COLOR_BGR2HSV);edges=cv2.Canny(gray,40,100)
     joined=cv2.morphologyEx(edges,cv2.MORPH_CLOSE,np.ones((3,3),np.uint8))
@@ -100,7 +100,7 @@ def inspect_geometry(frame):
                 proposals.append((min(x,bx),y,max(x+bw,bx+cw)-min(x,bx),by-y+1))
     panels=[];pad=max(2,round(h*.01))
     for x,y,bw,bh in proposals:
-        if not (.25*w<bw<.80*w and .20*h<bh<.85*h and x>=0 and y>=h*.05
+        if not (.25*w<bw<(.98 if wide_offer else .80)*w and .20*h<bh<.85*h and x>=0 and y>=h*.05
                 and x+bw<=w and y+bh<=h and abs(x+bw/2-w/2)<w*.15):continue
         strips=(edges[max(0,y-pad):y+pad+1,x:x+bw],edges[max(0,y+bh-pad):min(h,y+bh+pad+1),x:x+bw],
                 edges[y:y+bh,max(0,x-pad):x+pad+1],edges[y:y+bh,max(0,x+bw-pad):min(w,x+bw+pad+1)])
@@ -115,7 +115,9 @@ def inspect_geometry(frame):
         mask=cv2.morphologyEx(mask,cv2.MORPH_OPEN,np.ones((2,2),np.uint8))
         _,labels,stats,_=cv2.connectedComponentsWithStats(mask,8)
         for index,(x,y,bw,bh,area) in enumerate(stats[1:],1):
-            if not (max(6,h*.008)<=min(bw,bh) and max(bw,bh)<=h*.07 and .65<bw/bh<1.5):continue
+            # Tiny news-card artwork passed diagonal ratios and opened a link.
+            # Real dismiss glyphs must also occupy a usable, scaled control.
+            if not (max(10,h*.014)<=min(bw,bh) and max(bw,bh)<=h*.07 and .65<bw/bh<1.5):continue
             component=np.uint8(labels[y:y+bh,x:x+bw]==index)
             shape=_cross_shape(component)
             if shape is None:continue
@@ -147,3 +149,45 @@ def inspect_geometry(frame):
 def inspect(frame, close_templates):
     strict=_inspect_templates(frame,close_templates) if close_templates else None
     return strict or inspect_geometry(frame)
+
+
+def starter_offer(frame, items):
+    """The measured wide starter panel is admitted only by two exact captions.
+
+    Price/artwork never authorizes an action. The sole target is the isolated X;
+    all four current border sides must survive, including the decorated right.
+    """
+    captions=[]
+    for text in ('入门礼包', '一次性优惠。'):
+        hits=[r for r in items if r.get('score',0)>=.93 and
+              r.get('text','').replace(' ','')==text]
+        if len(hits)!=1:return None
+        captions.append(hits[0])
+    evidence=inspect_geometry(frame,wide_offer=True)
+    if not evidence or evidence['close']['score']<.93:return None
+    edges=evidence['edge_coverage']
+    if min(edges)<.80 or sum(value>=.93 for value in edges)<3:return None
+    x,y,w,h=evidence['panel_bounds']
+    boxes=[]
+    for row in captions:
+        points=np.asarray(row['box'],dtype=float)
+        if points.shape!=(4,2) or not np.isfinite(points).all():return None
+        a,b=points.min(axis=0);c,d=points.max(axis=0)
+        if not (x<=a<c<=x+w*.65 and y+h*.10<=b<d<=y+h*.70):return None
+        boxes.append([float(a),float(b),float(c-a),float(d-b)])
+    if boxes[0][1]+boxes[0][3]>=boxes[1][1]:return None
+    evidence.update(offer_id='starter_bundle',caption_texts=['入门礼包','一次性优惠。'],
+                    caption_recognition_bounds=boxes)
+    return evidence
+
+
+def starter_regions(frame):
+    """Current wide border/X only proposes a bounded OCR region, not authority."""
+    measured=inspect_geometry(frame,wide_offer=True)
+    if not measured:return []
+    x,y,w,h=measured['panel_bounds']
+    if w<=frame.shape[1]*.80:return []
+    if min(measured['edge_coverage'])<.80 or measured['close']['score']<.93:return []
+    left=x;top=round(y+h*.10);middle=round(y+h*.36);bottom=round(y+h*.70)
+    return [[left,top,round(w*.65),middle-top],
+            [left,middle,round(w*.65),bottom-middle]]

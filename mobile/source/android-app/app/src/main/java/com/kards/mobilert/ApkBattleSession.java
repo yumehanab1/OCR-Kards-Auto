@@ -41,6 +41,7 @@ public final class ApkBattleSession {
     private final long started = SystemClock.elapsedRealtime();
     private final GameEntryGate entryGate;
     private final boolean startupAdmission;
+    private final CaptureRetryPolicy startupCaptureRetries = new CaptureRetryPolicy();
     private volatile long deadline;
     private final int maxSeconds;
     private final int maxInputs;
@@ -303,10 +304,13 @@ public final class ApkBattleSession {
                 android.util.Log.e("KardsBattle", "Embedded engine failed", error);
                 finish(cancelled.get() ? stopReason : ("battle".equals(stage) ? "engine" : stage) + "_error:" + error, null);
             } finally {
-                workerExited = true;
-                if(workingEvidence!=null)try { workingEvidence.finish(!MatchCampaignPlan.resultConfirmed(lastBattleResult)); }
+                if (workingEvidence!=null) try {
+                    workingEvidence.finishDeckSelection(sessionId(),roundIndex,stopReason);
+                    workingEvidence.finish(!MatchCampaignPlan.resultConfirmed(lastBattleResult));
+                }
                 catch(Exception error){android.util.Log.e("KardsRetention","Final screenshot archive failed",error);}
                 if(retention!=null)retention.prune(null,System.currentTimeMillis());
+                workerExited = true;
                 BattleWorkerLease.release(this);
             }
         }, "kards-embedded-battle");
@@ -434,7 +438,10 @@ public final class ApkBattleSession {
     }
 
     private synchronized void startRound(int index) throws Exception {
-        if(workingEvidence!=null)workingEvidence.finish(false);
+        if (workingEvidence!=null) {
+            workingEvidence.finishDeckSelection(sessionId(),roundIndex,"round_advanced_without_menu_postcondition");
+            workingEvidence.finish(false);
+        }
         roundIndex = index;
         roundStarted = SystemClock.elapsedRealtime();
         deadline = MatchCampaignPlan.roundDeadline(roundStarted, maxSeconds);
@@ -680,6 +687,12 @@ public final class ApkBattleSession {
                 JSONObject payload = new JSONObject(json);
                 if(workingEvidence!=null){
                     JSONObject value=payload.optJSONObject("value");
+                    if (value!=null && "menu".equals(stage) && "menu".equals(payload.optString("kind"))) {
+                        workingEvidence.observeDeckSelection(value.optLong("frame_id",-1),
+                                value.optString("observed_state",value.optString("state")),
+                                "deck_ready".equals(value.optString("state"))
+                                        && Boolean.TRUE.equals(value.opt("first_deck_selected")));
+                    }
                     if(value!=null && "native_observation".equals(payload.optString("kind"))){
                         workingEvidence.observeState(value.optLong("frame_id"),value.optString("state"));
                     }
@@ -762,6 +775,15 @@ public final class ApkBattleSession {
                 String captureReason=packet.optString("reason");
                 if(!packet.optBoolean("ok",false)) {
                     lastFrame=null;
+                    if(startupCaptureRetries.retryStartupTimeout(captureReason,
+                            startupAdmission && "menu".equals(stage),totalInputs(),
+                            isCancelled(),elapsedRealtime()>=deadline,elapsedRealtime())) {
+                        recordCaptureRetry(captureAttemptNumber,captureReason,
+                                new CaptureRetryPolicy.Decision(true,false,captureReason,
+                                        startupCaptureRetries.startupTimeoutRetries()),nativePixels);
+                        publish("startup_capture_retry","waiting_for_fresh_game_capture",null);
+                        Thread.sleep(350);continue;
+                    }
                     CaptureRetryPolicy.Decision retry=retryPolicy.onFailure(captureReason,
                             isCancelled(),elapsedRealtime()>=deadline);
                     if(retry.retry) {
@@ -798,7 +820,7 @@ public final class ApkBattleSession {
                 String row=new JSONObject().put("event",retry.retry?"capture_retry":"capture_retry_exhausted")
                         .put("reason",reason).put("terminal_reason",retry.retry?JSONObject.NULL:retry.reason)
                         .put("capture_attempt",attempt).put("retry_number",retry.retriesUsed)
-                        .put("max_retries",CaptureRetryPolicy.MAX_RETRIES).put("round_index",roundIndex)
+                        .put("max_retries",retryPolicyLimit(reason)).put("round_index",roundIndex)
                         .put("elapsed_ms",elapsedRealtime()-started).put("native_pixels",nativePixels)
                         .put("total_game_inputs",totalInputs()).put("retry_delay_ms",retry.retry?350:0).toString();
                 File log=new File(directory,"capture-retries.jsonl");
@@ -807,6 +829,12 @@ public final class ApkBattleSession {
             } catch(Exception error) {
                 android.util.Log.w("KardsBattle","Cannot save capture retry diagnostic",error);
             }
+        }
+
+        private int retryPolicyLimit(String reason) {
+            return reason != null && (reason.equals("compat_capture_timeout")
+                    || reason.endsWith("（compat_capture_timeout）"))
+                    ? CaptureRetryPolicy.MAX_STARTUP_TIMEOUT_RETRIES : CaptureRetryPolicy.MAX_RETRIES;
         }
 
         private String captureAttempt(boolean nativePixels) throws Exception {
@@ -913,6 +941,7 @@ public final class ApkBattleSession {
                         .put("png_path", capturedPng.getAbsolutePath())
                         .put("campaign_png_path", png.getAbsolutePath()).put("captured_elapsed_ms", metadata[0])
                         .put("evidence_copy_mode", evidenceCopyMode)
+                        .put("requested_at_wall_ms",frame.capturedAtMillis())
                         .put("png_encode_ms",encodeElapsed)
                         .put("capture_scope",frame.captureScope).put("capture_window_id",frame.captureWindowId)
                         .put("capture_window_bounds",new JSONArray().put(frame.captureBounds.left).put(frame.captureBounds.top)
@@ -922,6 +951,8 @@ public final class ApkBattleSession {
                         .put("aspect_profile", FrameAspectProfile.classify(frame.sourceWidth(), frame.sourceHeight()))
                         .put("width", frame.width()).put("height", frame.height())
                         .put("coordinate_space", nativePixels ? "source_pixels" : "normalized_1280x720");
+                if (nativePixels && "menu".equals(stage) && frame.platformScreenshotTimestampMs>=0)
+                    json.put("screenshot_timestamp_ms",frame.platformScreenshotTimestampMs);
                 save(new File(frameDirectory, String.format(Locale.ROOT, "%05d.json", sequence)), json.toString());
                 String currentRejection=checkEntry(service.foregroundSnapshot());
                 if(currentRejection==null)currentRejection=entryGate.checkCapture(metadata[0],metadata[1]);
@@ -936,8 +967,22 @@ public final class ApkBattleSession {
             return dispatchInternal(request, false);
         }
 
+        private int dailyRewardPhase, dailyRewardDay;
+        private long dailyRewardFrame=-1, dailyRewardSent;
         public String dispatchMenu(String request) throws Exception {
-            return dispatchInternal(request, true);
+            JSONObject plan=new JSONObject(request);String action=plan.optString("context");
+            int phase="menu_claim_daily".equals(action)?1:"menu_collect_daily".equals(action)?2:
+                    "menu_continue_daily".equals(action)?3:0;
+            if(phase>0 && (phase!=dailyRewardPhase+1 || plan.optLong("frame_id",-1)<=dailyRewardFrame
+                    || phase>1 && elapsedRealtime()-dailyRewardSent>15000))return failure("daily_reward_phase_mismatch");
+            JSONObject proof=plan.optJSONObject("daily_reward_evidence");
+            if(phase==3 && (proof==null || proof.optInt("day")!=dailyRewardDay))return failure("daily_reward_day_mismatch");
+            String result=dispatchInternal(request, true);JSONObject receipt=new JSONObject(result);
+            if(phase>0 && Boolean.TRUE.equals(receipt.opt("accepted")) && Boolean.TRUE.equals(receipt.opt("completed"))) {
+                dailyRewardPhase=phase;dailyRewardFrame=plan.getLong("frame_id");dailyRewardSent=elapsedRealtime();
+                if(phase==2)dailyRewardDay=proof.getInt("day");
+            }
+            return result;
         }
 
         /** Settlement taps go through their own guard: single short tap, only
@@ -1020,6 +1065,8 @@ public final class ApkBattleSession {
             CountDownLatch latch = new CountDownLatch(1);
             DispatchAttempt attempt = new DispatchAttempt();
             AtomicBoolean sent = new AtomicBoolean();
+            boolean watchDeck=workingEvidence!=null && menu && "menu_select_deck".equals(plan.optString("context"));
+            AtomicReference<JSONArray> deckPoints=watchDeck ? new AtomicReference<>() : null;
             String boundaryReason = settle ? "settle_boundary_error" : "dispatch_boundary_error";
             String timeoutReason = settle ? "settle_callback_timeout" : "gesture_callback_timeout";
             File ledger = new File(retention==null?directory:roundDirectory,
@@ -1053,9 +1100,10 @@ public final class ApkBattleSession {
                                 latch.countDown(); return;
                             }
                             attempt.stage("prepared_ledger_started", elapsedRealtime());
+                            JSONArray physicalPoints=physicalPathPoints(plan,frame);
                             append(ledger, new JSONObject().put("event", "prepared")
                                     .put("elapsed_ms", elapsedRealtime()).put("request", plan)
-                                    .put("physical_path_points", physicalPathPoints(plan, frame)).toString());
+                                    .put("physical_path_points", physicalPoints).toString());
                             attempt.stage("prepared_ledger_finished", elapsedRealtime());
                             // Evidence writing cannot silently consume the frame-age budget.
                             attempt.stage("validate_3_started", elapsedRealtime());
@@ -1078,6 +1126,7 @@ public final class ApkBattleSession {
                             if (menu) entryGate.sealBootstrap();
                             // No check-then-act gap: timeout either prevents this claim,
                             // or observes SUBMITTING and must preserve input uncertainty.
+                            if (watchDeck) deckPoints.set(physicalPoints);
                             if (!attempt.trySubmit(elapsedRealtime())) { latch.countDown(); return; }
                             boolean accepted = service.dispatchGesture(gesture, callback, main);
                             sent.set(accepted);
@@ -1116,6 +1165,7 @@ public final class ApkBattleSession {
                 DispatchAttempt.Result interruptedResult = attempt.timeout(timeoutReason, elapsedRealtime());
                 if (interruptedResult.inputUncertain) inputStatusUncertain = true;
                 recordDispatchDiagnostic(attempt, plan, menu, settle, true);
+                if (watchDeck) rememberDeckDispatch(plan,attempt,interruptedResult,deckPoints.get());
                 cancel(DispatchAttempt.interruptionReason(interruptedResult));
                 Thread.currentThread().interrupt();
                 throw interrupted;
@@ -1125,12 +1175,30 @@ public final class ApkBattleSession {
             // Sample the blocked main stack before publishing cancellation can
             // delay this worker or allow the original stall to disappear.
             recordDispatchDiagnostic(attempt, plan, menu, settle, timedOut);
+            if (watchDeck) rememberDeckDispatch(plan,attempt,result,deckPoints.get());
             if (result.state == DispatchAttempt.State.TIMED_OUT_BEFORE_INPUT) cancel(result.reason);
             else if (result.state == DispatchAttempt.State.TIMED_OUT_INPUT_UNCERTAIN)
                 cancel(settle ? "settle_callback_timeout" : "gesture_callback_timeout_input_status_uncertain");
             if (workingEvidence != null) workingEvidence.select(plan.optLong("frame_id"),
                     settle ? "settlement_before" : menu ? "menu_before" : "action_before");
             return dispatchReply(result.accepted, result.completed, result.reason);
+        }
+
+        private void rememberDeckDispatch(JSONObject plan, DispatchAttempt attempt,
+                                          DispatchAttempt.Result result, JSONArray points) {
+            if (!result.accepted && !result.inputUncertain) return;
+            try {
+                JSONObject timing=new JSONObject();
+                for (DispatchAttempt.Stage item : attempt.stages()) timing.put(item.name,item.elapsedMs);
+                workingEvidence.beginDeckSelection(plan.getLong("frame_id"),new JSONObject()
+                        .put("state",result.state.name())
+                        .put("request",plan).put("physical_path_points",points==null?JSONObject.NULL:points)
+                        .put("accepted",result.accepted).put("completed",result.completed)
+                        .put("input_status_uncertain",result.inputUncertain).put("reason",result.reason)
+                        .put("elapsed_realtime_ms_by_phase",timing));
+            } catch (Exception error) {
+                android.util.Log.w("KardsRetention","Cannot pin deck selection evidence",error);
+            }
         }
 
         /** Called only by the worker. Phase collection on main never writes this

@@ -1,5 +1,6 @@
 <resources>
     <item name="panel_training_debug_start" type="id" />
+    <item name="panel_game_select" type="id" />
     <item type="id" name="panel_start" />
     <item type="id" name="panel_stop" />
     <item type="id" name="panel_permissions" />

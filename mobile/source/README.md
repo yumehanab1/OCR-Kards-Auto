@@ -1,38 +1,25 @@
 # 手机版源码
 
-本目录说明 Android **0.2.3 / versionCode 152** 的独立源码快照。项目位于 [`android-app/`](android-app/)，包括 Java 界面与无障碍边界、Python 识别/行动模块、内置引擎、OCR 模型和识别模板。PC 源码在仓库根目录的 `src/`，两条维护线分开。
+Android **0.2.4 / versionCode 191** 的独立源码位于 [`android-app/`](android-app/)；此版本固定于 [`v0.2.4` 标签](https://github.com/yumehanab1/OCR-Kards-Auto/tree/v0.2.4/mobile/source/android-app)。仓库根目录 `src/` 是独立维护的 PC 线，本次没有 Windows 更新。
 
-手机版源码固定到提交 [`8fc0b6944a277a72b548d87e42fbd194960c69d5`](https://github.com/yumehanab1/OCR-Kards-Auto/tree/8fc0b6944a277a72b548d87e42fbd194960c69d5/mobile/source/android-app)。共享 `v0.2.3` 标签保留为既有 PC 发布提交，手机版源码以此不可变链接为准。正式152包已完成构建、签名、覆盖安装、API35设备发布12组、4组截图和3组入口验证，以及真实检测未命中时的手动待命与停止；均零游戏输入。公开附件及匿名下载核验见发布报告。
+普通用户请参阅[安装说明](../README.md)，或直接下载 [APK](https://github.com/yumehanab1/OCR-Kards-Auto/releases/download/v0.2.4/KARDS-AUTO-Mobile-v0.2.4.apk)。本次变更、校验值和测试范围见[版本说明](../releases/0.2.4.md)。
 
-直接安装请使用同页 [v0.2.3 Release](https://github.com/yumehanab1/OCR-Kards-Auto/releases/tag/v0.2.3) 的 [KARDS-AUTO-Mobile-v0.2.3.apk](https://github.com/yumehanab1/OCR-Kards-Auto/releases/download/v0.2.3/KARDS-AUTO-Mobile-v0.2.3.apk)。[安装说明](../README.md)及[公开验证报告](../../docs/reports/mobile/APK_0.2.3_RELEASE.md)。APK 不用另装 Python、ADB 或 PC 软件。
+## 从标签构建
 
-## 构建
-
-需要JDK17、Android SDK35和CPython3.10。Gradle8.7与Chaquopy17由项目配置固定；运行库依赖首次构建需联网下载。设置`ANDROID_HOME`，或在本机创建不提交的`android-app/local.properties`指定SDK。通过`KARDS_BUILD_PYTHON`指定CPython3.10可执行文件。
+需要 JDK 17、Android SDK 35（build-tools 35.0.0）和 CPython 3.10。项目固定 Gradle Wrapper 8.7、Android Gradle Plugin 和 Chaquopy 依赖；首次构建需联网下载依赖。设置 `ANDROID_HOME`，或用不提交的 `android-app/local.properties` 指定 SDK。
 
 ```powershell
 cd android-app
-$env:KARDS_BUILD_PYTHON = '你的Python3.10可执行文件路径'
+$env:KARDS_BUILD_PYTHON = '你的 Python 3.10 可执行文件路径'
 $env:KARDS_PUBLIC_BUILD = 'true'
 .\gradlew.bat assembleRelease lintRelease
-```
-
-未配置签名时生成 `app/build/outputs/apk/release/app-release-unsigned.apk`。发布签名通过本机环境变量 `KARDS_ANDROID_KEYSTORE`、`KARDS_ANDROID_KEY_ALIAS`、`KARDS_ANDROID_STORE_PASSWORD`、`KARDS_ANDROID_KEY_PASSWORD` 提供；私钥、密码和本机路径不入仓库。本次正式包沿用既有证书，升级验证结果见发布报告；自行构建的不同证书 APK 不能覆盖官方包。
-
-内置引擎自带230文件SHA-256清单。独立源码克隆构建检查这一完整载荷；原维护环境还可与其外部原始源码逐字节核对。不要从PC源码覆盖内置引擎。手动检查：
-
-```powershell
 python tools/prepare_mobile_core.py --check --packaged-only
 ```
 
-源码提交的 Git archive 已核对575个文件、23,486,190 bytes，预期文件集合完整、提交与工作副本原字节一致。内置引擎230个文件、943,893 bytes的清单检查通过。公开副本仅净化 `apk_settle.py` 模块文档字符串中的本机路径，其他AST未变；源码正文检查未发现私有路径。
+未配置签名时生成 `app/build/outputs/apk/release/app-release-unsigned.apk`。签名环境变量为 `KARDS_ANDROID_KEYSTORE`、`KARDS_ANDROID_KEY_ALIAS`、`KARDS_ANDROID_STORE_PASSWORD` 和 `KARDS_ANDROID_KEY_PASSWORD`；不要提交密钥、密码或本机配置。不同证书的自编译 APK 不能覆盖官方安装。
 
-私有实机截图、原始日志、回放图片和构建/运行环境不上传。Python 测试及 Android 测试源代码保留，需要真实图像的回归须自行准备测试资产；没有这些资产不能将相应回放记为通过。正式 APK 已核对排除测试模块和私有夹具，保留运行必需的模型、裁剪模板与蓝图纹理 atlas/mask，详情见发布报告。
+独立构建校验内置引擎 230 文件清单，不需要、也不要从 PC 源码覆写。公开源码保留 Wrapper、Java/Python 源码、依赖清单、运行 OCR 模型/字典和必要的裁剪模板；排除原始实机截图、回放素材、日志、宿主配置和构建输出。正式 APK 不含调试入口、Python 测试或测试夹具。要运行完整回放测试，请按 [素材说明](android-app/TEST_FIXTURES.md) 自备素材；仅构建测试 APK 不代表测试已运行。
 
-正式151与 code150 开发包的546个 `app/src/main` 文件集合和字节完全一致，`app/build.gradle.kts` 仅修改版本号与名称；这项比较不覆盖全项目，也不表示两包哈希相同。code150 在 Android15/API35 同一会话连续完成3局，正式151只新增零输入的组件验证，没有151同哈希完整对局。code147 的 API32 MuMu 十局和原148正式构建保留为独立历史，不合并成跨包连续局数。
+[OCR 第三方许可与来源](android-app/app/src/main/assets/native-ocr/THIRD_PARTY_NOTICES.txt) · [Java Clipper 许可](android-app/app/src/main/java/de/lighti/clipper/license.txt) · [仓库游戏素材版权说明](../../NOTICE.md)。游戏界面裁剪模板不随项目 GPL 重新授权。
 
-旧兼容投影重启后的虚拟屏旋转修正尚未内置；OBS底层黑屏、实体手机及跨重启长时稳定性未验收。普通效果未知、结束未确认及当前识别范围见[发布报告](../../docs/reports/mobile/APK_0.2.3_RELEASE.md)。
-
-历史：[0.2.2发布报告](../../docs/reports/mobile/APK_0.2.2_RELEASE.md)、[0.2.1 APK](https://github.com/yumehanab1/OCR-Kards-Auto/releases/download/v0.2.1/KARDS-AUTO-Mobile-v0.2.1.apk)及[0.2.1 发布报告](../../docs/reports/mobile/APK_0.2.1_RELEASE.md)。
-
-正式包会排除 Python 测试模块。开发者在准备好自行提供的回放资产后，可先运行 `python tools/prepare_public_release_test_support.py`，再构建 AndroidTest APK；该工具仅生成测试专用源码资产，不加入正式 APK。嵌入引擎使用逐文件哈希校验，`mobile/.gitattributes` 保留源码原始字节，避免跨平台换行转换破坏清单。
+0.2.3 手机版的旧源码仍在 [8fc0b6944a27](https://github.com/yumehanab1/OCR-Kards-Auto/tree/8fc0b6944a277a72b548d87e42fbd194960c69d5/mobile/source/android-app)。

@@ -46,8 +46,9 @@ public final class DynamicMenuControlsChecks {
             JSONArray bounds=result.getJSONObject("targets").getJSONArray("menu_home_start");
             if(bounds.getDouble(0)>1280*.2 || bounds.getDouble(2)<=0 || bounds.getDouble(3)<=0)
                 throw new IllegalStateException("dynamic_home_target");
-            if(settlement && !"menu_controls".equals(result.getJSONObject("ocr_metrics").optString("scope")))
-                throw new IllegalStateException("settlement_dynamic_menu_ocr_not_reached");
+            if(settlement && !"menu_controls".equals(result.getJSONObject("ocr_metrics").optString("scope"))
+                    && result.getJSONObject("evidence").getJSONObject("home_play").getDouble("score")<.93)
+                throw new IllegalStateException("settlement_home_requires_current_ocr_or_strong_template");
             results.put(result.put("startup_test",startup).put("settlement_test",settlement));
         }
         JSONObject semantics=new JSONObject(py.getModule("apk_native.menu_dynamic_test").callAttr("run",menu.getAbsolutePath()).toString());
@@ -172,6 +173,10 @@ public final class DynamicMenuControlsChecks {
             .put("target_bounds",closeBounds).put("from",closePoint).put("to",closePoint);
         rejected=MenuDispatchGuard.validate(closePlan,closePacket,-1,false,false,0,100000,0,"menu","casual","com.android1939.kards",1);
         if(rejected!=null)throw new IllegalStateException("actual_current_close_guard:"+rejected);
+        JSONObject menuGuard=MenuDispatchGuardChecks.run();
+        if(menuGuard.getInt("failure_count")!=0)throw new IllegalStateException("menu_dispatch_guard_regression");
+        JSONArray deckEvidence=new JSONArray();
+        WorkingFrameEvidenceChecks.deckSelectionChecks(directory,deckEvidence);
         return new JSONObject().put("passed",true).put("source_kind","code125_failure_review_JPEG")
             .put("ocr",ocr).put("observations",results).put("semantic_checks",semantics).put("control_checks",controls)
             .put("result_checks",resultsProof)
@@ -192,6 +197,7 @@ public final class DynamicMenuControlsChecks {
             .put("lower_daily_guard_passed",true).put("overlapping_daily_guard_rejected",true)
             .put("close_shape_checks",closeTests).put("actual_current_close",currentClose)
             .put("actual_current_close_guard_passed",true)
+            .put("menu_dispatch_guards",menuGuard).put("deck_selection_evidence",deckEvidence)
             .put("device_inputs",0).put("captures",0);
     }
 }

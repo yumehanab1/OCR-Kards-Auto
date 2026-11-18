@@ -17,7 +17,7 @@ class NativeSettleTests(SettleThenReturnTests):
             return json.dumps(packet)
         bridge.captureNative=capture
         class Recognizer:
-            def __init__(self,*args):pass
+            def __init__(self,*args,settlement=False):pass
             def observe(self,frame,packet):
                 observed=json.loads(bridge.observeMenu(json.dumps({'png_path':packet['png_path'],'assets':'saved'})))
                 observed['start_control']['bounds']=[100,200,80,60]

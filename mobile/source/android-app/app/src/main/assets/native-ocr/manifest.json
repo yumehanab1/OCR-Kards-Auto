@@ -1,13 +1,13 @@
 {
   "det": {
-    "file": "ch_PP-OCRv4_det_infer.onnx",
-    "sha256": "d2a7720d45a54257208b1e13e36a8479894cb74155a5efe29462512d42f49da9",
-    "bytes": 4745517
+    "file": "PP-OCRv6_tiny_det_infer.onnx",
+    "sha256": "193bab7a04fca699a6c82e6abb5b81bdb28177f0abd4062552b04908dafb19f8",
+    "bytes": 1780590
   },
   "rec": {
-    "file": "ch_PP-OCRv4_rec_infer.onnx",
-    "sha256": "48fc40f24f6d2a207a2b1091d3437eb3cc3eb6b676dc3ef9c37384005483683b",
-    "bytes": 10857958
+    "file": "PP-OCRv6_tiny_rec_infer.onnx",
+    "sha256": "9ef676d6ed3c88256a2d92c640c44f25b0c40947e111b14b8be8f594091563e6",
+    "bytes": 4462639
   },
   "cls": {
     "file": "ch_ppocr_mobile_v2.0_cls_infer.onnx",

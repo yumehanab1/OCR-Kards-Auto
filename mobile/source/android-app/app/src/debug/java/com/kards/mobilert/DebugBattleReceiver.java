@@ -23,7 +23,7 @@ public final class DebugBattleReceiver extends BroadcastReceiver {
                 String mode = GameEntryGate.parseMode(new org.json.JSONObject(options == null ? "{}" : options));
                 Intent game = null;
                 if (GameEntryGate.LAUNCH_GAME.equals(mode)) {
-                    game = GamePackages.findLaunchable(context.getPackageManager()::getLaunchIntentForPackage);
+                    game = GamePackageDiscovery.findLaunchable(context);
                     if (game == null) throw new IllegalStateException("game_not_installed");
                 }
                 if (!service.startBattle(options)) { setResultCode(3); setResultData(service.lastStartAttempt()); return; }

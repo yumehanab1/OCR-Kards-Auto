@@ -647,6 +647,8 @@ class NativeMenuReplanTests(unittest.TestCase):
             observation=screen(bridge.last['state'],bridge.last.get('mode',''))
             bounds=bridge.last.get('bounds',[packet['frame_id']*100,100,60,40])
             observation['targets']={action:list(bounds) for action in observation['targets']}
+            if bridge.last.get('login_reward_evidence'):
+                observation['login_reward_evidence']=dict(bridge.last['login_reward_evidence'],frame_id=packet['frame_id'])
             return observation
         recognizer.observe.side_effect=recognize
         with mock.patch.object(apk_match_entry,'read_frame',side_effect=read_frame), \
@@ -715,6 +717,20 @@ class NativeMenuReplanTests(unittest.TestCase):
         self.assertNotEqual('menu_dispatch_expired_3_times',result['reason'])
         self.assertTrue(all(e['value']['consecutive_rejections']==0 for e in bridge.events if e['kind']=='menu_replan'))
 
+    def test_native_transition_source_cannot_spend_second_navigation_input(self):
+        result,bridge,trace=self.execute([dict(state='home'),
+            *[dict(state='home') for _ in range(5)],dict(state='unknown'),
+            dict(state='deck_list'),dict(state='deck_list'),
+            dict(state='deck_ready',mode='casual'),dict(state='unknown',opening=True)])
+        self.assertEqual(['menu_home_start','menu_select_deck','menu_start_queue'],
+                         [r['context'] for r in bridge.requests])
+        self.assertTrue(result['verified'])
+
+    def test_native_unfinished_navigation_times_out_without_retry(self):
+        result,bridge,trace=self.execute([dict(state='home') for _ in range(23)])
+        self.assertEqual(['menu_home_start'],[r['context'] for r in bridge.requests])
+        self.assertEqual('menu_action_unconfirmed:menu_home_start',result['reason'])
+
     def test_normal_native_route_keeps_one_queue_and_opening_handoff(self):
         result,bridge,trace=self.execute([dict(state='home'),dict(state='mode_menu'),dict(state='deck_list'),
             dict(state='deck_ready',mode='casual'),dict(state='unknown',opening=True)])
@@ -727,6 +743,34 @@ class NativeMenuReplanTests(unittest.TestCase):
         self.assertTrue(result['verified'])
         self.assertEqual('mulligan_ready',result['reason'])
         self.assertFalse(any(e['kind']=='menu_replan' for e in bridge.events))
+
+    def test_completed_deck_tap_without_deck_ready_stops_and_cannot_queue(self):
+        result,bridge,_=self.execute([dict(state='deck_list') for _ in range(25)])
+        self.assertEqual(['menu_select_deck'],[r['context'] for r in bridge.requests])
+        self.assertEqual('menu_action_unconfirmed:menu_select_deck',result['reason'])
+        self.assertFalse(result['first_deck_selected'])
+        self.assertFalse(result['queue_requested'])
+        self.assertFalse(result['verified'])
+
+    def test_native_return_home_proof_forwarded_once_until_fresh_destination(self):
+        reward=dict(state='login_reward',login_reward_evidence={'basis':'fixture'})
+        result,bridge,_=self.execute([reward,*[reward for _ in range(24)]])
+        self.assertEqual(['menu_dismiss_reward'],[r['context'] for r in bridge.requests])
+        self.assertEqual(dict(basis='fixture',frame_id=1),bridge.requests[0]['login_reward_evidence'])
+        self.assertEqual('menu_action_unconfirmed:menu_dismiss_reward',result['reason'])
+        self.assertFalse(result['verified'])
+        result,bridge,_=self.execute([reward,dict(state='unknown'),dict(state='home')])
+        self.assertEqual([1,3],[r['frame_id'] for r in bridge.requests])
+        self.assertEqual('menu_home_start',bridge.requests[-1]['context'])
+        self.assertFalse(result['queue_requested'])
+        self.assertFalse(result['verified'])
+
+    def test_incomplete_native_reward_receipt_cannot_advance(self):
+        result,bridge,_=self.execute([dict(state='login_reward',reply=dict(accepted=True,completed=False,
+            reason='gesture_cancelled')),dict(state='home')])
+        self.assertEqual('menu_dispatch:gesture_cancelled',result['reason'])
+        self.assertEqual(1,len(bridge.requests))
+        self.assertFalse(result['verified'])
 
 
 class PixelTests(unittest.TestCase):

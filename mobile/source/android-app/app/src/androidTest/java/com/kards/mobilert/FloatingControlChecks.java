@@ -79,7 +79,21 @@ final class FloatingControlChecks {
         p.getJSONObject("engine").put("stop_reason","result_defeat");
         require(FloatingStatus.from(p.toString(),"").phase.equals("失败"),"verified defeat");
         p.put("event","stopping");require(FloatingStatus.from(p.toString(),"").phase.equals("正在停止"),"stopping");
-        return new JSONObject().put("passed",true).put("geometry_profiles",4).put("unknown_remains_unknown",true);
+        Rect ownArea=new Rect(1475,317,1612,432);
+        require(GameFloatingControl.matchesAttachedOverlay(true,4,true,ownArea,new Rect(ownArea)),"exact attached own overlay");
+        require(!GameFloatingControl.matchesAttachedOverlay(false,4,true,ownArea,ownArea),"detached overlay not owned");
+        require(!GameFloatingControl.matchesAttachedOverlay(true,3,true,ownArea,ownArea),"system window not owned");
+        require(!GameFloatingControl.matchesAttachedOverlay(true,1,true,ownArea,ownArea),"application window not owned");
+        require(!GameFloatingControl.matchesAttachedOverlay(true,4,false,ownArea,ownArea),"foreign overlay not owned");
+        require(!GameFloatingControl.matchesAttachedOverlay(true,4,true,null,ownArea),"missing attached geometry not owned");
+        require(!GameFloatingControl.matchesAttachedOverlay(true,4,true,ownArea,new Rect(1474,317,1612,432)),"geometry mismatch not owned");
+        require(CaptureLayoutActivity.admits(4,4,1,1),"own secondary display layout");
+        require(!CaptureLayoutActivity.admits(0,0,1,1),"never layout primary display");
+        require(!CaptureLayoutActivity.admits(-1,-1,1,1),"invalid display refused");
+        require(!CaptureLayoutActivity.admits(4,0,1,1),"misrouted launch refused");
+        require(!CaptureLayoutActivity.admits(4,4,0,0),"missing request refused");
+        require(!CaptureLayoutActivity.admits(4,4,1,2),"stale request refused");
+        return new JSONObject().put("passed",true).put("geometry_profiles",4).put("overlay_identity_checks",7).put("layout_admission_checks",6).put("unknown_remains_unknown",true);
     }
     private static Bitmap frame(Instrumentation instrumentation,KardsAccessibilityService service,
                                 GameFloatingControl control,boolean expectHidden,boolean nativePixels) throws Exception {

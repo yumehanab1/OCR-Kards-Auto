@@ -1,5 +1,5 @@
 """Native campaign battle loop. Every input uses the existing Java bridge."""
-import json,time
+import gc,json,time
 from pathlib import Path
 from apk_battle_runtime import Stop,Replan,options_from_json,_json
 from .pipeline import Pipeline,load_banks
@@ -41,6 +41,7 @@ def run(bridge,core,menu,opening,evidence,options_json='{}'):
                 read_only=options['read_only'],host_inputs=0,result_verified=False,
                 full_game_passed=False,stop_reason=None,exception=None)
     proof=ResultProof();last_progress=started;unknown_since=None;previous_turn=0;modal_since=None;choice_failures=0
+    last_collection=started
     try:
         ocr=NativeOCR(bridge);pipeline=Pipeline(*load_banks(core,menu,opening),ocr)
         executor=ActionExecutor(bridge,pipeline,ocr,evidence,deadline,options['max_inputs'],
@@ -52,6 +53,10 @@ def run(bridge,core,menu,opening,evidence,options_json='{}'):
                 if executor.now()-last_progress>=options['idle_seconds']*1000:raise Stop('no_progress_timeout')
                 continue
             state=observed['state'];now=executor.now()
+            # Chaquopy/OpenCV temporaries may form Python/Java reference cycles.
+            # Collect only between completed observations, never mid-dispatch.
+            if now-last_collection>=10000:
+                gc.collect();last_collection=now
             if options['read_only']:raise Stop('inspection_complete')
             if proof.observe(observed,packet):
                 report['result_verified']=True;raise Stop(state)

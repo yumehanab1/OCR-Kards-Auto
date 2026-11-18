@@ -1,6 +1,25 @@
 """Native hand fee-plate candidates; local operation numeral, never card names."""
 import cv2,numpy as np
 
+def operation_components(crop):
+    """A complete lower-right numeral, never the fee/K or a clipped border.
+
+    The old 3px inset clipped a true numeral at row22, while an adjacent
+    upper-right K survived. A 2px alternate keeps the entire small numeral.
+    """
+    tile=cv2.resize(crop,(28,28),interpolation=cv2.INTER_AREA);found=[]
+    for inset in (3,2):
+        v=cv2.cvtColor(tile,cv2.COLOR_BGR2HSV)[inset:-inset,inset:-inset,2].astype(int)
+        size=v.shape[0];ink=np.uint8(v>np.percentile(v,25)+35)
+        glyphs=cv2.connectedComponentsWithStats(ink,8)[2]
+        for gx,gy,gw,gh,ga in glyphs[1:]:
+            rx,ry=(gx+gw/2)/size,(gy+gh/2)/size
+            if (.55<rx<.95 and .55<ry<.95 and 2<=gw<=7 and 2<=gh<=10
+                    and gh>=gw and gh<=3*gw and 4<=ga<=45
+                    and gx>0 and gy>0 and gx+gw<size and gy+gh<size):
+                found.append([int(gx+inset),int(gy+inset),int(gw),int(gh)])
+    return found
+
 def inspect(frame,features=None):
     h,w=frame.shape[:2];scale=h/720
     hsv=features.get('hsv') if features is not None else cv2.cvtColor(frame,cv2.COLOR_BGR2HSV)
@@ -27,13 +46,16 @@ def inspect(frame,features=None):
             local=cv2.resize(crop,(28,28),interpolation=cv2.INTER_AREA)[3:-3,3:-3]
             lhsv=cv2.cvtColor(local,cv2.COLOR_BGR2HSV);v=lhsv[:,:,2].astype(int)
             base=np.percentile(v,25);ink=(v>base+35).astype(np.uint8)
-            _,_,glyphs,_=cv2.connectedComponentsWithStats(ink,8)
-            operation=[]
-            for gx,gy,gw,gh,ga in glyphs[1:]:
-                rx,ry=(gx+gw/2)/22,(gy+gh/2)/22
-                if (.55<rx<.95 and .55<ry<.95 and 2<=gw<=7 and 2<=gh<=10
-                    and 4<=ga<=45 and gx>0 and gy>0 and gx+gw<22 and gy+gh<22):
-                    operation.append([int(gx),int(gy),int(gw),int(gh)])
+            operation=operation_components(crop)
+            if not operation:
+                pad=max(1,round(scale))
+                if x>=pad and y>=pad and x+bw+pad<=w and y+bh+pad<=h:
+                    expanded=frame[y-pad:y+bh+pad,x-pad:x+bw+pad].copy()
+                    if angle:
+                        eh,ew=expanded.shape[:2]
+                        expanded=cv2.warpAffine(expanded,cv2.getRotationMatrix2D((ew/2,eh/2),angle,1),
+                                               (ew,eh),borderMode=cv2.BORDER_REPLICATE)
+                    operation=operation_components(expanded)
             primary=ink[:,:13].astype(bool)
             orange=(lhsv[:,:13,0]>=8)&(lhsv[:,:13,0]<=32)&(lhsv[:,:13,1]>=140)&(lhsv[:,:13,2]>=80)
             fraction=float(orange[primary].mean()) if primary.sum()>=10 else 0.

@@ -79,12 +79,14 @@ def inspect_saved_regions(path,engine,characters_json,regions_json,scope='openin
     if source is None:raise ValueError('native_ocr_invalid_saved_png')
     from .recognition_scale import shrink
     frame,factors=shrink(source)
+    source_shape=source.shape
+    del source  # shrink owns a reduced view; release the decoded high-res copy.
     regions=json.loads(str(regions_json))
     reduced=[[round(v/(factors[0] if i%2==0 else factors[1])) for i,v in enumerate(box)] for box in regions]
     result,timings=_saved_engine.regions(frame,reduced,scope=scope)
     items=[dict(box=(np.asarray(box)*np.asarray(factors)).tolist(),text=text,score=float(score),score_available=True)
            for box,text,score in result or []]
-    return json.dumps(dict(ok=True,width=source.shape[1],height=source.shape[0],coordinate_space='source_pixels',
+    return json.dumps(dict(ok=True,width=source_shape[1],height=source_shape[0],coordinate_space='source_pixels',
                           items=items,elapsed_ms=(time.perf_counter()-started)*1000,
                           model_stage_ms=[float(v)*1000 for v in timings],scope=scope),ensure_ascii=False)
 
@@ -99,7 +101,7 @@ def inspect_saved(path, engine, characters_json, recognition_height=0):
     frame = cv2.imdecode(np.fromfile(str(path), np.uint8), cv2.IMREAD_COLOR)
     if frame is None:
         raise ValueError('native_ocr_invalid_saved_png')
-    source=frame
+    source_shape=frame.shape
     if int(recognition_height)==720:
         from .recognition_scale import shrink
         frame,factors=shrink(frame)
@@ -108,7 +110,7 @@ def inspect_saved(path, engine, characters_json, recognition_height=0):
     items = [{'box': (np.asarray(box)*np.asarray(factors)).tolist(), 'text': text,
               'score': float(score), 'score_available': True}
              for box, text, score in (result or [])]
-    return json.dumps({'ok': True, 'width': source.shape[1], 'height': source.shape[0],
+    return json.dumps({'ok': True, 'width': source_shape[1], 'height': source_shape[0],
         'coordinate_space': 'source_pixels', 'items': items,
         'elapsed_ms': (time.perf_counter() - started) * 1000,
         'model_stage_ms': [float(value) * 1000 for value in (timings or [])],

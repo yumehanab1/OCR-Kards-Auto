@@ -8,6 +8,29 @@ class Detector:
         self.bank=bank
         self.scaled={}
 
+    @staticmethod
+    def match_regions(gray,needle,regions):
+        """Evaluate the same candidate placements, sharing overlapping work.
+
+        A response belongs only to this call/current frame. Bounding the work
+        area does NOT admit matches in gaps between the original windows.
+        """
+        if not regions:return -1.,(0,0)
+        nh,nw=needle.shape
+        left=min(r[0] for r in regions);top=min(r[1] for r in regions)
+        right=max(r[2] for r in regions);bottom=max(r[3] for r in regions)
+        shared=(len(regions)>1 and
+                sum((c-a)*(d-b) for a,b,c,d in regions)>(right-left)*(bottom-top))
+        response=(cv2.matchTemplate(gray[top:bottom,left:right],needle,cv2.TM_CCOEFF_NORMED)
+                  if shared else None)
+        score,point=-1.,(0,0)
+        for x0,y0,x1,y1 in regions:
+            local=(response[y0-top:y1-top-nh+1,x0-left:x1-left-nw+1] if shared else
+                   cv2.matchTemplate(gray[y0:y1,x0:x1],needle,cv2.TM_CCOEFF_NORMED))
+            _,value,_,where=cv2.minMaxLoc(local)
+            if value>score:score,point=value,(x0+where[0],y0+where[1])
+        return score,point
+
     def match(self, gray, name):
         template = self.bank[name]
         base = gray.shape[0]/720
@@ -61,12 +84,7 @@ class Detector:
                                 break
                         else: merged.append(box)
                     search_regions=merged
-            score,point=-1.,(0,0)
-            for x0,y0,x1,y1 in search_regions:
-                response=cv2.matchTemplate(gray[y0:y1,x0:x1],needle,cv2.TM_CCOEFF_NORMED)
-                _,local_score,_,local_point=cv2.minMaxLoc(response)
-                if local_score>score:
-                    score,point=local_score,(x0+local_point[0],y0+local_point[1])
+            score,point=self.match_regions(gray,needle,search_regions)
             if score > best['score']:
                 best = {'score': float(score), 'bounds': [*point,needle.shape[1],needle.shape[0]],
                         'scale': scale, 'factor':factor,'search':'full_screen'}
@@ -96,6 +114,37 @@ class Detector:
         if best['ok']:
             self.locations[name]=best
         return best
+
+    def refine_home_entry(self,gray,evidence):
+        # Independent current-frame Tasks proof permits a finer scale proposal
+        # for Start. The proposal itself cannot establish home or dispatch.
+        task=evidence.get('home_tasks',{})
+        entry=evidence.get('home_play',{})
+        if not self.refine or task.get('score',0)<.93 or entry.get('ok'):
+            return
+        if entry.get('score',0)<.75 or entry.get('bounds') is None:
+            return
+        x,y,w,h=entry['bounds'];pad=max(16,round(gray.shape[0]*.04))
+        left,top=max(0,x-pad),max(0,y-pad)
+        roi=gray[top:min(gray.shape[0],y+h+pad),left:min(gray.shape[1],x+w+pad)]
+        template=self.bank['home_play'];base=gray.shape[0]/720
+        best=entry
+        for step in range(-9,10):
+            factor=round(entry['factor']+step*.01,4)
+            key=('home_play',gray.shape[0],factor)
+            if key not in self.scaled:
+                th,tw=template.shape[:2]
+                self.scaled[key]=cv2.cvtColor(cv2.resize(template,
+                    (max(8,round(tw*base*factor)),max(8,round(th*base*factor)))),cv2.COLOR_BGR2GRAY)
+            needle=self.scaled[key]
+            if needle.shape[0]>roi.shape[0] or needle.shape[1]>roi.shape[1]:continue
+            _,score,_,point=cv2.minMaxLoc(cv2.matchTemplate(roi,needle,cv2.TM_CCOEFF_NORMED))
+            if score>best['score']:
+                best=dict(score=float(score),bounds=[left+point[0],top+point[1],needle.shape[1],needle.shape[0]],
+                          scale=base*factor,factor=factor,search='corroborated_home_local_scale',ok=score>=.93)
+        if best.get('ok'):
+            evidence['home_play']=best
+            self.locations['home_play']=best
 
     def observe(self, frame,features=None):
         started = time.perf_counter()
@@ -146,6 +195,7 @@ class Detector:
                             for name in ('queue_cancel','home_play','home_tasks','home_play_selected',
                                          'battle_selected','training_unselected','detail_start'):
                                 check(name)
+        self.refine_home_entry(gray,evidence)
         semantic_done = time.perf_counter()
         good = lambda n: evidence.get(n,{}).get('ok',False)
         state,action,target = 'unknown',None,None

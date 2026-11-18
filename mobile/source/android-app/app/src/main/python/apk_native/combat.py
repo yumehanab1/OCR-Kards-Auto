@@ -8,23 +8,34 @@ from .frame_features import FrameFeatures
 
 def markers(frame,scene,features):
     hsv=features.get('hsv');h,w=frame.shape[:2];scale=h/720
-    _,_,stats,_=cv2.connectedComponentsWithStats((hsv[:,:,2]<95).astype(np.uint8),8)
     found=[]
-    for x,y,bw,bh,area in stats[1:]:
-        if not (19*scale<=bw<=38*scale and 19*scale<=bh<=38*scale and
-                .75<bw/bh<1.3 and .40<area/(bw*bh)<.95):continue
-        # Detect complete plates globally, then associate with verified cards.
-        cards=[c for c in scene['cards'] if c['card_edges_verified'] and c['side']=='our'
-               and abs(x-c['card_box_estimate'][0])<12*scale
-               and abs(y-c['card_box_estimate'][1])<12*scale]
-        if len(cards)!=1:continue
-        crop=cv2.resize(frame[y:y+bh,x:x+bw],(28,28),interpolation=cv2.INTER_AREA)
-        local=cv2.cvtColor(crop,cv2.COLOR_BGR2HSV)
-        state=unit_state.analyze_digit(local[:,:,2],local[:,:,1],limits=unit_state.DIGIT_LIMITS_MOBILE)
-        card=cards[0];rx,ry,rw,rh=card['card_box_estimate']
-        found.append({'badge_box':[int(x),int(y),int(bw),int(bh)],'state':state['state'] if state else 'unknown',
-            'type':card['type'],'row':'support' if card['row']=='our_support' else 'front',
-            'card':{'cx':rx+rw/2,'cy':ry+rh/2},'input_authorized':False})
+    for threshold in (95,75,85):
+        _,_,stats,_=cv2.connectedComponentsWithStats((hsv[:,:,2]<threshold).astype(np.uint8),8)
+        for x,y,bw,bh,area in stats[1:]:
+            if not (19*scale<=bw<=38*scale and 19*scale<=bh<=38*scale and
+                    .75<bw/bh<1.3 and .40<area/(bw*bh)<.95):continue
+            cards=[c for c in scene['cards'] if c['card_edges_verified'] and c['side']=='our'
+                   and abs(x-c['card_box_estimate'][0])<12*scale
+                   and abs(y-c['card_box_estimate'][1])<12*scale]
+            if len(cards)!=1:continue
+            card=cards[0];rx,ry,rw,rh=card['card_box_estimate'];states=[]
+            # Complete dark components propose the plate. Tiny bounded margins
+            # restore enclosure lost to antialiasing; never infer orange from art.
+            for pad in (0,max(1,round(scale))):
+                if x-pad<0 or y-pad<0 or x+bw+pad>w or y+bh+pad>h:continue
+                crop=cv2.resize(frame[y-pad:y+bh+pad,x-pad:x+bw+pad],(28,28),interpolation=cv2.INTER_AREA)
+                local=cv2.cvtColor(crop,cv2.COLOR_BGR2HSV)
+                value=unit_state.analyze_digit(local[:,:,2],local[:,:,1],limits=unit_state.DIGIT_LIMITS_MOBILE)
+                if value and value['state'] in ('orange','grey'):states.append(value['state'])
+            prior=next((a for a in found if a['card']=={'cx':rx+rw/2,'cy':ry+rh/2}),None)
+            if prior is None:
+                prior={'badge_box':[int(x),int(y),int(bw),int(bh)],'state':'unknown',
+                       'type':card['type'],'row':'support' if card['row']=='our_support' else 'front',
+                       'card':{'cx':rx+rw/2,'cy':ry+rh/2},'input_authorized':False,'color_votes':[]}
+                found.append(prior)
+            prior['color_votes'].extend(states)
+            unique=set(prior['color_votes'])
+            prior['state']=next(iter(unique)) if len(unique)==1 else 'unknown'
     return found
 
 

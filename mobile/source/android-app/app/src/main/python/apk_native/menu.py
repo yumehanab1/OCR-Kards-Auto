@@ -11,9 +11,10 @@ import cv2
 import numpy as np
 from .page_detector import Detector
 from .ocr_bridge import NativeOCR
-from .generic_popup import inspect as generic_popup
+from .generic_popup import inspect as generic_popup, starter_offer, starter_regions
 from .login_popup import inspect as login_popup
 from .layout_profiles import for_shape as layout_for_shape
+from .daily_reward import recognize as daily_reward, regions as daily_reward_regions, ticket_boxes, ACTIONS as DAILY_ACTIONS
 
 
 def popup_target(shape, items):
@@ -33,6 +34,33 @@ def popup_target(shape, items):
         if min(x+size,c)>max(x,a) and min(y+size,d)>max(y,b):
             return None
     return [x,y,size,size]
+
+
+def task_regions(frame):
+    """Current top title/subtitle proposal, including edge-aligned tablet UI.
+
+    Unlike daily-login prompts this overlay has no footer text. Its title can
+    start above .05*h, so login_reward_regions cannot propose it at all.
+    These boxes confer no authority: popup_target and the dark blank gate do.
+    """
+    h,w=frame.shape[:2]
+    gray=cv2.cvtColor(frame,cv2.COLOR_BGR2GRAY)
+    regions=[[round(w*.24),0,round(w*.52),round(h*.085)],
+             [round(w*.24),round(h*.085),round(w*.52),round(h*.095)]]
+    for x,y,bw,bh in regions:
+        mask=cv2.inRange(gray[y:y+bh,x:x+bw],100,255)
+        joined=cv2.morphologyEx(mask,cv2.MORPH_CLOSE,np.ones((3,11),np.uint8))
+        boxes=[cv2.boundingRect(c) for c in cv2.findContours(joined,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE)[0]]
+        if not any(h*.12<cw<bw*.85 and h*.012<ch<h*.075 for a,b,cw,ch in boxes):return []
+    return regions
+
+def task_popup(frame, items):
+    target=popup_target(frame.shape,items)
+    if target is None:return None
+    x,y,bw,bh=map(round,target);blank=frame[y:y+bh,x:x+bw]
+    if blank.size and float((cv2.cvtColor(blank,cv2.COLOR_BGR2HSV)[:,:,2]<145).mean())>=.94:
+        return target
+    return None
 
 
 def first_deck_target(frame, menu_right, brightness=145):
@@ -61,6 +89,27 @@ def first_deck_target(frame, menu_right, brightness=145):
     top=min(box[1] for box in boxes)
     row=[box for box in boxes if abs(box[1]-top)<h*.015]
     return min(row,key=lambda box:box[0])
+
+
+def deck_regions(frame):
+    """A current complete card proposes OCR, never a menu state or a tap.
+
+    On 4:3 the mode rail ends at x=374/960, beyond the old .36*w crop.
+    Use the measured card's left edge to keep the whole rail without card art.
+    """
+    h,w=frame.shape[:2]
+    card=first_deck_target(frame,w*.35)
+    if card is None:card=first_deck_target(frame,w*.35,80)
+    if card is None:return []
+    right=min(round(w*.48),round(card[0]-h*.03))
+    if right<=0:return []
+    rail=([round(w*.20),round(h*.18),right-round(w*.20),round(h*.20)]
+          if layout_for_shape(frame.shape).name=='tablet_landscape' else
+          [0,round(h*.10),right,round(h*.52)])
+    # On 20:9 the ranked label starts at .886*w: the old .76*w to edge
+    # crop was too narrow for valid model proposals on this real selected deck.
+    start=.70
+    return [rail,[round(w*start),round(h*.58),w-round(w*start),round(h*.39)]]
 
 
 def menu_from_text(frame, items):
@@ -144,29 +193,53 @@ def menu_from_text(frame, items):
     return None
 
 
-def semantic_login_reward(frame,items):
-    """Current title plus an explicit press-anywhere prompt; no reward claim."""
-    h,w=frame.shape[:2];titles=[];prompts=[]
+LOGIN_REWARD_TITLE = '每日登录奖励'
+LOGIN_REWARD_PROMPT = '轻触任意位置进入主屏幕'
+LOGIN_REWARD_CONFLICT = re.compile(r'领取|可领|开包|拆包|(?:打开|开启|开).*卡包|商店|购买|支付|充值|竞技场|[¥￥$€]')
+
+
+def compact_login_layout(h,w):
+    # Only near 4:3; keep the old title band on other aspect ratios.
+    return 1.30 <= w/h <= 1.37
+
+
+def semantic_login_reward(frame,items,*,source_shape=None):
+    """Only the exact return-home instruction, never a claim or generic continue."""
+    h,w=frame.shape[:2]
+    if source_shape is not None and source_shape!=(h,w):
+        from .recognition_scale import coordinates
+        sh,sw=source_shape
+        items=coordinates(items,sw/w,sh/h);h,w=sh,sw
+    compact=compact_login_layout(h,w);captions=[];anchors={};claimed=None
     for item in items:
+        text=re.sub(r'\s+','',str(item.get('text',''))).rstrip('。.!！')
+        if not text:continue
+        captions.append(text)
+        if text!='已领取' and LOGIN_REWARD_CONFLICT.search(text):return None
+        if text not in (LOGIN_REWARD_TITLE,LOGIN_REWARD_PROMPT,'已领取'):continue
         score=item.get('score')
         if type(score) not in (int,float) or not np.isfinite(score) or not .90<=score<=1:continue
-        text=re.sub(r'\s+','',str(item.get('text',''))).rstrip('。.!！')
-        if text not in ('每日登录奖励','轻触任意位置进入主屏幕'):continue
         try:points=np.asarray(item.get('box',[]),dtype=float)
         except (TypeError,ValueError):continue
         if points.shape!=(4,2) or not np.isfinite(points).all():continue
         a,b=np.floor(points.min(axis=0)).astype(int);c,d=np.ceil(points.max(axis=0)).astype(int)
         if not (0<=a<c<=w and 0<=b<d<=h):continue
-        row=dict(score=float(score),bounds=[int(a),int(b),int(c-a),int(d-b)])
-        (titles if text=='每日登录奖励' else prompts).append(row)
-    if len(titles)!=1 or len(prompts)!=1:return None
-    title,prompt=titles[0],prompts[0]
+        row=dict(text=text,score=float(score),bounds=[int(a),int(b),int(c-a),int(d-b)])
+        if text=='已领取':
+            # Several reward cells can be marked claimed; at least one must be
+            # legible in the grid, not incidental text in the header/footer.
+            if .08*w<(a+c)/2<.92*w and .28*h<(b+d)/2<.73*h and .012*h<d-b<.09*h:
+                claimed=row
+        else:anchors[text]=row
+    if (len(captions)>128 or captions.count(LOGIN_REWARD_TITLE)!=1 or captions.count(LOGIN_REWARD_PROMPT)!=1
+            or len(anchors)!=2 or compact and claimed is None):return None
+    title,prompt=anchors[LOGIN_REWARD_TITLE],anchors[LOGIN_REWARD_PROMPT]
     x,y,bw,bh=title['bounds'];px,py,pw,ph=prompt['bounds']
-    if not (.20*w<x+bw/2<.80*w and .05*h<y<.43*h and .012*h<bh<.14*h
+    if not (.20*w<x+bw/2<.80*w and (.045 if compact else .05)*h<y<.43*h and .012*h<bh<.14*h
             and .20*w<px+pw/2<.80*w and .60*h<py<.94*h and .012*h<ph<.14*h
             and y+bh+.20*h<py and abs(x+bw/2-px-pw/2)<.25*w):return None
     return dict(basis='current_daily_login_title_and_continue_prompt',title=title,prompt=prompt,
-                target_bounds=list(prompt['bounds']))
+                claimed=claimed,captions=captions,target_bounds=list(prompt['bounds']))
 
 
 def login_reward_regions(frame):
@@ -174,7 +247,7 @@ def login_reward_regions(frame):
     h,w=frame.shape[:2];gray=cv2.cvtColor(frame,cv2.COLOR_BGR2GRAY)
     kernel=np.ones((max(1,round(h*3/720)),max(3,round(h*11/720))),np.uint8)
     candidates=[]
-    for top,bottom in ((.05,.43),(.60,.94)):
+    for top,bottom in ((.05,.43),(.60,.995)):
         oy=round(top*h);limit=round(bottom*h)
         bright=cv2.inRange(gray[oy:limit],155,255)
         joined=cv2.morphologyEx(bright,cv2.MORPH_CLOSE,kernel)
@@ -182,7 +255,7 @@ def login_reward_regions(frame):
         found=[]
         for contour in contours:
             x,y,bw,bh=cv2.boundingRect(contour);y+=oy
-            if .14*h<bw<1.2*h and .012*h<bh<.14*h and .24*w<x+bw/2<.76*w:
+            if (.14*h<bw<1.2*h or y>.88*h and .07*h<bw<1.2*h) and .012*h<bh<.14*h and .24*w<x+bw/2<.76*w:
                 found.append([x,y,bw,bh])
         if not found:return None
         candidates.append(found)
@@ -363,6 +436,7 @@ class NativeMenuRecognizer:
 
     def observe(self, frame, packet):
         from .recognition_scale import shrink,restore
+        self.daily_return_probe=None
         if frame is None:return {'state':'unknown','targets':{}}
         if list(frame.shape[:2])!=[packet.get('source_height'),packet.get('source_width')]:
             return {'state':'unknown','reason':'native_menu_geometry_mismatch','targets':{}}
@@ -373,6 +447,13 @@ class NativeMenuRecognizer:
             return result
         reduced=dict(packet,source_height=scaled.shape[0],source_width=scaled.shape[1],ocr_source_packet=packet)
         result=self.observe_pixels(scaled,reduced)
+        if result.get('state')=='login_reward':
+            # Keep the source-pixel proof and target intact; only diagnostics
+            # such as OCR boxes and proposal regions need restoration here.
+            proof=result.pop('login_reward_evidence')
+            result=restore(result,frame,scaled,factors)
+            result['login_reward_evidence']=proof
+            return result
         result=restore(result,frame,scaled,factors)
         result['targets']={k:[round(v[0]*factors[0]),round(v[1]*factors[1]),round(v[2]*factors[0]),round(v[3]*factors[1])] for k,v in result.get('targets',{}).items()}
         # Exact reviewed blank target follows source height, avoiding rounding drift.
@@ -402,6 +483,47 @@ class NativeMenuRecognizer:
                     'selected_mode':'','coordinate_space':'source_pixels','action_ready':True,
                     'timings_ms':{'total':(time.perf_counter()-started)*1000},'ocr_metrics':{},
                     'start_control':{'ok':False,'visible':False,'bounds':None,'score':0.}}
+        # Ticket/phase discovery precedes deck proposals and broad templates.
+        if (not self.settlement and getattr(self.ocr,'bridge',None) is not None
+                and (getattr(self,'daily_phase',False) or ticket_boxes(frame))):
+            self.ocr.bind(packet.get('ocr_source_packet',packet))
+            found,_=self.ocr.regions(frame,daily_reward_regions(frame),scope='menu_controls')
+            current=[dict(box=np.asarray(b).tolist(),text=t,score=float(s)) for b,t,s in found or []]
+            self.daily_return_probe=(current,self.ocr.last_metrics.get('ok') is True)
+            proof=daily_reward(frame,current)
+            if proof:
+                return dict(state=proof['state'],targets={DAILY_ACTIONS[proof['state']]:proof['target_bounds']},
+                    daily_reward_evidence=proof,coordinate_space='source_pixels',selected_mode='',action_ready=True,
+                    ocr_items=current,ocr_metrics=self.ocr.last_metrics,
+                    timings_ms=dict(total=(time.perf_counter()-started)*1000),
+                    start_control=dict(ok=False,visible=False,bounds=None,score=0.))
+        # Before broad template searches: the full card is only an OCR proposal.
+        # Both fresh labels and all existing semantic/color/card gates still run.
+        if getattr(self.ocr,'bridge',None) is not None:
+            regions=deck_regions(frame)
+            if regions:
+                self.ocr.bind(packet.get('ocr_source_packet',packet))
+                found,_=self.ocr.regions(frame,regions,scope='menu_controls')
+                current=[dict(box=np.asarray(b).tolist(),text=t,score=float(s)) for b,t,s in found or []]
+                semantic=menu_from_text(frame,current)
+                if semantic and semantic['state'] in ('deck_list','deck_ready'):
+                    return dict(semantic,coordinate_space='source_pixels',action_ready=True,ocr_items=current,
+                        ocr_metrics=self.ocr.last_metrics,timings_ms=dict(total=(time.perf_counter()-started)*1000),
+                        start_control=dict(ok=False,visible=False,bounds=None,score=0.))
+        # Task title is at y=5..55 on the saved API35 phone/tablet frames.
+        # Probe it before broad templates/full OCR, not through a footer-based
+        regions=task_regions(frame) if not self.settlement else []
+        if regions and getattr(self.ocr,'bridge',None) is not None:
+            self.ocr.bind(packet.get('ocr_source_packet',packet))
+            found,_=self.ocr.regions(frame,regions,scope='menu_controls')
+            current=[dict(box=np.asarray(b).tolist(),text=t,score=float(s)) for b,t,s in found or []]
+            task=task_popup(frame,current)
+            if task is not None:
+                return dict(state='blocking_popup',targets={'menu_dismiss_blocking_popup':task},
+                    popup_basis='task_title_and_subtitle',coordinate_space='source_pixels',
+                    selected_mode='',action_ready=True,ocr_items=current,ocr_metrics=self.ocr.last_metrics,
+                    timings_ms=dict(total=(time.perf_counter()-started)*1000),
+                    start_control=dict(ok=False,visible=False,bounds=None,score=0.))
         gray = cv2.cvtColor(frame,cv2.COLOR_BGR2GRAY)
         mask = cv2.morphologyEx(cv2.inRange(gray,165,255),cv2.MORPH_CLOSE,np.ones((3,11),np.uint8))
         contours,_ = cv2.findContours(mask,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE)
@@ -445,7 +567,7 @@ class NativeMenuRecognizer:
                         return True
             # Cached scale/position is only a proposal. A failed current-frame
             # check falls back to the complete relative search, never its verdict.
-            for factor in np.arange(.8,1.401,.02):
+            for factor in np.arange(.8,1.601,.02):
                 factor=round(float(factor),4);needle=needle_for(factor)
                 if roi.shape[0]<needle.shape[0] or roi.shape[1]<needle.shape[1]:continue
                 _,score,_,point=cv2.minMaxLoc(cv2.matchTemplate(roi,needle,cv2.TM_CCOEFF_NORMED))
@@ -456,7 +578,19 @@ class NativeMenuRecognizer:
             return best['score']>=.90
         state, targets, selected = 'unknown', {}, ''
         login_probe_ms=0.;login_probe_metrics={};login_probe_regions=None
+        source=packet.get('ocr_source_packet',packet)
+        source_shape=(source['source_height'],source['source_width'])
+        compact_reward=compact_login_layout(*source_shape)
+        def reward_proof(items,whole_frame=False):
+            # Near 4:3 the title/footer crop cannot supply the claimed grid or
+            # rule out claim/purchase controls. Use the existing full OCR fallback.
+            if compact_reward and not whole_frame:return None
+            proof=semantic_login_reward(frame,items,source_shape=source_shape)
+            if proof is not None:
+                proof['scope']='full_frame' if whole_frame else 'menu_controls'
+            return proof
         def reward_result(proof,items,template_ms):
+            proof['frame_id']=source['frame_id']
             return dict(state='login_reward',targets={'menu_dismiss_reward':proof['target_bounds']},
                 login_reward_evidence=proof,coordinate_space='source_pixels',selected_mode='',action_ready=True,
                 timings_ms=dict(template_path=template_ms,login_reward_probe=login_probe_ms,
@@ -464,9 +598,28 @@ class NativeMenuRecognizer:
                 ocr_metrics=self.ocr.last_metrics,login_reward_probe_metrics=login_probe_metrics,
                 login_reward_probe=dict(regions=login_probe_regions),ocr_items=items,
                 start_control={'ok':False,'visible':False,'bounds':None,'score':0.})
+        def daily_result(proof,items):
+            return dict(state=proof['state'],targets={DAILY_ACTIONS[proof['state']]:proof['target_bounds']},
+                daily_reward_evidence=proof,coordinate_space='source_pixels',selected_mode='',action_ready=True,
+                timings_ms=dict(total=(time.perf_counter()-started)*1000),ocr_metrics=self.ocr.last_metrics,
+                ocr_items=items,start_control=dict(ok=False,visible=False,bounds=None,score=0.))
         # Fast path for the stable home screen. Checking the two independent
+        if getattr(self,'daily_phase',False) and not self.settlement and getattr(self.ocr,'bridge',None) is not None:
+            self.ocr.bind(packet.get('ocr_source_packet',packet))
+            found,_=self.ocr.regions(frame,daily_reward_regions(frame),scope='menu_controls')
+            current=[dict(box=np.asarray(b).tolist(),text=t,score=float(s)) for b,t,s in found or []]
+            daily=daily_reward(frame,current)
+            if daily:return daily_result(daily,current)
+            return dict(state='unknown',targets={},coordinate_space='source_pixels',selected_mode='',
+                        ocr_items=current,ocr_metrics=self.ocr.last_metrics,
+                        timings_ms=dict(total=(time.perf_counter()-started)*1000))
         # fixed controls first avoids scanning unrelated popup templates and
         # avoids OCR on every unchanged menu frame.
+        # The independent current Tasks proof permits the same fine Start
+        # scale proposal used by page detection. Never reuse a prior verdict.
+        if match('home_play')['score']>=.75:
+            match('home_tasks')
+            self.detector.refine_home_entry(gray,evidence)
         if has('home_play') and has('home_tasks'):
             state,targets='home',{'menu_home_start':match('home_play')['bounds']}
         if (state=='unknown' and not self.settlement and hasattr(self.ocr,'regions')
@@ -477,9 +630,31 @@ class NativeMenuRecognizer:
                 found,_=self.ocr.regions(frame,login_probe_regions,scope='menu_controls')
                 login_probe_metrics=dict(self.ocr.last_metrics)
                 current=[dict(box=np.asarray(box).tolist(),text=text,score=float(score)) for box,text,score in found or []]
-                proof=semantic_login_reward(frame,current)
+                proof=reward_proof(current)
                 login_probe_ms=(time.perf_counter()-probe_started)*1000
                 if proof:return reward_result(proof,current,(probe_started-started)*1000)
+                daily=daily_reward(frame,current)
+                if daily:return daily_result(daily,current)
+                daily_hint=any(r['score']>=.90 and (r['text'].replace(' ','') in
+                    ('奖励现可领取','轻触领取','轻触继续') or
+                    re.fullmatch(r'第\d+天',r['text'].replace(' ',''))) for r in current)
+                if daily_hint:
+                    extra,_=self.ocr.regions(frame,daily_reward_regions(frame),scope='menu_controls')
+                    daily_items=[dict(box=np.asarray(b).tolist(),text=t,score=float(s)) for b,t,s in extra or []]
+                    daily=daily_reward(frame,daily_items)
+                    if daily:return daily_result(daily,daily_items)
+                # Current task title AND subtitle from both local regions can
+                # prove this overlay without recognizing unrelated card art.
+                task=popup_target(frame.shape,current)
+                if task is not None:
+                    x,y,bw,bh=map(round,task);blank=frame[y:y+bh,x:x+bw]
+                    if blank.size and float((cv2.cvtColor(blank,cv2.COLOR_BGR2HSV)[:,:,2]<145).mean())>=.94:
+                        return dict(state='blocking_popup',targets={'menu_dismiss_blocking_popup':task},
+                            popup_basis='task_title_and_subtitle',coordinate_space='source_pixels',
+                            selected_mode='',action_ready=True,ocr_items=current,
+                            ocr_metrics=login_probe_metrics,login_reward_probe_metrics=login_probe_metrics,
+                            timings_ms=dict(total=(time.perf_counter()-started)*1000,login_reward_probe=login_probe_ms),
+                            start_control=dict(ok=False,visible=False,bounds=None,score=0.))
             login_probe_ms=(time.perf_counter()-probe_started)*1000
         # Either highlighted selector can anchor the other label. An inactive
         # grey casual label may be absent from the white/orange proposal mask.
@@ -515,10 +690,11 @@ class NativeMenuRecognizer:
                             cx=x+cw/2;cy=round(y+ch+h*.17)
                             if cy+size/2<h and cx+size/2<min(casual[0],ranked[0],queue[0]):
                                 targets['menu_close_deck']=[cx-size/2,cy-size/2,size,size]
-        if state=='unknown' and has('native_battle_label') and has('native_training_label'):
+        if state=='unknown' and has('native_battle_label') and (has('native_training_label') or
+                near('native_training_label',match('native_battle_label')['bounds'],(-.25,1,1.25,4))):
             b=match('native_battle_label')['bounds'];t=match('native_training_label')['bounds']
             if (abs(b[0]-t[0])<frame.shape[0]*.03 and b[1]+b[3]<t[1]
-                    and b[0]+b[2]<frame.shape[1]*.25):
+                    and b[0]+b[2]<frame.shape[1]*.35):
                 card=first_deck_target(frame,max(b[0]+b[2],t[0]+t[2]))
                 if card:
                     state,targets='deck_list',{'menu_select_deck':card}
@@ -531,8 +707,7 @@ class NativeMenuRecognizer:
             state = 'card_collection'
         elif has('home_play') and has('home_tasks'):
             state,targets = 'home',{'menu_home_start':match('home_play')['bounds']}
-        elif layout_for_shape(frame.shape).name == 'standard_16_9' and (
-                (has('battle_unselected') and has('training_selected')) or
+        elif ((has('battle_unselected') and has('training_selected')) or
                 (has('battle_selected') and has('training_unselected'))):
             # Legacy 16:9 text templates correlate in both gray and orange.
             # Selection comes from current color, and a list requires full cards.
@@ -567,18 +742,32 @@ class NativeMenuRecognizer:
         if state in ('unknown','menu_transition'):
             # Offline template-only callers deliberately provide no bridge.
             # Missing OCR remains unavailable evidence, never a prior result.
+            offer_regions=starter_regions(frame) if not self.settlement else []
             if getattr(self.ocr,'bridge',True) is None:
                 found=[]
+            elif offer_regions and hasattr(self.ocr,'regions'):
+                found,_=self.ocr.regions(frame,offer_regions,scope='menu_controls')
             elif self.settlement and hasattr(self.ocr,'regions'):
                 # Read current navigation and queue controls, excluding the
                 # expensive central reward/card artwork during result cleanup.
                 h,w=frame.shape[:2]
-                regions=[[0,0,round(w*.36),h],[round(w*.60),0,w-round(w*.60),h]]
+                regions=[[0,round(h*.10),round(w*.36),round(h*.52)],
+                         [round(w*.60),round(h*.35),w-round(w*.60),round(h*.58)]]
                 found,_=self.ocr.regions(frame,regions,scope='menu_controls')
             else:
                 found,_=self.ocr(frame)
             items = [{'box':np.asarray(b).tolist(),'text':s,'score':float(c)} for b,s,c in found or []]
-            reward=semantic_login_reward(frame,items)
+            daily=daily_reward(frame,items) if not self.settlement else None
+            if daily:return daily_result(daily,items)
+            starter=starter_offer(frame,items) if not self.settlement else None
+            if starter:
+                return dict(state='generic_popup',targets={'menu_dismiss_generic':starter['close']['bounds']},
+                            popup_id=starter['popup_id'],generic_popup_evidence=starter,
+                            coordinate_space='source_pixels',selected_mode='',action_ready=True,
+                            timings_ms={'total':(time.perf_counter()-started)*1000},
+                            ocr_metrics=self.ocr.last_metrics,ocr_items=items,
+                            start_control={'ok':False,'visible':False,'bounds':None,'score':0.})
+            reward=reward_proof(items,whole_frame=not offer_regions and not self.settlement)
             if reward:return reward_result(reward,items,(templates_done-started)*1000-login_probe_ms)
             daily=semantic_daily_popup(frame,items)
             if daily:

@@ -1,0 +1,21 @@
+Bundled native OCR — third-party notices
+
+PP-OCRv6 tiny detection and recognition models and the recognition dictionary
+are by the PaddleOCR contributors (https://github.com/PaddlePaddle/PaddleOCR).
+The detection and recognition networks are redistribution in ONNX format;
+manifest.json records their exact filenames, lengths and SHA-256 digests.
+The dictionary is derived from ppocr/utils/dict/ppocrv6_tiny_dict.txt, with
+CTC blank and trailing space entries added by this project.
+Upstream model documentation:
+https://github.com/PaddlePaddle/PaddleOCR/blob/main/docs/version3.x/module_usage/text_detection.md
+https://github.com/PaddlePaddle/PaddleOCR/blob/main/docs/version3.x/module_usage/text_recognition.md
+The retained ch_ppocr_mobile_v2.0_cls model is the PaddleOCR orientation
+classifier. These PaddleOCR materials are provided under Apache License 2.0;
+see LICENSE-PADDLE-APACHE-2.0.txt in this directory.
+
+The Python OCR adapter incorporates RapidOCR 1.4.4 (Apache-2.0). Modifications
+and the license are documented in app/src/main/python/apk_native/paddle/.
+The Java Clipper port (Boost Software License 1.0) is documented and licensed
+in app/src/main/java/de/lighti/clipper/. ONNX Runtime (MIT) is resolved by
+Gradle as com.microsoft.onnxruntime:onnxruntime-android:1.20.0; upstream:
+https://github.com/microsoft/onnxruntime/blob/v1.20.0/LICENSE

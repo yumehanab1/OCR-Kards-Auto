@@ -18,6 +18,7 @@ public final class FrameSnapshot implements AutoCloseable {
     final String captureScope;
     final int captureWindowId;
     final Rect captureBounds;
+    final long platformScreenshotTimestampMs;
 
     public FrameSnapshot(Bitmap bitmap, long capturedAtMillis) {
         this(bitmap, capturedAtMillis, bitmap == null ? 0 : bitmap.getWidth(),
@@ -28,6 +29,11 @@ public final class FrameSnapshot implements AutoCloseable {
         this(bitmap,capturedAtMillis,sourceWidth,sourceHeight,"display",-1,new Rect(0,0,sourceWidth,sourceHeight));
     }
     public FrameSnapshot(Bitmap bitmap,long capturedAtMillis,int sourceWidth,int sourceHeight,String scope,int windowId,Rect bounds) {
+        this(bitmap,capturedAtMillis,sourceWidth,sourceHeight,scope,windowId,bounds,-1);
+    }
+
+    public FrameSnapshot(Bitmap bitmap,long capturedAtMillis,int sourceWidth,int sourceHeight,String scope,int windowId,
+                         Rect bounds,long platformScreenshotTimestampMs) {
         if (bitmap == null) {
             throw new IllegalArgumentException("bitmap must not be null");
         }
@@ -39,6 +45,7 @@ public final class FrameSnapshot implements AutoCloseable {
         this.sourceWidth = sourceWidth;
         this.sourceHeight = sourceHeight;
         captureScope=scope;captureWindowId=windowId;captureBounds=new Rect(bounds);
+        this.platformScreenshotTimestampMs=platformScreenshotTimestampMs;
     }
 
     public Bitmap bitmap() {

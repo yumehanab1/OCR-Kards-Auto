@@ -66,6 +66,11 @@ public final class NativeOnnxModels {
         try (OrtSession.SessionOptions options = new OrtSession.SessionOptions()) {
             options.setIntraOpNumThreads(2); options.setInterOpNumThreads(1);
             options.setOptimizationLevel(OrtSession.SessionOptions.OptLevel.ALL_OPT);
+            // Dynamic OCR widths otherwise retain arena high-water allocations
+            // across hundreds of frames. API32 exit-info recorded LOW_MEMORY.
+            // Keep model bytes, exact math and thread limits unchanged.
+            options.setCPUArenaAllocator(false);
+            options.setMemoryPatternOptimization(false);
             existing = environment.createSession(file.getAbsolutePath(), options);
         }
         sessions.put(model, existing);
@@ -98,7 +103,7 @@ public final class NativeOnnxModels {
                     // Perform those exact reductions here rather than serializing
                     // thousands of unused class probabilities per character.
                     long[] dims = output.getInfo().getShape();
-                    if (dims.length != 3 || dims[2] != 6625) throw new IllegalStateException("native_ocr_rec_shape");
+                     if (dims.length != 3 || dims[2] != 6906) throw new IllegalStateException("native_ocr_rec_shape");
                     JSONArray indices = new JSONArray(), scores = new JSONArray();
                     for (int row = 0; row < dims[0] * dims[1]; row++) {
                         float best = Float.NEGATIVE_INFINITY; int index = 0;

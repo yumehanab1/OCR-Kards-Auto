@@ -25,6 +25,7 @@ public final class TrainingDashboardChecks {
         test.interactions(activity);
         test.numericInput(activity);
         test.manualWithoutDetection(activity);
+        test.gameSelection(activity);
         return new JSONObject().put("checks", test.checks).put("check_count", test.checks.length())
                 .put("failure_count", test.failures).put("device_inputs", 0)
                 .put("uses_real_service", false).put("activity_content_replaced", false);
@@ -280,6 +281,28 @@ public final class TrainingDashboardChecks {
         }
     }
 
+    private void gameSelection(Activity activity) throws Exception {
+        FakeActions actions = new FakeActions();
+        TrainingDashboard dashboard = new TrainingDashboard(activity, actions, "test");
+        Button picker = dashboard.view().findViewById(R.id.panel_game_select);
+        dashboard.render(TrainingPanelState.from("{}"), true, false, false, "");
+        check("game_selection_available_without_detection", picker != null && picker.isEnabled());
+        picker.performClick();
+        check("game_selection_only_opens_picker", actions.selections == 1 && actions.starts == 0 && actions.total() == 1);
+        dashboard.setGameTargetText("所选游戏不可用，请重新选择");
+        dashboard.render(TrainingPanelState.from("{}"), true, false, false, "");
+        check("game_selection_status_is_visible", containsText(dashboard.view(), "所选游戏不可用，请重新选择"));
+        for (TrainingPanelState state : new TrainingPanelState[]{state("armed", true, "waiting_for_game"),
+                state("engine", true, "capture"), state("stopping", false, "user_stop"), TrainingPanelState.from("{}")}) {
+            dashboard.render(state, true, true, true, "");
+            picker.performClick();
+            check("busy_game_selection_refused_" + checks.length(), !picker.isEnabled() && actions.selections == 1);
+        }
+        dashboard.render(TrainingPanelState.from("{}"), false, false, false, "");
+        picker.performClick();
+        check("game_selection_does_not_require_service_or_start_it", actions.selections == 2 && actions.starts == 0 && actions.permissions == 0);
+    }
+
     private static TrainingPanelState state(String event, boolean active, String reason) throws Exception {
         return TrainingPanelState.from(new JSONObject().put("session_id", "panel-interaction-check")
                 .put("event", event).put("active", active).put("reason", reason)
@@ -303,7 +326,7 @@ public final class TrainingDashboardChecks {
     }
 
     private static final class FakeActions implements TrainingDashboard.Actions {
-        int stops, permissions, details, starts, modeChanges, countChanges, lastMatchCount;
+        int stops, permissions, details, starts, modeChanges, countChanges, lastMatchCount, selections;
         String lastStartedMode, lastSelectedMode;
         boolean lastOpenGame;
         @Override public void start(String mode, boolean openGame, int matchCount) {
@@ -314,6 +337,7 @@ public final class TrainingDashboardChecks {
         @Override public void stop() { stops++; }
         @Override public void permissions() { permissions++; }
         @Override public void details() { details++; }
-        int total() { return stops + permissions + details + starts + modeChanges + countChanges; }
+        @Override public void chooseGame() { selections++; }
+        int total() { return stops + permissions + details + starts + modeChanges + countChanges + selections; }
     }
 }

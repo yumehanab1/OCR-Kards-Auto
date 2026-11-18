@@ -37,6 +37,7 @@ final class BattleStartAttempt {
         try { reason = new JSONObject(report).optString("reason"); }
         catch (Exception invalid) { reason = "start_diagnostics_error"; }
         switch (reason) {
+            case "compat_capture_required": return "请先确认系统录屏授权，返回游戏后再次点击从菜单开局；授权本身不会开始对局。";
             case "active_campaign": return "上一场辅助仍在运行。请先停止当前辅助，等待收尾完成后再开始。";
             case "worker_still_finishing": return "上一场已停止，后台引擎仍在保存记录和退出。请等待收尾完成后再开始。";
             case "worker_reserved": return "上一场正在准备开局或取消开局。请等待当前会话结束后再开始。";

@@ -166,6 +166,27 @@ class EffectCacheTests(unittest.TestCase):
         pair['reply']['completed']=False
         self.assertEqual('no_completed_deploy_receipt',effects.sequence_postcondition(pair)['reason'])
 
+    def test_aligned_artwork_keeps_original_pixels_and_unique_own_veto(self):
+        pair=self.pair('move_front')
+        # Simulate a few pixels of card-outline rounding, not a changed image.
+        for obs in pair['observations'][1:]:
+            obs['scene']['cards'][0]['card_box_estimate']=[19,5,62,80]
+        result=effects.sequence_postcondition(pair)
+        self.assertTrue(result['confirmed'])
+        before=pair['observations'][0];after=pair['observations'][1]
+        score=effects.aligned_artwork_score(effects.read(before['source']['path']),before['scene']['cards'][0],
+            effects.read(after['source']['path']),after['scene']['cards'][0])
+        self.assertGreaterEqual(score,.95)
+        for obs in pair['observations'][1:]:obs['scene']['cards']*=2
+        self.assertFalse(effects.sequence_postcondition(pair)['confirmed'])
+
+    def test_aligned_artwork_does_not_accept_changed_art_or_large_scale(self):
+        pair=self.pair('move_front');before=pair['observations'][0];after=pair['observations'][1]
+        a=effects.read(before['source']['path']);b=np.random.default_rng(9).integers(0,255,a.shape,dtype=np.uint8)
+        self.assertLess(effects.aligned_artwork_score(a,before['scene']['cards'][0],b,after['scene']['cards'][0]),.95)
+        card=copy.deepcopy(after['scene']['cards'][0]);card['card_box_estimate'][2]+=20
+        self.assertEqual(-1.,effects.aligned_artwork_score(a,before['scene']['cards'][0],a,card))
+
 
 def run():
     suite=unittest.defaultTestLoader.loadTestsFromTestCase(EffectCacheTests);output=io.StringIO()

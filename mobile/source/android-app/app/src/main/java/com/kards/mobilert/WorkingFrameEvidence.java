@@ -6,6 +6,9 @@ import org.json.JSONObject;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.nio.charset.StandardCharsets;
+import java.io.BufferedInputStream;
+import java.io.DataInputStream;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.security.MessageDigest;
 import java.util.ArrayList;
@@ -13,6 +16,8 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.zip.CRC32;
+import org.json.JSONArray;
 
 /** Lossless working set; JPEGs are review artifacts and never recognition inputs.
  * All methods run on the campaign worker. Encoding/retirement happens BEFORE
@@ -25,6 +30,9 @@ final class WorkingFrameEvidence {
     private final Map<Long, Set<String>> selected = new LinkedHashMap<>();
     private final Set<Long> effect = new LinkedHashSet<>();
     private boolean effectOpen;
+    private JSONObject deckDispatch;
+    private long deckBefore=-1, deckFirstAfter=-1, deckLatest=-1, deckObserved=-1;
+    private String deckObservedState="";
     private String lastState = "";
     private int stateSamples, registered, archived, discarded;
     private long pngBytes, reviewBytes;
@@ -43,6 +51,10 @@ final class WorkingFrameEvidence {
         frames.put(id, packet);
         registered++;pngBytes+=source.length();
         if (effectOpen) effect.add(id);
+        if (deckBefore>=0 && id>deckBefore) {
+            if (deckFirstAfter<0) deckFirstAfter=id;
+            deckLatest=id;
+        }
     }
 
     void beginEffect(long id) {
@@ -55,6 +67,96 @@ final class WorkingFrameEvidence {
         for (long id : effect) if (failed) select(id, "unknown_or_failed_effect_context");
         if (!effect.isEmpty()) select(new ArrayList<>(effect).get(effect.size()-1), "action_after");
         effectOpen = false; effect.clear();
+    }
+
+    /** No image I/O: called on the worker only after an actual or uncertain submission. */
+    void beginDeckSelection(long id, JSONObject dispatch) {
+        if (!frames.containsKey(id)) throw new IllegalStateException("menu_dispatch_source_missing");
+        deckBefore=id;
+        deckDispatch=dispatch;
+        deckFirstAfter=deckLatest=deckObserved=-1;
+        deckObservedState="";
+    }
+
+    void observeDeckSelection(long id, String state, boolean confirmed) {
+        if (deckBefore<0 || id!=deckLatest || id<=deckBefore) return;
+        deckObserved=id;
+        deckObservedState=state;
+        if (confirmed && "deck_ready".equals(state)) clearDeckSelection();
+    }
+
+    private void clearDeckSelection() {
+        deckBefore=deckFirstAfter=deckLatest=deckObserved=-1;
+        deckDispatch=null;
+        deckObservedState="";
+    }
+
+    /** Archive only at terminal cleanup; never copy or hash a live tap source. */
+    void finishDeckSelection(String sessionId, int roundIndex, String reason) {
+        if (deckBefore<0) return;
+        File directory=new File(round,"failed-menu-sources");
+        try {
+            checkedOutput(directory);
+            if (!directory.isDirectory() && !directory.mkdirs()) throw new IOException("menu_evidence_directory");
+            JSONArray originals=new JSONArray();
+            retainDeckFrame(directory,originals,deckBefore,"before");
+            if (deckLatest==deckFirstAfter) retainDeckFrame(directory,originals,deckFirstAfter,"first_after_and_latest");
+            else {
+                retainDeckFrame(directory,originals,deckFirstAfter,"first_after");
+                retainDeckFrame(directory,originals,deckLatest,"latest");
+            }
+            boolean complete=true;
+            for (int i=0;i<originals.length();i++) complete &= !originals.getJSONObject(i).has("error");
+            writeMenuEvidence(directory,new JSONObject().put("schema",1).put("session_id",sessionId)
+                    .put("round_index",roundIndex).put("outcome",complete?"unconfirmed":"evidence_error").put("stop_reason",reason)
+                    .put("action","menu_select_deck").put("dispatch",deckDispatch)
+                    .put("before_frame_id",deckBefore).put("first_after_frame_id",deckFirstAfter)
+                    .put("latest_frame_id",deckLatest).put("last_observed_frame_id",deckObserved)
+                    .put("last_observed_state",deckObservedState).put("originals",originals));
+        } catch (Exception error) {
+            // Taking evidence must not change the menu outcome or block normal cleanup.
+            android.util.Log.w("KardsRetention","Cannot retain deck selection evidence",error);
+            try { writeMenuEvidence(directory,new JSONObject().put("schema",1).put("session_id",sessionId)
+                    .put("round_index",roundIndex).put("outcome","evidence_error").put("stop_reason",reason)
+                    .put("dispatch",deckDispatch).put("before_frame_id",deckBefore).put("error",error.toString())); }
+            catch (Exception unavailable) { android.util.Log.w("KardsRetention","Cannot write menu evidence error",unavailable); }
+        } finally { clearDeckSelection(); }
+    }
+
+    private void retainDeckFrame(File directory, JSONArray originals, long id, String role) {
+        if (id<0) return;
+        try { copyDeckFrame(directory,originals,id,role); }
+        catch (Exception error) {
+            android.util.Log.w("KardsRetention","Cannot retain menu frame "+id,error);
+            try { originals.put(new JSONObject().put("role",role).put("frame_id",id)
+                    .put("png_crc_iend_valid",false).put("error",error.toString())); }
+            catch (Exception unavailable) { android.util.Log.w("KardsRetention","Cannot record menu frame error",unavailable); }
+        }
+    }
+
+    private void copyDeckFrame(File directory, JSONArray originals, long id, String role) throws Exception {
+        // The frame is a member of this round's immutable registered working set.
+        JSONObject packet=frames.get(id);
+        if (packet==null) throw new IOException("menu_pinned_frame_missing");
+        File png=source(packet), retained=new File(directory,png.getName());
+        checkedOutput(retained);
+        String sha=pngHash(png,packet.getInt("width"),packet.getInt("height"));
+        // Allow normal retirement to finish its sidecar/JPEG using the old path.
+        // The mirror uses an inode alias when possible, an exact-byte copy otherwise.
+        String mode=EvidenceFrameFiles.mirror(png,retained);
+        if (!sha.equals(hash(retained))) {
+            Files.deleteIfExists(retained.toPath());
+            throw new IOException("menu_source_copy_mismatch");
+        }
+        originals.put(new JSONObject().put("role",role).put("png",retained.getName()).put("sha256",sha)
+                .put("bytes",retained.length()).put("copy_mode",mode).put("png_crc_iend_valid",true)
+                .put("source_packet",packet));
+    }
+
+    private static void writeMenuEvidence(File directory, JSONObject json) throws Exception {
+        checkedOutput(directory);
+        File manifest=new File(directory,"manifest.json");checkedOutput(manifest);
+        Files.write(manifest.toPath(),json.toString().getBytes(StandardCharsets.UTF_8));
     }
 
     void select(long id, String reason) {
@@ -93,12 +195,23 @@ final class WorkingFrameEvidence {
         ArrayList<Long> ids = new ArrayList<>(frames.keySet());
         for (int i = 0; i < ids.size(); i++) {
             long id = ids.get(i);
-            if (!all && (i >= ids.size()-RECENT || effect.contains(id))) continue;
+            if (!all && (i >= ids.size()-RECENT || effect.contains(id)
+                    || id==deckBefore || id==deckFirstAfter || id==deckLatest)) continue;
             JSONObject packet = frames.get(id);
             File png = source(packet);
             Set<String> reasons = selected.get(id);
+            boolean failedEffect=reasons!=null && reasons.contains("unknown_or_failed_effect_context");
             if (reasons != null) archive(packet, png, reasons);
             else discarded++;
+            // Unknown effects need the exact recognition bytes for a later
+            // source-paired replay. JPEG review is explicitly not that proof.
+            if(failedEffect) {
+                File originals=new File(round,"failed-effect-sources");checkedOutput(originals);
+                if(!originals.isDirectory() && !originals.mkdirs())throw new IllegalStateException("failed_effect_directory");
+                File retained=new File(originals,png.getName());checkedOutput(retained);
+                if(!retained.exists())Files.copy(png.toPath(),retained.toPath());
+                if(!hash(retained).equals(hash(png)))throw new IllegalStateException("failed_effect_source_copy");
+            }
             JSONObject disposition=new JSONObject(packet.toString()).put("working_source_retired",true)
                     .put("review_only",true).put("review_path",reasons==null?JSONObject.NULL:new File(round,"review/"+png.getName().replace(".png",".jpg")).getAbsolutePath());
             File status=new File(png.getParentFile(),png.getName().replace(".png",".json"));
@@ -193,9 +306,52 @@ final class WorkingFrameEvidence {
     }
 
     private static String hash(File file) throws Exception {
-        byte[] digest = MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(file.toPath()));
-        StringBuilder hex = new StringBuilder();
-        for (byte b : digest) hex.append(String.format(java.util.Locale.ROOT, "%02x", b & 255));
+        MessageDigest digest=MessageDigest.getInstance("SHA-256");
+        try (BufferedInputStream input=new BufferedInputStream(Files.newInputStream(file.toPath()))) {
+            byte[] buffer=new byte[65536];
+            for (int n;(n=input.read(buffer))!=-1;) digest.update(buffer,0,n);
+        }
+        return hex(digest.digest());
+    }
+
+    private static String pngHash(File file, int width, int height) throws Exception {
+        MessageDigest digest=MessageDigest.getInstance("SHA-256");
+        try (DataInputStream in=new DataInputStream(new java.security.DigestInputStream(
+                new BufferedInputStream(Files.newInputStream(file.toPath())),digest))) {
+            if (in.readLong()!=0x89504E470D0A1A0AL) throw new IOException("menu_png_signature");
+            byte[] type=new byte[4], buffer=new byte[65536];
+            boolean header=false, pixels=false;
+            while (true) {
+                int size=in.readInt();in.readFully(type);
+                if (size<0 || size>file.length()) throw new IOException("menu_png_chunk_size");
+                String name=new String(type,StandardCharsets.US_ASCII);
+                CRC32 crc=new CRC32();crc.update(type);
+                if (!header && !"IHDR".equals(name)) throw new IOException("menu_png_missing_header");
+                if ("IHDR".equals(name)) {
+                    if (header || size!=13) throw new IOException("menu_png_header");
+                    in.readFully(buffer,0,size);crc.update(buffer,0,size);
+                    java.nio.ByteBuffer dims=java.nio.ByteBuffer.wrap(buffer);
+                    if (dims.getInt()!=width || dims.getInt()!=height) throw new IOException("menu_png_geometry");
+                    header=true;
+                } else {
+                    pixels|="IDAT".equals(name) && size>0;
+                    for (int left=size;left>0;) {
+                        int n=Math.min(left,buffer.length);
+                        in.readFully(buffer,0,n);crc.update(buffer,0,n);left-=n;
+                    }
+                }
+                if (in.readInt()!=(int)crc.getValue()) throw new IOException("menu_png_crc");
+                if ("IEND".equals(name)) {
+                    if (size!=0 || !pixels || in.read()!=-1) throw new IOException("menu_png_end");
+                    return hex(digest.digest());
+                }
+            }
+        }
+    }
+
+    private static String hex(byte[] digest) {
+        StringBuilder hex = new StringBuilder(64);
+        for (byte b : digest) { hex.append(Character.forDigit((b>>>4)&15,16));hex.append(Character.forDigit(b&15,16)); }
         return hex.toString();
     }
 }

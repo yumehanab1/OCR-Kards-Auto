@@ -22,6 +22,7 @@ class ActionExecutor:
         self.turn=0;self.previous_state=None;self.isolated=[];self.consumed=set()
         self.failed_deploys=0;self.failed_inputs=0;self.max_failed_inputs=max_failed_inputs
         self.last_end_state_key=None;self.same_state_end_attempts=0
+        self.action_attempts={};self.iteration_limit=40
         self.ready_observation=None
         self.effect_capture_context=None
         self.turn_preparation=TurnPreparation()
@@ -34,7 +35,7 @@ class ActionExecutor:
         self.report=dict(game_inputs=0,inputs=[],hooks=[],captures=0,actions_confirmed=0,
             unconfirmed_inputs=0,unconfirmed_skipped=0,failed_inputs=0,end_turns_confirmed=0,
             end_turns_unconfirmed=0,pending_end_turn_inputs=0,end_turn_outcomes=[],host_inputs=0,
-            max_failed_inputs=max_failed_inputs)
+            max_failed_inputs=max_failed_inputs,turn_iterations=[])
 
     def now(self):return int(self.bridge.elapsedRealtime())
     def running(self):
@@ -93,6 +94,7 @@ class ActionExecutor:
             self.frontline_recheck.reset();return None
         entry=dict(state=observed['state'],scene=observed.get('scene'),
                    plan=observed.get('plan',{}),combat=observed.get('combat'))
+        self.planning_state_key=observed.get('current_state_key')
         selected=select(entry,allow=self.allow)
         observed=dict(observed,selected_action=selected)
         if selected.get('action')=='end_turn_candidate':
@@ -176,6 +178,7 @@ class ActionExecutor:
         if observed.get('planning_complete') is False:
             self.frontline_recheck.reset();return False
         evidence=audit(observed,self.allow,self.failed_deploys,allow_local_unknown=True)
+        evidence['safety_quarantined']=len(self.isolated)
         evidence=self.frontline_recheck.observe(evidence,packet,self.turn,self.now())
         observed['end_turn_audit']=evidence
         self.emit('end_turn_audit',dict(frame_id=packet['frame_id'],turn=self.turn,**evidence))
@@ -261,6 +264,7 @@ class ActionExecutor:
         own_proof=observed['state']=='battle' and not observed.get('choice_modal') and end_control(observed['page']) is not None
         self.observe_turn_state(own_proof,turn_proof)
         entry=dict(state=observed['state'],scene=observed.get('scene'),plan=observed.get('plan',{}),combat=observed.get('combat'))
+        self.planning_state_key=observed.get('current_state_key')
         observed['selected_action']=select(entry,allow=self.allow)
         preparation=self.turn_preparation.observe(observed,packet)
         observed['turn_preparation']=preparation
@@ -321,9 +325,13 @@ class ActionExecutor:
         return kind,[actor.get('cx'),actor.get('cy')]
     def allow(self,action):
         kind,point=self.identity(action)
+        if self.report['hooks']:
+            key=(self.turn,getattr(self,'planning_state_key',None),kind,tuple(point or ()))
+            if self.action_attempts.get(key,0)>=2:return False
         if kind=='deploy' and self.failed_deploys>=2:return False
         if point is None or any(v is None for v in point):return False
-        return not any(kind==old_kind and max(abs(a-b) for a,b in zip(point,old_point))<=self.shape[0]*12/720
+        return not any((kind==old_kind or kind!='deploy' and old_kind!='deploy')
+                       and max(abs(a-b) for a,b in zip(point,old_point))<=self.shape[0]*12/720
                        for old_kind,old_point in self.isolated)
 
     def execute(self,observed,packet):
@@ -348,6 +356,10 @@ class ActionExecutor:
         if self.end_ledger.pending is not None:raise Stop('input_while_end_turn_pending')
         if packet['frame_id'] in self.consumed:raise Stop('stale_or_consumed_frame')
         if self.report['game_inputs']>=self.max_inputs:raise Stop('input_budget')
+        turn_steps=sum(row['turn']==self.turn for row in self.report['turn_iterations'])
+        if turn_steps>=self.iteration_limit:raise Stop('turn_iteration_budget')
+        if observed['selected_action'].get('action') not in ('end_turn_verified','choice_middle') and not self.allow(observed['selected_action']):
+            raise Replan('current_action_retry_quarantined')
         try:plan=request(observed,packet,self.now(),self.deadline-self.now())
         except ValueError as error:raise Replan(str(error))
         state_key=observed.get('current_state_key') or 'unavailable_current_state'
@@ -364,6 +376,13 @@ class ActionExecutor:
             if reply.get('reason') in ('frame_age_expired','input_frame_age_exceeded','frame_expired'):raise Replan('java_frame_expired_replan')
             raise Stop('gesture_rejected:'+str(reply.get('reason')))
         self.report['game_inputs']+=1;self.consumed.add(packet['frame_id'])
+        self.report['turn_iterations'].append(dict(turn=self.turn,step=turn_steps+1,
+            context=plan['context'],frame_id=packet['frame_id'],elapsed_ms=self.now(),
+            state_key=state_key))
+        if plan['context'] not in ('end_turn','choice_select'):
+            action_kind,action_point=self.identity(observed['selected_action'])
+            attempt_key=(self.turn,state_key,action_kind,tuple(action_point))
+            self.action_attempts[attempt_key]=self.action_attempts.get(attempt_key,0)+1
         if reply.get('completed') is not True:raise Stop('gesture_not_completed:'+str(reply.get('reason')))
         self.frontline_recheck.reset()
         if plan['context']=='choice_select':

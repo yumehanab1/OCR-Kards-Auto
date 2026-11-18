@@ -114,6 +114,23 @@ def artwork(frame,card):
     return cv2.resize(cv2.cvtColor(crop,cv2.COLOR_BGR2GRAY),(64,64))
 
 
+def aligned_artwork_score(before,actor,after,card):
+    """Card-edge rounding must not stretch the art differently in each row.
+
+    Only near-equal card sizes admit a small source-pixel translation search;
+    no threshold reduction, rotation or unconstrained image search is used.
+    """
+    x,y,w,h=actor['card_box_estimate'];xx,yy,ww,hh=card['card_box_estimate']
+    if abs(w-ww)>max(2,w*.04) or abs(h-hh)>max(2,h*.04):return -1.
+    needle=cv2.cvtColor(before[y+round(h*.28):y+round(h*.63),x+round(w*.16):x+round(w*.84)],cv2.COLOR_BGR2GRAY)
+    pad=max(1,round(min(w,h)*.036))
+    a,b=max(xx,xx+round(ww*.16)-pad),max(yy,yy+round(hh*.28)-pad)
+    c,d=min(xx+ww,xx+round(ww*.84)+pad+1),min(yy+hh,yy+round(hh*.63)+pad+1)
+    roi=cv2.cvtColor(after[b:d,a:c],cv2.COLOR_BGR2GRAY)
+    if min(needle.shape,default=0)<8 or roi.shape[0]<needle.shape[0] or roi.shape[1]<needle.shape[1]:return -1.
+    return float(cv2.minMaxLoc(cv2.matchTemplate(roi,needle,cv2.TM_CCOEFF_NORMED))[1])
+
+
 def movement(pair,reader=None):
     result={'confirmed':False,'reason':'actor_or_row_unconfirmed','samples':[]}
     if pair['context']!='move_front' or not pair['reply'].get('completed') or not pair['reply'].get('accepted'):
@@ -132,7 +149,8 @@ def movement(pair,reader=None):
         for c in obs['scene']['cards']:
             if not c['card_edges_verified'] or c['type']!=actor['type']:continue
             score=float(cv2.matchTemplate(artwork(frame,c),needle,cv2.TM_CCOEFF_NORMED)[0,0])
-            if score>=.95:matches.append({'card':c,'score':score})
+            aligned=aligned_artwork_score(image,actor,frame,c)
+            if max(score,aligned)>=.95:matches.append({'card':c,'score':score,'source_aligned_score':aligned})
         own=[m for m in matches if m['card']['side']=='our']
         ok=len(own)==1 and own[0]['card']['row']=='front' and obs['scene']['frontline']['owner']=='our'
         # Match uniqueness is restricted to our battlefield; opposing copies

@@ -617,7 +617,7 @@ class Runtime:
         if index <= self.last_id or captured > self.now() or self.now() - captured > 5000:
             raise Stop("invalid_or_stale_capture_packet")
         source_ratio = packet["source_width"] / packet["source_height"] if int(packet["source_height"]) > 0 else 0
-        if source_ratio < 1.70 or source_ratio > 2.30:
+        if source_ratio < 1.70 or source_ratio > 2.40:
             raise Stop("unsupported_capture_aspect_ratio")
         path = Path(str(packet["png_path"])).resolve()
         if self.out not in path.parents:

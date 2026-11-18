@@ -84,10 +84,10 @@ def run():
           and resized['state']=='battle' and len(engine.requests)==1)
     own=[row('结束回合',1070,420,145,40,.99)]
     clock,engine,page=make('unknown',False,own);clock.value=5.;current=page.observe(frame)
-    check('current_full_ocr_is_reused_without_scoped_duplicate',current['state']=='battle' and engine.full_calls==1 and not engine.requests)
+    check('missing_control_probes_result_before_full_ocr',current['state']=='battle' and engine.full_calls==1 and len(engine.requests)==1)
     clock,engine,page=make('unknown',False,results);clock.value=5.;current=page.observe(frame)
-    check('full_ocr_result_avoids_additional_scoped_call',current['state']=='result_victory'
-          and current['result_proof']['ready'] and engine.full_calls==1 and not engine.requests)
+    check('missing_control_result_avoids_broad_fallback',current['state']=='result_victory'
+          and current['result_proof']['ready'] and engine.full_calls==0 and len(engine.requests)==1)
     clock,engine,page=make(items=results+[row('失败',550,460,100,40)])
     clock.value=5.;conflict=page.observe(frame)
     check('conflicting_current_titles_keep_turn_and_no_pending',conflict['state']=='battle' and page.pending_result_state is None)
@@ -104,8 +104,8 @@ def run():
             return dict(state='result_victory',evidence={'victory_btn':dict(score=.99,ok=True,bounds=[560,390,160,60])},plan={})
     clock,engine,page=make(local=False);page.detector=Strong('result_victory')
     first=page.observe(frame);clock.value=5.1;second=page.observe(frame)
-    check('strong_template_pair_keeps_zero_ocr_fast_path',first['result_proof']['ready']
-          and second['result_proof']['ready'] and engine.full_calls==0 and not engine.requests
+    check('strong_template_pair_retains_original_proof',first['result_proof']['ready']
+          and second['result_proof']['ready'] and engine.full_calls==0 and len(engine.requests)==1
           and page.pending_result_state is None)
     current=dict(state='result_victory',page={'result_proof':{'ready':True}})
     def packet_at(frame_id,elapsed,**changes):

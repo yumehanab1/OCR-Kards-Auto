@@ -26,6 +26,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Comparator;
 import java.util.Date;
 import java.util.Locale;
@@ -53,6 +54,7 @@ public final class MainActivity extends Activity {
     private int historyGeneration;
     private boolean visible;
     private long messageUntil;
+     private boolean updateChecked;
     private final Runnable refresh = new Runnable() {
         @Override public void run() {
             if (!visible) return;
@@ -63,7 +65,7 @@ public final class MainActivity extends Activity {
     private final MobileCore mobileCore = new ReadOnlyMobileCore();
     private ReadOnlyObservationLoop observationLoop;
     private Button monitorButton;
-    private Button compatCaptureButton;
+     private Runnable pendingCaptureStart;
     private final Consumer<Boolean> connectionListener = connected -> refreshDashboard();
 
     @Override
@@ -90,7 +92,14 @@ public final class MainActivity extends Activity {
                 refreshDashboard();
             }
             @Override public void permissions() { openPermissions(); }
-            @Override public void details() { showTrainingDetails(); }
+             @Override public void details() { showTrainingDetails(); }
+             @Override public void chooseGame() { showGamePicker(); }
+             @Override public void compatCapture() {
+                 if(BattleWorkerLease.isOwned()) return;
+                 if(CompatCaptureService.isReady()) {
+                     startService(new Intent(MainActivity.this,CompatCaptureService.class).setAction(CompatCaptureService.ACTION_STOP));
+                 } else requestCompatCapture();
+             }
         }, version);
         dashboard.setSelectedMode(getSharedPreferences(PANEL_PREFERENCES, MODE_PRIVATE)
                 .getString(SELECTED_MODE, "casual"));
@@ -129,16 +138,7 @@ public final class MainActivity extends Activity {
         rawReport.setOnClickListener(v -> status.setText(currentReport()));
         root.addView(rawReport, new LinearLayout.LayoutParams(-1, -2));
 
-        compatCaptureButton = new Button(this);
-        compatCaptureButton.setText("启用兼容截图（系统截图黑屏时使用）");
-        compatCaptureButton.setOnClickListener(v -> {
-            if(BattleWorkerLease.isOwned()) {status.setText("请先停止辅助，再切换截图通道。");return;}
-            if(CompatCaptureService.isReady()) {
-                startService(new Intent(this,CompatCaptureService.class).setAction(CompatCaptureService.ACTION_STOP));
-                status.setText("兼容截图已关闭。");
-            } else requestCompatCapture();
-        });
-        root.addView(compatCaptureButton,new LinearLayout.LayoutParams(-1,-2));
+         // compat capture button moved to main dashboard card; kept here as no-op placeholder
 
         Button screenshot = new Button(this);
         screenshot.setText("测试截图能力");
@@ -233,7 +233,7 @@ public final class MainActivity extends Activity {
         confirmOpening.setText("起手确认测试（最多点击一次）");
         confirmOpening.setOnClickListener(v -> {
             KardsAccessibilityService service = KardsAccessibilityService.instance();
-            Intent game = GamePackages.findLaunchable(getPackageManager()::getLaunchIntentForPackage);
+            Intent game = GamePackageDiscovery.findLaunchable(this);
             if (service == null || game == null) {
                 status.setText(R.string.mulligan_unavailable);
                 return;
@@ -281,9 +281,13 @@ public final class MainActivity extends Activity {
         }
         if (state != null) dashboard.setDiagnosticsOpen(state.getBoolean("diagnostics_open", false));
         setContentView(dashboard.view());
-        if((getApplicationInfo().flags & android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE)!=0
-                && getIntent().getBooleanExtra("show_compat_capture",false))
+        if(getIntent().getBooleanExtra("show_compat_capture",false))
             main.post(this::requestCompatCapture);
+    }
+
+    @Override protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);setIntent(intent);
+        if(intent.getBooleanExtra("show_compat_capture",false))main.post(this::requestCompatCapture);
     }
 
     private void requestCompatCapture() {
@@ -294,6 +298,51 @@ public final class MainActivity extends Activity {
             status.setText("请在安卓系统弹窗中确认屏幕录制授权。启用截图不会开始对局或触控。");
             startActivityForResult(manager.createScreenCaptureIntent(),REQUEST_COMPAT_CAPTURE);
         } catch(RuntimeException error){status.setText("无法打开兼容截图授权，请稍后重试。");}
+    }
+
+    private boolean gameSelectionBusy() {
+        KardsAccessibilityService service = KardsAccessibilityService.instance();
+        return BattleWorkerLease.isOwned() || (service != null && service.targetSelectionLocked());
+    }
+
+    private void updateGameTarget() {
+        Intent launch = GamePackageDiscovery.findLaunchable(this);
+        gameInstalled = launch != null;
+        String selected = GamePackageDiscovery.configuredPackage(this);
+        dashboard.setGameTargetText(selected.isEmpty() ? "" : GamePackageDiscovery.selectionInvalid(this)
+                ? "所选游戏不可用或签名已变化，请重新选择\n" + selected : "已选择：" + selected);
+        shownReport = "";
+    }
+
+    private void showGamePicker() {
+        if (gameSelectionBusy()) { panelMessage("请先停止辅助", "运行、待命或收尾期间不能更换游戏。"); return; }
+        final List<GamePackageDiscovery.Candidate> candidates;
+        try { candidates = GamePackageDiscovery.candidates(this); }
+        catch (RuntimeException error) { panelMessage("无法读取游戏列表", "请稍后重试，或使用手动入口。"); return; }
+        String[] labels = new String[candidates.size() + 1];
+        labels[0] = "自动检测（原有发行包）";
+        for (int i = 0; i < candidates.size(); i++) labels[i + 1] = candidates.get(i).displayName();
+        new AlertDialog.Builder(this).setTitle("选择已安装的 KARDS")
+                .setItems(labels, (dialog, which) -> {
+                    if (gameSelectionBusy()) return;
+                    if (which == 0) { saveGameSelection(null); return; }
+                    GamePackageDiscovery.Candidate candidate = candidates.get(which - 1);
+                    new AlertDialog.Builder(this).setTitle("确认这是你要辅助的 KARDS")
+                            .setMessage(candidate.displayName() + "\n\n仅确认真实的 KARDS 游戏。选择后仅允许此包；切出游戏仍会停止。此操作不会启动辅助。")
+                            .setNegativeButton("取消", null)
+                            .setPositiveButton("使用此游戏", (confirmation, button) -> saveGameSelection(candidate)).show();
+                }).setNegativeButton("取消", null).show();
+    }
+
+    private void saveGameSelection(GamePackageDiscovery.Candidate candidate) {
+        try {
+            if (gameSelectionBusy()) throw new IllegalStateException("game_selection_busy");
+            if (candidate == null) GamePackageDiscovery.useAutomatic(this);
+            else GamePackageDiscovery.select(this, candidate);
+            updateGameTarget();
+            messageUntil = 0;
+            refreshDashboard();
+        } catch (RuntimeException error) { panelMessage("未更换游戏", "请先停止辅助，并确认游戏仍已安装且可以正常打开。"); }
     }
 
     private void openPermissions() {
@@ -323,12 +372,8 @@ public final class MainActivity extends Activity {
         try { useMemory = new JSONObject(memory).has("session_id"); }
         catch (Exception ignored) { }
         String report = useMemory ? memory : savedReport;
-        boolean busy = BattleWorkerLease.isOwned();
-        if(compatCaptureButton!=null){
-            compatCaptureButton.setEnabled(!busy);
-            compatCaptureButton.setText(CompatCaptureService.isReady()?"兼容截图已启用 · 点击关闭"
-                    :"启用兼容截图（系统截图黑屏时使用）");
-        }
+         boolean busy = BattleWorkerLease.isOwned();
+         dashboard.setCompatCaptureState(CompatCaptureService.isReady(), busy);
         boolean connected = service != null;
         if (android.os.SystemClock.elapsedRealtime() < messageUntil && !busy) return;
         if (report.equals(shownReport) && connected == shownConnected && busy == shownBusy
@@ -390,10 +435,17 @@ public final class MainActivity extends Activity {
             panelMessage("还差一步准备", "请先开启对战助手的无障碍权限。");
             return;
         }
+        // Older systems can return opaque black window screenshots. Obtain
+        // normal consent before arming; never turn a permission UI into input.
+        if(android.os.Build.VERSION.SDK_INT<34 && !CompatCaptureService.isReady()) {
+            pendingCaptureStart=()->launchBattle(readOnly,mode,openGame,matchCount);
+            requestCompatCapture();
+            return;
+        }
         boolean launchGame = openGame || readOnly || "training".equals(mode);
         // Manual entry arms the foreground gate without querying installed packages.
         Intent game = launchGame
-                ? GamePackages.findLaunchable(getPackageManager()::getLaunchIntentForPackage) : null;
+                ? GamePackageDiscovery.findLaunchable(this) : null;
         if (launchGame && game == null) {
             panelMessage("未检测到可启动的 KARDS", "请确认游戏可以正常打开，或使用“仅启动辅助 · 手动打开游戏”。");
             return;
@@ -401,6 +453,7 @@ public final class MainActivity extends Activity {
         if (observationLoop != null) observationLoop.stop();
         boolean armedThisRequest = false;
         try {
+            GamePackageDiscovery.refresh(this);
             JSONObject options = battleOptions(readOnly, mode, matchCount);
             if (!service.startBattle(options.toString())) {
                 panelMessage("暂时无法开始", BattleStartAttempt.userMessage(service.lastStartAttempt()));
@@ -435,6 +488,15 @@ public final class MainActivity extends Activity {
                 .put("idle_seconds", 120).put("max_failed_inputs", 5);
     }
 
+    private void waitForCaptureStart(Runnable requested,long deadline) {
+        if(isFinishing() || isDestroyed())return;
+        if(CompatCaptureService.isReady()) {requested.run();return;}
+        if(android.os.SystemClock.elapsedRealtime()>=deadline) {
+            status.setText("兼容截图连接超时，本次未启动辅助；请重试。");return;
+        }
+        main.postDelayed(()->waitForCaptureStart(requested,deadline),250);
+    }
+
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
@@ -443,9 +505,11 @@ public final class MainActivity extends Activity {
                 try {
                     startForegroundService(new Intent(this,CompatCaptureService.class)
                             .putExtra("result_code",resultCode).putExtra("result_data",data));
+                    Runnable requested=pendingCaptureStart;pendingCaptureStart=null;
+                    if(requested!=null)waitForCaptureStart(requested,android.os.SystemClock.elapsedRealtime()+12000);
                     status.setText("兼容截图正在连接；连接后返回游戏，再开始辅助。");
                 } catch(RuntimeException error){status.setText("兼容截图启动失败，请重新启用。");}
-            } else status.setText("未启用兼容截图；本次没有开始辅助或游戏输入。");
+            } else {pendingCaptureStart=null;status.setText("未启用兼容截图；本次没有开始辅助或游戏输入。");}
             return;
         }
         if (requestCode != REQUEST_REPLAY_PNG || resultCode != RESULT_OK || data == null
@@ -491,15 +555,24 @@ public final class MainActivity extends Activity {
         }
     }
 
-    @Override
-    protected void onResume() {
-        super.onResume();
-        visible = true;
-        gameInstalled = GamePackages.findLaunchable(getPackageManager()::getLaunchIntentForPackage) != null;
-        main.removeCallbacks(refresh);
-        main.post(refresh);
-        loadLatestRecord();
-    }
+     @Override
+     protected void onResume() {
+         super.onResume();
+         visible = true;
+         updateGameTarget();
+         main.removeCallbacks(refresh);
+         main.post(refresh);
+         loadLatestRecord();
+         if (!updateChecked) {
+             updateChecked = true;
+             UpdateChecker.check(this, new UpdateChecker.Callback() {
+                 @Override public void onResult(UpdateChecker.Result result) {
+                     if (result.available && dashboard != null)
+                         dashboard.showUpdateBanner(result.versionName, result.changelog, result.downloadUrl);
+                 }
+             });
+         }
+     }
 
     @Override
     protected void onStart() {

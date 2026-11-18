@@ -352,6 +352,8 @@ public final class TrainingPanelState {
             return "系统截图连续返回黑屏。请在工具与诊断中启用兼容截图，再重新开始辅助。";
         if (reason.contains("compat_capture_incomplete_frame"))
             return "兼容截图连续不完整，重试后仍未恢复，已停止。请检查模拟器画面与截图设置。";
+        if (reason.contains("compat_capture_virtual_geometry_mismatch"))
+            return "模拟器将兼容截图虚拟屏转成了错误方向，自动恢复未成功。请修复模拟器截图旋转设置后重试。";
         if (reason.contains("compat_capture"))
             return "兼容截图已中断，请在工具与诊断中重新启用后再开始辅助。";
         if (reason.startsWith("menu_")) return "对战准备未完成，请检查游戏画面后重试。";

@@ -109,12 +109,17 @@ public final class DeviceRegressionInstrumentation extends Instrumentation {
                     android.content.pm.PackageManager manager = getTargetContext().getPackageManager();
                     Intent original = manager.getLaunchIntentForPackage(GamePackages.DEFAULT);
                     Intent alternative = manager.getLaunchIntentForPackage(GamePackages.APK);
-                    Intent selected = GamePackages.findLaunchable(manager::getLaunchIntentForPackage);
+                    Intent selected = GamePackageDiscovery.findLaunchable(getTargetContext());
                     item.put("original_launchable", original != null)
                             .put("alternative_launchable", alternative != null)
                             .put("selected_package", selected == null ? "" : selected.getComponent().getPackageName());
                     require(selected != null, "No installed supported KARDS launcher resolved");
                     require(GamePackages.isGame(selected.getComponent().getPackageName()), "Unexpected game package");
+                });
+                runCase("dynamic_package_selection", item -> {
+                    JSONObject checks = GamePackageDiscoveryChecks.run(getTargetContext(), getContext());
+                    require(checks.getInt("failure_count") == 0, "Dynamic package selection checks failed");
+                    item.put("checks", checks);
                 });
                 runCase("training_dashboard_controls", item -> {
                     startPrototypeActivity();
@@ -136,6 +141,40 @@ public final class DeviceRegressionInstrumentation extends Instrumentation {
                         .put("passed",true).put("checks",CaptureRetryPolicyChecks.runChecks()).put("device_inputs",0)));
                 runCase("rejected_capture_audit", item -> item.put("checks", RejectedCaptureAuditChecks.run(getTargetContext())));
                 runCase("floating_status", item -> item.put("checks", FloatingControlChecks.model()));
+                runCase("mlkit_idempotent_initialization", item -> {
+                    com.google.mlkit.common.sdkinternal.MlKitContext first =
+                            com.google.mlkit.common.sdkinternal.MlKitContext.initializeIfNeeded(getTargetContext());
+                    require(first == com.google.mlkit.common.sdkinternal.MlKitContext.initializeIfNeeded(getTargetContext()),
+                            "ML Kit context changed on repeated initialization");
+                    IdempotentMlKitProvider repeated = new IdempotentMlKitProvider();
+                    android.content.pm.ProviderInfo info = new android.content.pm.ProviderInfo();
+                    info.authority = "com.kards.mobilert.mlkitinitprovider";
+                    repeated.attachInfo(getTargetContext(), info);
+                    require(repeated.onCreate(), "Repeated provider startup failed");
+                    android.graphics.Bitmap bitmap = android.graphics.Bitmap.createBitmap(400,100,android.graphics.Bitmap.Config.ARGB_8888);
+                    bitmap.eraseColor(android.graphics.Color.WHITE);
+                    android.graphics.Paint paint = new android.graphics.Paint();
+                    paint.setColor(android.graphics.Color.BLACK); paint.setTextSize(48);
+                    new android.graphics.Canvas(bitmap).drawText("KARDS 123",10,65,paint);
+                    com.google.mlkit.vision.text.TextRecognizer recognizer = com.google.mlkit.vision.text.TextRecognition.getClient(
+                            new com.google.mlkit.vision.text.chinese.ChineseTextRecognizerOptions.Builder().build());
+                    try {
+                        com.google.mlkit.vision.text.Text text = com.google.android.gms.tasks.Tasks.await(
+                                recognizer.process(com.google.mlkit.vision.common.InputImage.fromBitmap(bitmap,0)),
+                                15, java.util.concurrent.TimeUnit.SECONDS);
+                        require(text.getText().contains("123"), "Bundled OCR cold startup failed");
+                        item.put("text",text.getText()).put("repeated_initialization",true);
+                    } finally { recognizer.close(); bitmap.recycle(); }
+                });
+                runCase("current_home_tracking", item -> {
+                    if (!com.chaquo.python.Python.isStarted())
+                        com.chaquo.python.Python.start(new com.chaquo.python.android.AndroidPlatform(getTargetContext()));
+                    JSONObject checks = new JSONObject(com.chaquo.python.Python.getInstance()
+                            .getModule("json").callAttr("dumps", com.chaquo.python.Python.getInstance()
+                                    .getModule("apk_native.home_tracking_test").callAttr("run")).toString());
+                    require(checks.getBoolean("passed"), "Current home tracking checks failed");
+                    item.put("checks", checks);
+                });
             } else if ("true".equals(arguments.getString("dynamicMenuOnly", "false"))) {
                 runCase("dynamic_menu_controls", item -> item.put("checks", DynamicMenuControlsChecks.run(getContext(),getTargetContext())));
             } else if ("true".equals(arguments.getString("windowPolicyOnly", "false"))) {

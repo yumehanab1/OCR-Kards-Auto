@@ -28,14 +28,23 @@ final class TrainingDashboard {
         void stop();
         void permissions();
         void details();
-    }
+         default void chooseGame() { }
+         default void compatCapture() { }
+     }
 
-    private static final int PAPER = Color.rgb(245, 245, 239);
-    private static final int INK = Color.rgb(32, 47, 40);
-    private static final int MUTED = Color.rgb(107, 116, 106);
-    private static final int LINE = Color.rgb(224, 229, 218);
-    private static final int OLIVE = Color.rgb(41, 62, 48);
-    private static final int GOLD = Color.rgb(222, 194, 119);
+     private static final int PAPER = Color.rgb(245, 245, 239);
+     private static final int INK = Color.rgb(32, 47, 40);
+     private static final int MUTED = Color.rgb(107, 116, 106);
+     private static final int LINE = Color.rgb(224, 229, 218);
+     private static final int OLIVE = Color.rgb(41, 62, 48);
+     private static final int GOLD = Color.rgb(222, 194, 119);
+     private static final int ACCENT = Color.rgb(82, 130, 98);
+     private static final int ACCENT_DEEP = Color.rgb(35, 78, 55);
+     private static final int ACCENT_TINT = Color.rgb(232, 240, 234);
+     private static final int DANGER = Color.rgb(192, 78, 65);
+     private static final int DANGER_TINT = Color.rgb(245, 230, 228);
+      private static final int SURFACE = Color.rgb(251, 252, 248);
+      private static final int ACCENT_SOFT = Color.rgb(240, 245, 240);
     private final Activity activity;
     private final Actions actions;
     private final ScrollView scroll;
@@ -44,7 +53,12 @@ final class TrainingDashboard {
     private final TextView heroTitle, heroBody, readiness, gameValue, serviceValue;
     private final TextView gameSymbol, serviceSymbol, resultTitle, resultBody, resultPill;
     private final TextView duration, turns, actionsCount, recordDate;
-    private final Button start, manualStart, stop, settings, details, diagnosticsToggle, casual, ranked;
+     private final Button start, manualStart, stop, settings, details, diagnosticsToggle, casual, ranked, chooseGame;
+     private Button compatCaptureButton;
+     private TextView compatCaptureBody;
+     private LinearLayout compatCaptureCard;
+     private LinearLayout updateBanner;
+     private TextView updateBannerText;
     private final EditText matchCountInput;
     private boolean diagnosticsOpen;
     private String selectedMode = "casual";
@@ -55,6 +69,7 @@ final class TrainingDashboard {
     private boolean editingCount;
     private String countText = "1";
     private boolean permissionRequired = true;
+    private String gameTargetText = "";
 
     TrainingDashboard(Activity activity, Actions actions, String version) {
         this.activity = activity;
@@ -94,6 +109,18 @@ final class TrainingDashboard {
         versionTag.setBackground(shape(Color.rgb(235, 238, 229), 20, 0));
         header.addView(versionTag);
         add(root, header, 0);
+         updateBanner = row();
+         updateBanner.setBackground(shape(Color.rgb(232, 244, 255), 12, Color.rgb(140, 185, 230)));
+         updateBanner.setPadding(dp(14), dp(10), dp(14), dp(10));
+         updateBanner.setVisibility(android.view.View.GONE);
+         updateBannerText = text("", 13, Color.rgb(20, 60, 110), false);
+         updateBannerText.setLineSpacing(dp(3), 1);
+         updateBanner.addView(updateBannerText, new LinearLayout.LayoutParams(0, -2, 1));
+         TextView updateDismiss = text("✕", 15, Color.rgb(80, 130, 190), true);
+         updateDismiss.setPadding(dp(10), dp(4), dp(2), dp(4));
+         updateDismiss.setOnClickListener(v -> updateBanner.setVisibility(android.view.View.GONE));
+         updateBanner.addView(updateDismiss);
+         add(root, updateBanner, 12);
 
         LinearLayout workspace = wide ? row() : column();
         workspace.setGravity(Gravity.TOP);
@@ -101,7 +128,7 @@ final class TrainingDashboard {
         LinearLayout heroTop = row();
         TextView eyebrow = text("对战控制台", 12, GOLD, true);
         heroTop.addView(eyebrow, new LinearLayout.LayoutParams(0, -2, 1));
-        readiness = text("●  检查运行环境", 11, Color.rgb(215, 229, 205), false);
+         readiness = text("●  检查运行环境", 11, Color.rgb(195, 212, 190), false);
         heroTop.addView(readiness);
         hero.addView(heroTop);
         heroTitle = text("准备好下一场对战", wide ? 29 : 27, Color.WHITE, true);
@@ -110,18 +137,20 @@ final class TrainingDashboard {
                 Color.rgb(211, 220, 206), false);
         heroBody.setLineSpacing(dp(4), 1);
         add(hero, heroBody, 10);
-        LinearLayout modes = row();
-        casual = button("休闲对局", OLIVE, Color.WHITE, Color.rgb(115, 134, 113));
-        casual.setTag("panel_mode_casual");
-        ranked = button("排位对战", OLIVE, Color.WHITE, Color.rgb(115, 134, 113));
-        ranked.setTag("panel_mode_ranked");
-        casual.setOnClickListener(v -> selectModeFromUser("casual", casual));
-        ranked.setOnClickListener(v -> selectModeFromUser("ranked", ranked));
-        modes.addView(casual, new LinearLayout.LayoutParams(0, -2, 1));
-        LinearLayout.LayoutParams rankedParams = new LinearLayout.LayoutParams(0, -2, 1);
-        rankedParams.setMarginStart(dp(10));
-        modes.addView(ranked, rankedParams);
-        add(hero, modes, 21);
+         LinearLayout modes = row();
+         modes.setBackground(shape(Color.argb(55, 0, 0, 0), 13, 0));
+         modes.setPadding(dp(4), dp(4), dp(4), dp(4));
+         casual = button("休闲对局", OLIVE, Color.WHITE, Color.rgb(115, 134, 113));
+         casual.setTag("panel_mode_casual");
+         ranked = button("排位对战", OLIVE, Color.WHITE, Color.rgb(115, 134, 113));
+         ranked.setTag("panel_mode_ranked");
+         casual.setOnClickListener(v -> selectModeFromUser("casual", casual));
+         ranked.setOnClickListener(v -> selectModeFromUser("ranked", ranked));
+         modes.addView(casual, new LinearLayout.LayoutParams(0, -2, 1));
+         LinearLayout.LayoutParams rankedParams = new LinearLayout.LayoutParams(0, -2, 1);
+         rankedParams.setMarginStart(dp(4));
+         modes.addView(ranked, rankedParams);
+         add(hero, modes, 18);
         LinearLayout matchCounts = row();
         TextView countLabel = text(activity.getString(R.string.match_count_label), 14, Color.WHITE, true);
         matchCounts.addView(countLabel, new LinearLayout.LayoutParams(-2, -2));
@@ -155,7 +184,7 @@ final class TrainingDashboard {
             else if (primaryCanStart && validMatchCount()) actions.start(selectedMode, true, selectedMatchCount());
         });
         controls.addView(start, new LinearLayout.LayoutParams(0, -2, 1));
-        stop = button("停止", OLIVE, Color.rgb(224, 231, 218), Color.rgb(115, 134, 113));
+         stop = button("停止", Color.rgb(60, 32, 30), Color.rgb(245, 210, 205), DANGER);
         stop.setId(R.id.panel_stop);
         stop.setOnClickListener(v -> actions.stop());
         LinearLayout.LayoutParams stopParams = new LinearLayout.LayoutParams(dp(88), -2);
@@ -175,23 +204,27 @@ final class TrainingDashboard {
                 Color.rgb(179, 195, 173), false);
         add(hero, stopHint, 10);
 
-        LinearLayout preparation = card(Color.WHITE, 22);
-        preparation.addView(text("运行准备", 17, INK, true));
-        add(preparation, text("首次使用，只需完成以下准备", 12, MUTED, false), 6);
-        LinearLayout gameRow = readinessRow("KARDS", "检查游戏安装情况");
-        gameSymbol = (TextView) gameRow.getChildAt(0);
-        gameValue = (TextView) ((LinearLayout) gameRow.getChildAt(1)).getChildAt(1);
-        add(preparation, gameRow, 23);
-        add(preparation, divider(), 16);
-        LinearLayout serviceRow = readinessRow("无障碍权限", "用于识别画面和执行操作");
-        serviceSymbol = (TextView) serviceRow.getChildAt(0);
-        serviceValue = (TextView) ((LinearLayout) serviceRow.getChildAt(1)).getChildAt(1);
-        serviceValue.setId(R.id.panel_service_state);
-        add(preparation, serviceRow, 16);
-        settings = button("管理权限", Color.rgb(239, 242, 233), OLIVE, 0);
-        settings.setId(R.id.panel_permissions);
-        settings.setOnClickListener(v -> actions.permissions());
-        add(preparation, settings, 22);
+         LinearLayout preparation = card(Color.WHITE, 22);
+         preparation.addView(sectionTitle("运行准备", ACCENT));
+         add(preparation, text("首次使用，只需完成以下准备", 12, MUTED, false), 6);
+         LinearLayout gameRow = readinessRow("KARDS", "检查游戏安装情况");
+         gameSymbol = (TextView) gameRow.getChildAt(0);
+         gameValue = (TextView) ((LinearLayout) gameRow.getChildAt(1)).getChildAt(1);
+         add(preparation, gameRow, 23);
+         chooseGame = button("选择／更换游戏", ACCENT_SOFT, OLIVE, 0);
+         chooseGame.setId(R.id.panel_game_select);
+         chooseGame.setOnClickListener(v -> { if (chooseGame.isEnabled()) actions.chooseGame(); });
+         add(preparation, chooseGame, 10);
+         add(preparation, divider(), 16);
+         LinearLayout serviceRow = readinessRow("无障碍权限", "用于识别画面和执行操作");
+         serviceSymbol = (TextView) serviceRow.getChildAt(0);
+         serviceValue = (TextView) ((LinearLayout) serviceRow.getChildAt(1)).getChildAt(1);
+         serviceValue.setId(R.id.panel_service_state);
+         add(preparation, serviceRow, 16);
+         settings = button("管理权限", ACCENT_SOFT, OLIVE, 0);
+         settings.setId(R.id.panel_permissions);
+         settings.setOnClickListener(v -> actions.permissions());
+         add(preparation, settings, 22);
 
         if (wide) {
             workspace.addView(hero, new LinearLayout.LayoutParams(0, -2, 1.65f));
@@ -203,45 +236,63 @@ final class TrainingDashboard {
             add(workspace, preparation, 14);
         }
         add(root, workspace, 24);
+          if (android.os.Build.VERSION.SDK_INT < 34) {
+              compatCaptureCard = card(Color.rgb(255, 250, 240), 20);
+              compatCaptureCard.setBackground(shape(Color.rgb(255, 250, 240), 18, Color.rgb(230, 190, 120)));
+              LinearLayout compatTop = row();
+              TextView compatIcon = text("⚡", 18, Color.rgb(190, 130, 40), true);
+              compatIcon.setPadding(0, 0, dp(10), 0);
+              compatTop.addView(compatIcon);
+              LinearLayout compatLabel = column();
+              compatLabel.addView(text("兼容截图", 15, Color.rgb(100, 65, 10), true));
+              add(compatLabel, text("系统截图黑屏时，启用此通道", 12, Color.rgb(150, 110, 50), false), 3);
+              compatTop.addView(compatLabel, new LinearLayout.LayoutParams(0, -2, 1));
+              compatCaptureCard.addView(compatTop);
+              compatCaptureBody = text("未启用", 12, Color.rgb(150, 110, 50), false);
+              add(compatCaptureCard, compatCaptureBody, 8);
+              compatCaptureButton = button("启用兼容截图", Color.rgb(222, 158, 54), Color.rgb(60, 35, 5), 0);
+              compatCaptureButton.setOnClickListener(v -> actions.compatCapture());
+              add(compatCaptureCard, compatCaptureButton, 12);
+              add(root, compatCaptureCard, 14);
+          }
 
-        LinearLayout result = card(Color.WHITE, 22);
-        LinearLayout resultHeader = row();
-        resultHeader.addView(text("最近运行", 17, INK, true), new LinearLayout.LayoutParams(0, -2, 1));
-        recordDate = text("", 11, MUTED, false);
-        resultHeader.addView(recordDate);
-        result.addView(resultHeader);
-        LinearLayout resultLine = row();
-        resultTitle = text("还没有对局记录", 18, INK, true);
-        resultTitle.setId(R.id.panel_result_title);
-        resultLine.addView(resultTitle, new LinearLayout.LayoutParams(0, -2, 1));
-        resultPill = text("等待开始", 11, MUTED, false);
-        resultPill.setPadding(dp(10), dp(6), dp(10), dp(6));
-        resultPill.setBackground(shape(PAPER, 20, 0));
-        resultLine.addView(resultPill);
-        add(result, resultLine, 17);
-        resultBody = text("完成一场对局后，在这里查看运行结果。", 13, MUTED, false);
-        add(result, resultBody, 8);
-        add(result, divider(), 18);
-        boolean largeStats = activity.getResources().getConfiguration().fontScale >= 1.35f;
-        LinearLayout stats = largeStats ? column() : row();
-        duration = stat(stats, "运行时长");
-        turns = stat(stats, "进行回合");
-        actionsCount = stat(stats, "已确认行动");
-        add(result, stats, 16);
-        details = button("查看本局详情  →", Color.WHITE, OLIVE, 0);
-        details.setId(R.id.panel_details);
-        details.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
-        details.setPadding(0, dp(6), 0, dp(6));
-        details.setOnClickListener(v -> actions.details());
-        add(result, details, 8);
-        add(root, result, 16);
+         LinearLayout result = card(Color.WHITE, 22);
+         result.addView(sectionTitle("最近运行", ACCENT));
+         recordDate = text("", 11, MUTED, false);
+         LinearLayout resultHeader = row();
+         resultHeader.addView(new View(activity), new LinearLayout.LayoutParams(0, -2, 1));
+         resultHeader.addView(recordDate);
+         result.addView(resultHeader);
+         LinearLayout resultLine = row();
+         resultTitle = text("还没有对局记录", 18, INK, true);
+         resultTitle.setId(R.id.panel_result_title);
+         resultLine.addView(resultTitle, new LinearLayout.LayoutParams(0, -2, 1));
+         resultPill = pill("等待开始", PAPER, MUTED);
+         resultLine.addView(resultPill);
+         add(result, resultLine, 14);
+         resultBody = text("完成一场对局后，在这里查看运行结果。", 13, MUTED, false);
+         add(result, resultBody, 8);
+         add(result, divider(), 18);
+         boolean largeStats = activity.getResources().getConfiguration().fontScale >= 1.35f;
+         LinearLayout stats = largeStats ? column() : row();
+         duration = stat(stats, "运行时长");
+         turns = stat(stats, "进行回合");
+         actionsCount = stat(stats, "已确认行动");
+         add(result, stats, 16);
+         details = button("查看本局详情  →", Color.WHITE, OLIVE, 0);
+         details.setId(R.id.panel_details);
+         details.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
+         details.setPadding(0, dp(6), 0, dp(6));
+         details.setOnClickListener(v -> actions.details());
+         add(result, details, 8);
+         add(root, result, 16);
 
-        LinearLayout guide = card(Color.rgb(237, 240, 229), 20);
-        guide.addView(text("对战模式", 15, INK, true));
-        TextView steps = text("选择休闲或排位，填写局数，再选择启动方式。\n开始辅助：自动打开 KARDS。\n手动入口：先启动辅助，再将本应用切到后台，自行打开 KARDS。\n每局使用列表中第一个牌组，确认胜负并回到对战菜单后继续。\n0 为无限循环；点击停止、离开游戏或无法确认画面时停止。\n训练模式仅用于调试，可在下方工具中启动。", 13, MUTED, false);
-        steps.setLineSpacing(dp(8), 1);
-        add(guide, steps, 12);
-        add(root, guide, 16);
+         LinearLayout guide = card(ACCENT_SOFT, 20);
+         guide.addView(sectionTitle("对战模式", ACCENT));
+         TextView steps = text("选择休闲或排位，填写局数，再选择启动方式。\n开始辅助：自动打开 KARDS。\n手动入口：先启动辅助，再将本应用切到后台，自行打开 KARDS。\n每局使用列表中第一个牌组，确认胜负并回到对战菜单后继续。\n0 为无限循环；点击停止、离开游戏或无法确认画面时停止。\n训练模式仅用于调试，可在下方工具中启动。", 13, MUTED, false);
+         steps.setLineSpacing(dp(8), 1);
+         add(guide, steps, 12);
+         add(root, guide, 16);
 
         diagnosticsToggle = button("工具与诊断   ＋", PAPER, MUTED, 0);
         diagnosticsToggle.setId(R.id.panel_diagnostics_toggle);
@@ -336,13 +387,13 @@ final class TrainingDashboard {
         styleMode(ranked, "ranked".equals(selectedMode), "排位对战");
     }
 
-    private void styleMode(Button button, boolean selected, String label) {
-        button.setSelected(selected);
-        button.setTextColor(selected ? INK : Color.rgb(224, 231, 218));
-        button.setBackground(ripple(selected ? Color.rgb(224, 230, 209) : OLIVE, 11,
-                selected ? Color.rgb(224, 230, 209) : Color.rgb(115, 134, 113)));
-        button.setContentDescription(label + (selected ? "，已选择" : "，未选择"));
-    }
+     private void styleMode(Button button, boolean selected, String label) {
+         button.setSelected(selected);
+         button.setTextColor(selected ? INK : Color.rgb(205, 214, 200));
+         button.setBackground(ripple(selected ? ACCENT_TINT : OLIVE, 11,
+                 selected ? ACCENT : Color.rgb(80, 100, 80)));
+         button.setContentDescription(label + (selected ? "，已选择" : "，未选择"));
+     }
     boolean diagnosticsOpen() { return diagnosticsOpen; }
     void setDiagnosticsOpen(boolean open) {
         diagnosticsOpen = open;
@@ -350,13 +401,16 @@ final class TrainingDashboard {
         diagnosticsToggle.setText(open ? "工具与诊断   −" : "工具与诊断   ＋");
         diagnosticsToggle.setContentDescription(open ? "收起工具与诊断" : "展开工具与诊断");
     }
+    void setGameTargetText(String text) { gameTargetText = text == null ? "" : text; }
+
 
     void render(TrainingPanelState state, boolean connected, boolean gameInstalled, boolean busy, String date) {
         gameSymbol.setText(gameInstalled ? "✓" : "!");
-        gameValue.setText(gameInstalled ? "已安装" : "未检测到游戏，可使用下方手动入口");
+        gameValue.setText(!gameTargetText.isEmpty() ? gameTargetText
+                : gameInstalled ? "已安装" : "未检测到游戏，可使用下方手动入口");
         serviceSymbol.setText(connected ? "✓" : "!");
         serviceValue.setText(connected ? "已连接 · 可以识别和操作" : "未开启 · 点击下方完成授权");
-        serviceSymbol.setTextColor(connected ? OLIVE : Color.rgb(145, 102, 41));
+         serviceSymbol.setTextColor(connected ? OLIVE : DANGER);
         settings.setText(connected ? "管理权限" : "开启无障碍权限");
         boolean stopping = "stopping".equals(state.statusKind) || (busy && !state.active);
         boolean waiting = state.active && "waiting".equals(state.statusKind);
@@ -376,6 +430,7 @@ final class TrainingDashboard {
         casual.setEnabled(!state.active && !stopping && !busy);
         ranked.setEnabled(!state.active && !stopping && !busy);
         matchCountInput.setEnabled(!state.active && !stopping && !busy);
+        chooseGame.setEnabled(!state.active && !stopping && !busy);
         matchCountInput.setAlpha(matchCountInput.isEnabled() ? 1f : .6f);
         casual.setAlpha(casual.isEnabled() ? 1f : .6f);
         ranked.setAlpha(ranked.isEnabled() ? 1f : .6f);
@@ -383,14 +438,48 @@ final class TrainingDashboard {
         stop.setAlpha(stop.isEnabled() ? 1f : .36f);
         resultTitle.setText(state.hasSession ? state.title : "还没有对局记录");
         resultBody.setText(state.hasSession ? state.summary : "从第一场对局开始，记录会自动保存在这里。");
-        resultPill.setText(state.hasSession ? state.modeLabel : "等待开始");
-        resultPill.setTextColor(state.interrupted ? Color.rgb(143, 88, 44) : OLIVE);
+         resultPill.setText(state.hasSession ? state.modeLabel : "等待开始");
+         resultPill.setTextColor(state.interrupted ? DANGER : ACCENT_DEEP);
+         resultPill.setBackground(shape(state.interrupted ? DANGER_TINT : ACCENT_TINT, 20, 0));
         duration.setText(state.durationDisplay);
         turns.setText(state.turnCount);
         actionsCount.setText(state.actionCount);
         recordDate.setText(state.hasSession ? date : "");
         details.setVisibility(state.hasSession ? View.VISIBLE : View.GONE);
     }
+     void showUpdateBanner(String versionName, String changelog, String downloadUrl) {
+         String msg = "🆕 新版本 " + versionName + " 可用";
+         if (!changelog.isEmpty()) msg += "\n" + changelog;
+         if (!downloadUrl.isEmpty()) msg += "\n点此下载 →";
+         updateBannerText.setText(msg);
+         if (!downloadUrl.isEmpty()) {
+             updateBanner.setOnClickListener(v -> {
+                 try {
+                     android.content.Intent intent = new android.content.Intent(
+                             android.content.Intent.ACTION_VIEW,
+                             android.net.Uri.parse(downloadUrl));
+                     activity.startActivity(intent);
+                 } catch (Exception ignored) {}
+             });
+         }
+         updateBanner.setVisibility(android.view.View.VISIBLE);
+     }
+     void setCompatCaptureState(boolean ready, boolean busy) {
+         if (compatCaptureCard == null) return;
+         compatCaptureButton.setEnabled(!busy);
+         compatCaptureButton.setAlpha(!busy ? 1f : .48f);
+         if (ready) {
+             compatCaptureButton.setText("兼容截图已启用 · 点击关闭");
+             compatCaptureButton.setBackground(ripple(DANGER_TINT, 11, DANGER));
+             compatCaptureButton.setTextColor(DANGER);
+             compatCaptureBody.setText("已连接，截图通道正常");
+         } else {
+             compatCaptureButton.setText("启用兼容截图");
+             compatCaptureButton.setBackground(ripple(Color.rgb(222, 158, 54), 11, 0));
+             compatCaptureButton.setTextColor(Color.rgb(60, 35, 5));
+             compatCaptureBody.setText("未启用 · 系统截图黑屏时使用");
+         }
+     }
 
     void message(String title, String body) {
         heroTitle.setText(title);
@@ -410,38 +499,40 @@ final class TrainingDashboard {
         button.setLayoutParams(params);
     }
 
-    private LinearLayout readinessRow(String title, String body) {
-        LinearLayout row = row();
-        TextView symbol = text("✓", 17, OLIVE, true);
-        symbol.setGravity(Gravity.CENTER);
-        symbol.setBackground(shape(Color.rgb(238, 243, 229), 12, 0));
-        row.addView(symbol, new LinearLayout.LayoutParams(dp(36), dp(36)));
-        LinearLayout label = column();
-        label.addView(text(title, 14, INK, true));
-        add(label, text(body, 12, MUTED, false), 5);
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, -2, 1);
-        params.setMarginStart(dp(12));
-        row.addView(label, params);
-        return row;
-    }
+     private LinearLayout readinessRow(String title, String body) {
+         LinearLayout row = row();
+         TextView symbol = text("✓", 16, OLIVE, true);
+         symbol.setGravity(Gravity.CENTER);
+         symbol.setBackground(shape(ACCENT_TINT, 10, 0));
+         row.addView(symbol, new LinearLayout.LayoutParams(dp(34), dp(34)));
+         LinearLayout label = column();
+         label.addView(text(title, 14, INK, true));
+         add(label, text(body, 12, MUTED, false), 4);
+         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, -2, 1);
+         params.setMarginStart(dp(12));
+         row.addView(label, params);
+         return row;
+     }
 
-    private TextView stat(LinearLayout parent, String label) {
-        if (parent.getOrientation() == LinearLayout.VERTICAL) {
-            LinearLayout cell = row();
-            cell.addView(text(label, 13, MUTED, false), new LinearLayout.LayoutParams(0, -2, 1));
-            TextView value = text("—", 21, INK, true);
-            cell.addView(value);
-            add(parent, cell, parent.getChildCount() == 0 ? 0 : 16);
-            return value;
-        }
-        LinearLayout cell = column();
-        cell.setPadding(0, 0, dp(10), 0);
-        TextView value = text("—", 23, INK, true);
-        cell.addView(value);
-        add(cell, text(label, 11, MUTED, false), 5);
-        parent.addView(cell, new LinearLayout.LayoutParams(0, -2, 1));
-        return value;
-    }
+     private TextView stat(LinearLayout parent, String label) {
+         if (parent.getOrientation() == LinearLayout.VERTICAL) {
+             LinearLayout cell = row();
+             cell.addView(text(label, 13, MUTED, false), new LinearLayout.LayoutParams(0, -2, 1));
+             TextView value = text("—", 22, ACCENT_DEEP, true);
+             value.setLetterSpacing(0.02f);
+             cell.addView(value);
+             add(parent, cell, parent.getChildCount() == 0 ? 0 : 14);
+             return value;
+         }
+         LinearLayout cell = column();
+         cell.setPadding(dp(2), 0, dp(14), 0);
+         TextView value = text("—", 24, ACCENT_DEEP, true);
+         value.setLetterSpacing(0.02f);
+         cell.addView(value);
+         add(cell, text(label, 11, MUTED, false), 4);
+         parent.addView(cell, new LinearLayout.LayoutParams(0, -2, 1));
+         return value;
+     }
 
     private View divider() {
         View line = new View(activity);
@@ -450,12 +541,13 @@ final class TrainingDashboard {
         return line;
     }
 
-    private LinearLayout card(int color, int padding) {
-        LinearLayout view = column();
-        view.setPadding(dp(padding), dp(padding), dp(padding), dp(padding));
-        view.setBackground(shape(color, 18, color == Color.WHITE ? LINE : 0));
-        return view;
-    }
+     private LinearLayout card(int color, int padding) {
+         LinearLayout view = column();
+         view.setPadding(dp(padding), dp(padding), dp(padding), dp(padding));
+         view.setBackground(shape(color, 18, color == Color.WHITE ? LINE : 0));
+         view.setElevation(dp(2));
+         return view;
+     }
 
     private TextView text(String value, int size, int color, boolean bold) {
         TextView view = new TextView(activity);
@@ -491,9 +583,9 @@ final class TrainingDashboard {
         return shape;
     }
 
-    private RippleDrawable ripple(int color, int radius, int stroke) {
-        return new RippleDrawable(ColorStateList.valueOf(0x204C6648), shape(color, radius, stroke), null);
-    }
+     private RippleDrawable ripple(int color, int radius, int stroke) {
+         return new RippleDrawable(ColorStateList.valueOf(0x283B6B3E), shape(color, radius, stroke), null);
+     }
 
     private LinearLayout row() {
         LinearLayout view = new LinearLayout(activity);
@@ -515,4 +607,22 @@ final class TrainingDashboard {
     }
 
     private int dp(int value) { return Math.round(value * activity.getResources().getDisplayMetrics().density); }
+     private LinearLayout sectionTitle(String title, int accent) {
+         LinearLayout row = row();
+         row.setGravity(Gravity.CENTER_VERTICAL);
+         View bar = new View(activity);
+         bar.setBackground(shape(accent, 2, 0));
+         LinearLayout.LayoutParams barParams = new LinearLayout.LayoutParams(dp(3), dp(16));
+         row.addView(bar, barParams);
+         LinearLayout.LayoutParams labelParams = new LinearLayout.LayoutParams(-2, -2);
+         labelParams.setMarginStart(dp(10));
+         row.addView(text(title, 17, INK, true), labelParams);
+         return row;
+     }
+     private TextView pill(String value, int bg, int fg) {
+         TextView v = text(value, 11, fg, true);
+         v.setPadding(dp(9), dp(4), dp(9), dp(4));
+         v.setBackground(shape(bg, 20, 0));
+         return v;
+     }
 }

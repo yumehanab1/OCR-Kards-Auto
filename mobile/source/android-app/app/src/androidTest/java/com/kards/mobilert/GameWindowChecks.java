@@ -53,6 +53,26 @@ final class GameWindowChecks {
         require(GameWindowState.inspect(Arrays.asList(shade),true,game).game==null,"hidden_game_lock_stops");
         require(GameWindowState.inspect(Arrays.asList(other,shade),false,game).game==null,"other_app_under_shade_stops");
         require(GameWindowState.inspect(java.util.Collections.emptyList(),false,game).game==null,"empty_inventory_not_assumed_notification");
-        return new JSONObject().put("passed",true).put("checks",22).put("device_inputs",0);
+        Rect wide=new Rect(0,0,1612,720);
+        GameWindowState.Window phoneGame=window(20,1,1,GameWindowState.GAME,wide,true,true,false);
+        Rect widgetArea=new Rect(1475,317,1612,432);
+        GameWindowState.Window widget=window(21,4,5,"",widgetArea,false,false,false);
+        GameWindowState phone=GameWindowState.inspect(Arrays.asList(phoneGame,widget),false);
+        require(phone.game!=null && !phone.occluded,"wide_unknown_edge_widget_is_local");
+        require(phone.blocksPath(new float[][]{{1550,360}}),"edge_widget_touch_still_blocked");
+        require(!phone.blocksPath(new float[][]{{806,650}}),"wide_opening_confirm_outside_widget");
+        require(phone.blocksPath(new float[][]{{1400,360},{1600,360}}),"drag_crossing_widget_still_blocked");
+        GameWindowState.Window focusedWidget=window(22,4,5,"",widgetArea,true,true,false);
+        require(GameWindowState.inspect(Arrays.asList(phoneGame,focusedWidget),false).occluded,"focused_edge_widget_waits");
+        GameWindowState.Window centerWidget=window(23,3,5,"other.widget",new Rect(700,317,837,432),false,false,false);
+        require(GameWindowState.inspect(Arrays.asList(phoneGame,centerWidget),false).occluded,"center_popup_still_waits");
+        GameWindowState.Window largeEdge=window(24,3,5,"",new Rect(1475,200,1612,500),false,false,false);
+        require(GameWindowState.inspect(Arrays.asList(phoneGame,largeEdge),false).occluded,"large_edge_panel_still_waits");
+        GameWindowState.Window unknownFull=window(25,3,5,"",wide,false,false,false);
+        require(GameWindowState.inspect(Arrays.asList(phoneGame,unknownFull),false).occluded,"unknown_fullscreen_overlay_still_waits");
+        GameWindowState.Window externalApp=window(26,1,5,"other.app",widgetArea,false,false,false);
+        require(GameWindowState.inspect(Arrays.asList(phoneGame,externalApp),false).game==null,"external_application_not_widget_exemption");
+        require(GameWindowState.inspect(Arrays.asList(phoneGame,widget),true).game==null,"wide_widget_does_not_override_lock");
+        return new JSONObject().put("passed",true).put("checks",32).put("device_inputs",0);
     }
 }

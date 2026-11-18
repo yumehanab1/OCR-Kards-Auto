@@ -54,7 +54,13 @@ final class GameWindowState {
             boolean thinBar=window.type!=1 && !window.active && !window.focused
                     && (visible.height()<=application.bounds.height()*.08
                         || visible.width()<=application.bounds.width()*.04);
-            if(!thinBar)blocked=true;
+            // Small edge widgets block their actual touch paths, not the whole
+            // board. Keep them in obstructions, including unknown-owner widgets.
+            boolean edgeWidget=window.type!=1 && !window.active && !window.focused
+                    && visible.width()<=application.bounds.width()*.10
+                    && visible.height()<=application.bounds.height()*.20
+                    && (visible.left==application.bounds.left || visible.right==application.bounds.right);
+            if(!thinBar && !edgeWidget)blocked=true;
         }
         GameWindowState result=new GameWindowState(application,blocked,application.owner);
         result.obstructions.addAll(obstructions);return result;

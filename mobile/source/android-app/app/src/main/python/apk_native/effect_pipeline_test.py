@@ -108,7 +108,7 @@ def run():
                                    'frame_id':91,'elapsed_ms':1234}
                 full=fixture.pipeline.complete_planning(source.copy(),partial)
                 check('same_source_completion_'+suffix,full['planning_complete'] and full['hand_scanned']
-                      and full['combat_scanned'] and full['selected_action']['action']=='attack_hq'
+                      and full['combat_scanned'] and full['selected_action']['action']=='deploy'
                       and bool(full['current_state_key']) and full['source']==partial['source']
                       and full['source_shape']==list(shape) and full['completed_from_scope']=='effect_'+context)
                 check('cached_evidence_not_rescanned_'+suffix,
@@ -189,7 +189,7 @@ def run():
         partial=fixture.pipeline.observe_effect(source,'deploy')
         full=fixture.pipeline.observe(source)
         check('ordinary_full_still_plans',full['planning_complete'] and full['hand_scanned']
-              and full['selected_action']['action']=='attack_hq')
+              and full['selected_action']['action']=='deploy')
         check('new_full_capture_invalidates_cache',fails(lambda:fixture.pipeline.complete_planning(source,partial),
                                                        'effect_planning_cache_miss'))
         check('unsupported_context_rejected',fails(lambda:fixture.pipeline.observe_effect(source,'end_turn'),

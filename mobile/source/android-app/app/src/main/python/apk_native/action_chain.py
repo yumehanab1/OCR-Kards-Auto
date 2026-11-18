@@ -1,4 +1,4 @@
-"""One offline action per fresh observation: attack, move, then deploy."""
+"""Replan one safe step at a time: spend hand resources, then activate the board."""
 
 
 def select(entry,allow=lambda action:True,bomber_roll=.25):
@@ -8,6 +8,11 @@ def select(entry,allow=lambda action:True,bomber_roll=.25):
     if state=='opponent_turn':return dict(base,action='wait',reason='explicit_opponent_turn')
     if state!='battle':return dict(base,**{k:v for k,v in entry.get('plan',{}).items() if k not in base})
     deploy=entry['plan']
+    # A quarantined first hand card must not conceal other playable cards.
+    deployments=deploy.get('candidates') or [deploy]
+    for candidate in deployments:
+        if candidate.get('action') in ('deploy','blind_middle') and allow(candidate):
+            return dict(base,**{k:v for k,v in candidate.items() if k not in base})
     options=[];moves=[];skipped=[]
     if entry['scene']['frontline']['owner']=='unknown':skipped.append('frontline_unknown_combat_locally_skipped')
     for option in (entry.get('combat') or {}).get('options',[]):
@@ -23,10 +28,9 @@ def select(entry,allow=lambda action:True,bomber_roll=.25):
             current.update(kind='attack_hq' if category=='hq' else 'attack_unit',target=target,
                            target_category=category,bomber_roll=bomber_roll)
         (moves if current['kind']=='movefront' else options).append(current)
-    for action in options+moves:
+    priority={'attack_unit':0,'movefront':1,'attack_hq':2}
+    for action in sorted(options+moves,key=lambda item:priority.get(item['kind'],3)):
         if allow(action):return dict(base,action=action['kind'],combat_plan=action,locally_skipped=skipped)
-    if deploy.get('action') in ('deploy','blind_middle') and allow(deploy):
-        return dict(base,**{k:v for k,v in deploy.items() if k not in base})
     # A provisional screenshot does not prove all objects/markers were recalled.
     # Therefore no end-turn is dispatched from absence of candidates alone.
     return dict(base,action='end_turn_candidate',locally_skipped=skipped,

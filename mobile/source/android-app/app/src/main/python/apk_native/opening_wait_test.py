@@ -78,6 +78,18 @@ def run(assets):
     ocr=OCR([row()]);observed=recognizer().observe(frame,dict(packet,source_width=1279),ocr)
     check('wrong_source_geometry_rejected_before_ocr',observed['phase']=='UNKNOWN' and ocr.calls==0)
     check('no_ocr_cannot_invent_waiting',recognizer().observe(frame,packet,None)['phase']=='UNKNOWN')
+    class ScopedOCR(OCR):
+        region_engine=True
+        def regions(self,image,regions,scope):
+            check('wait_scope_is_read_only_opening',scope=='opening_controls')
+            self.calls+=1
+            return [(r['box'],r['text'],r['score']) for r in self.items],0
+        def __call__(self,image):raise AssertionError('full OCR before current wait proof')
+    value=recognizer();scoped=ScopedOCR([row()])
+    value.detector.match=lambda *a:(_ for _ in ()).throw(AssertionError('broad search before wait'))
+    check('scoped_wait_precedes_broad_templates',value.observe(frame,packet,scoped)['phase']=='WAITING_OPPONENT_MULLIGAN'
+          and scoped.calls==1)
+    check('above_one_confidence_rejected',opponent_mulligan_wait(frame,[row(score=1.01)]) is None)
     return dict(passed=True,checks=checks,scope='current_opponent_mulligan_wait_only',device_inputs=0,captures=0)
 
 

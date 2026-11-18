@@ -13,6 +13,76 @@ final class WorkingFrameEvidenceChecks {
     private static void check(JSONArray checks,String name,boolean ok) throws Exception {
         checks.put(new JSONObject().put("name",name).put("passed",ok));if(!ok)throw new IllegalStateException(name);
     }
+
+    static void deckSelectionChecks(File root,JSONArray checks) throws Exception {
+        for (String outcome:new String[]{"unconfirmed","confirmed","cancelled","corrupt"}) {
+            File round=Files.createTempDirectory(root.toPath(),"deck-"+outcome+"-").toFile();
+            WorkingFrameEvidence evidence=new WorkingFrameEvidence(round);
+            JSONObject before=packet(round,1);evidence.register(before);
+            JSONArray points=new JSONArray().put(new JSONArray().put(734.5).put(264.5));
+            evidence.beginDeckSelection(1,new JSONObject().put("accepted",true).put("completed",true)
+                    .put("physical_path_points",points));
+            boolean cancelled="cancelled".equals(outcome), corrupt="corrupt".equals(outcome);
+            int latest=cancelled ? 1 : corrupt ? 2 : 12;
+            for (int i=2;i<=latest;i++) {
+                evidence.beforeCapture();evidence.register(packet(round,i));
+                evidence.observeDeckSelection(i,"deck_list",false);
+            }
+            File retained=new File(round,"failed-menu-sources");
+            check(checks,"deck_no_archive_while_polling_"+outcome,!retained.exists());
+            if (latest==12) check(checks,"deck_pins_only_needed_originals_"+outcome,
+                    new File(round,"frames/00001.png").isFile() && new File(round,"frames/00002.png").isFile()
+                    && !new File(round,"frames/00003.png").exists() && new File(round,"frames/00012.png").isFile());
+            if ("confirmed".equals(outcome)) {
+                evidence.observeDeckSelection(12,"deck_ready",true);
+                evidence.beforeCapture();
+                check(checks,"deck_success_releases_originals",!new File(round,"frames/00001.png").exists()
+                        && !new File(round,"frames/00002.png").exists());
+            } else if (!cancelled) evidence.observeDeckSelection(latest-1,"deck_ready",true); // stale ID is not proof
+            File png=new File(before.getString("png_path"));
+            if (corrupt) {
+                byte[] bytes=Files.readAllBytes(png.toPath());
+                Files.write(png.toPath(),java.util.Arrays.copyOf(bytes,bytes.length-5));
+            }
+            String reason=cancelled?"cancelled":"menu_action_unconfirmed:menu_select_deck";
+            evidence.finishDeckSelection("2000000000000-abcdef01",1,reason);
+            if ("confirmed".equals(outcome)) {
+                check(checks,"deck_success_has_no_failed_archive",!retained.exists());
+                evidence.finish(false);
+            } else {
+                JSONObject manifest=new JSONObject(new String(Files.readAllBytes(new File(retained,"manifest.json").toPath()),
+                        java.nio.charset.StandardCharsets.UTF_8));
+                if (corrupt) {
+                    JSONArray partial=manifest.getJSONArray("originals");
+                    check(checks,"deck_truncated_png_not_reported_complete",
+                            "evidence_error".equals(manifest.getString("outcome")) && partial.length()==2
+                            && partial.getJSONObject(0).has("error") && !new File(retained,"00001.png").exists()
+                            && partial.getJSONObject(1).getBoolean("png_crc_iend_valid")
+                            && new File(retained,"00002.png").isFile());
+                    continue;
+                }
+                JSONArray originals=manifest.getJSONArray("originals");
+                check(checks,"deck_archive_identity_and_landing_"+outcome,(cancelled?1:3)==originals.length()
+                        && "unconfirmed".equals(manifest.getString("outcome")) && reason.equals(manifest.getString("stop_reason"))
+                        && "2000000000000-abcdef01".equals(manifest.getString("session_id"))
+                        && manifest.getJSONObject("dispatch").getJSONArray("physical_path_points").toString().equals(points.toString()));
+                int[] ids=cancelled?new int[]{1}:new int[]{1,2,12};
+                for (int i=0;i<ids.length;i++) {
+                    JSONObject row=originals.getJSONObject(i), packet=row.getJSONObject("source_packet");
+                    byte[] source=Files.readAllBytes(new File(packet.getString("png_path")).toPath());
+                    byte[] saved=Files.readAllBytes(new File(retained,row.getString("png")).toPath());
+                    byte[] digest=java.security.MessageDigest.getInstance("SHA-256").digest(saved);
+                    check(checks,"deck_exact_original_"+outcome+"_"+ids[i],packet.getLong("frame_id")==ids[i]
+                            && row.getBoolean("png_crc_iend_valid") && row.getLong("bytes")==saved.length
+                            && java.util.Arrays.equals(source,saved)
+                            && new java.math.BigInteger(1,digest).equals(new java.math.BigInteger(row.getString("sha256"),16)));
+                }
+                evidence.finish(true);
+                check(checks,"deck_failure_working_sources_released_"+outcome,
+                        new File(round,"frames").listFiles((dir,name)->name.endsWith(".png")).length==0);
+            }
+        }
+    }
     private static JSONObject packet(File round,int id) throws Exception {
         File png=new File(round,String.format(java.util.Locale.ROOT,"frames/%05d.png",id));png.getParentFile().mkdirs();
         Bitmap bitmap=Bitmap.createBitmap(320,180,Bitmap.Config.ARGB_8888);
@@ -23,6 +93,7 @@ final class WorkingFrameEvidenceChecks {
     }
     static void run(Context context,JSONArray checks) throws Exception {
         File round=Files.createTempDirectory(new File(context.getFilesDir(),"device-tests").toPath(),"working-frames-").toFile();
+        deckSelectionChecks(round,checks);
         WorkingFrameEvidence evidence=new WorkingFrameEvidence(round);
         JSONObject first=packet(round,1);evidence.register(first);evidence.select(1,"action_before");evidence.beginEffect(1);
         byte[] original=Files.readAllBytes(new File(first.getString("png_path")).toPath());

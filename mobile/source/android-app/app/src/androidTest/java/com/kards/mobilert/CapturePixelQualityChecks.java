@@ -34,8 +34,10 @@ final class CapturePixelQualityChecks {
             String retry="{\"active\":true,\"event\":\"capture_retry\",\"reason\":\"capture_black_frame\"}";
             require(FloatingStatus.from(retry,"").phase.contains("截图黑屏"),"specific retry label");
             int rgbaChecks=checkRgbaCopy();
-            return new JSONObject().put("passed",true).put("checks",11+rgbaChecks)
-                    .put("rgba_copy_checks",rgbaChecks).put("device_inputs",0);
+            int rotationChecks=ProjectionGeometryChecks.run();
+            return new JSONObject().put("passed",true).put("checks",11+rgbaChecks+rotationChecks)
+                    .put("rgba_copy_checks",rgbaChecks).put("rotation_checks",rotationChecks)
+                    .put("projection_frame_policy",ProjectionFramePolicyChecks.run()).put("device_inputs",0);
         } finally {bitmap.recycle();}
     }
 
@@ -71,7 +73,19 @@ final class CapturePixelQualityChecks {
         expectInvalid(ByteBuffer.allocate(4),1,0,4,4,"zero height");
         expectInvalid(ByteBuffer.allocate(4),Integer.MAX_VALUE,2,4,Integer.MAX_VALUE,"oversized dimensions");
         expectInvalid(null,1,1,4,4,"missing buffer");
-        return 14;
+        // High-resolution padded source crosses 32-row strip boundaries and
+        // ends in a short row. Verify every pixel, not only sample points.
+        int width=2400,height=1080,stride=width*4+64;
+        ByteBuffer high=ByteBuffer.allocate((height-1)*stride+width*4);
+        int[] expected=new int[width*height];
+        for(int y=0;y<height;y++)for(int x=0;x<width;x++) {
+            int color=Color.rgb(x%256,y%256,(x+y)%256),at=y*stride+x*4;
+            expected[y*width+x]=color;
+            high.put(at,(byte)Color.red(color));high.put(at+1,(byte)Color.green(color));
+            high.put(at+2,(byte)Color.blue(color));high.put(at+3,(byte)255);
+        }
+        assertCopy(high,width,height,4,stride,expected,"2400x1080 padded strip copy");
+        return 15;
     }
 
     private static ByteBuffer rgbaBytes(int prefix,int width,int height,int pixelStride,

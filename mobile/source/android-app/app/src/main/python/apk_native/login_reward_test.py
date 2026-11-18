@@ -98,6 +98,41 @@ def run(assets):
     decision=flow.observe(seen,7,200)
     check('existing_menu_flow_uses_existing_reward_action',decision==dict(action='menu_dismiss_reward',bounds=target))
 
+    def ocr_row(text,x,y,w,h,score=.99):
+        return dict(text=text,score=score,box=[[x,y],[x+w,y],[x+w,y+h],[x,y+h]])
+    for w,h,top in ((1280,960,48),(1600,1200,58)):
+        recognizer,bridge,image,packet,_=make(w,h)
+        box=[round(w*.35),top,round(w*.30),round(h*.08)]
+        footer=[round(w*.35),round(h*.89),round(w*.30),round(h*.045)]
+        items=[ocr_row('每日登录奖励',*box),ocr_row('轻触任意位置进入主屏幕。',*footer),
+               ocr_row('已领取',round(w*.65),round(h*.46),round(w*.06),round(h*.034)),
+               ocr_row('1x核心卡包',round(w*.60),round(h*.69),round(w*.12),round(h*.034))]
+        bridge.items=bridge.early=items
+        seen=recognizer.observe(image,packet)
+        evidence=seen.get('login_reward_evidence',{})
+        check('tablet_exact_source_geometry_'+str(w),seen.get('targets')=={'menu_dismiss_reward':footer}
+              and evidence['title']['bounds']==box and evidence['scope']=='full_frame'
+              and evidence['claimed']['text']=='已领取' and evidence['frame_id']==7)
+        for name,bad in (
+                ('above_tablet_band',[ocr_row('每日登录奖励',box[0],round(h*.03),*box[2:]),*items[1:]]),
+                ('no_claimed_badge',items[:2]),
+                ('weak_claimed_badge',[*items[:2],dict(items[2],score=.89)]),
+                ('misplaced_claimed_badge',[*items[:2],ocr_row('已领取',box[0],footer[1],80,32)]),
+                ('duplicate_even_if_weak',[*items,dict(items[0],score=.60)]),
+                *[(text,[*items,ocr_row(text,box[0],round(h*.50),90,30)]) for text in
+                  ('奖励现可领取','轻触领取','打开卡包','商店','购买','竞技场')]):
+            check('tablet_rejects_'+name+'_'+str(w),semantic_login_reward(image,bad) is None)
+    phone=np.zeros((720,1280,3),np.uint8)
+    check('wide_old_title_floor_not_relaxed',semantic_login_reward(phone,[
+        ocr_row('每日登录奖励',490,36,300,60),ocr_row('轻触任意位置进入主屏幕',490,640,300,32)]) is None)
+    flow=MenuFlow('casual',0,direct_controls=True)
+    flow.accepted('menu_dismiss_reward',1000);flow.reward_source_frame=7
+    home=dict(state='home',targets={'menu_home_start':[60,80,120,30]})
+    check('reward_cannot_confirm_from_same_frame',flow.observe(home,7,2000)=={'wait':'home'})
+    check('reward_unknown_is_not_postcondition',flow.observe(dict(state='unknown'),8,3000)=={'wait':'unknown'})
+    check('reward_recognized_new_destination_releases',flow.observe(home,9,4000).get('action')=='menu_home_start')
+    check('reward_cannot_repeat_after_release',flow.observe(seen,10,5000)=={'stop':'menu_repeated_state:menu_dismiss_reward'})
+
     recognizer,bridge,image,packet,_=make(1280,720)
     bridge.early=scaled_rows(1280,720)[:1]
     with mock.patch('apk_native.menu.login_reward_regions',side_effect=regions):seen=recognizer.observe(image,packet)

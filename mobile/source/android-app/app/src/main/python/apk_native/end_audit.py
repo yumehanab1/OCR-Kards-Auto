@@ -16,10 +16,14 @@ def audit(observed,allow,failed_deploys=0,*,allow_local_unknown=False):
     control=end_control(observed.get('page',{}))
     if control is None:return refusal('current_end_control_unconfirmed')
     plan=observed.get('plan') or {};deploy=plan.get('action')
+    deployments=plan.get('candidates') or [plan]
+    if failed_deploys<2 and any(candidate.get('action') in ('deploy','blind_middle') and allow(candidate) for candidate in deployments):
+        return refusal('remaining_deployment_candidate')
     if failed_deploys>=2:deploy_basis='same_turn_two_failed_deploys'
     elif deploy=='skip_deploy' and plan.get('reason') in ('four_support_units_observed','all_observed_fee_numerals_unavailable'):
         deploy_basis=plan['reason']
-    elif deploy in ('deploy','blind_middle') and not allow(plan):deploy_basis='current_card_isolated_after_completed_touch'
+    elif deploy in ('deploy','blind_middle') and not any(allow(candidate) for candidate in deployments):
+        deploy_basis='current_card_isolated_after_completed_touch'
     elif (allow_local_unknown and deploy=='skip_deploy' and plan.get('grab_source') is None
           and plan.get('reason')=='all_blind_candidates_overlap_suspected_orders'
           and plan.get('blind_selection',{}).get('point') is None

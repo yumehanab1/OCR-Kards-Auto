@@ -37,6 +37,23 @@ public final class MenuDispatchGuardChecks {
     }
 
     private void matrix() throws Exception {
+        for (int[] size:new int[][]{{1280,960},{1600,1200},{1280,720},{1612,720}})
+            verify("login_reward_safe_prompt_"+size[0]+"x"+size[1], t -> nativeReward(t,size[0],size[1]), null);
+        verify("login_reward_missing_proof", t -> reward(t).remove("title"), "login_reward_unverified");
+        verify("login_reward_too_high", t -> reward(t).getJSONObject("title").getJSONArray("bounds").put(1,35), "login_reward_unverified");
+        verify("login_reward_weak_title", t -> reward(t).getJSONObject("title").put("score",.89), "login_reward_unverified");
+        verify("login_reward_duplicate_title", t -> reward(t).getJSONArray("captions").put("每日登录奖励"), "login_reward_unverified");
+        verify("login_reward_missing_claimed_cell", t -> reward(t).remove("claimed"), "login_reward_unverified");
+        verify("login_reward_partial_probe_is_not_tablet_evidence", t -> reward(t).put("scope","menu_controls"), "login_reward_unverified");
+        verify("login_reward_generic_continue_not_whitelisted", t -> reward(t).getJSONObject("prompt").put("text","轻触继续"), "login_reward_unverified");
+        verify("login_reward_requires_same_capture", t -> reward(t).put("frame_id",2), "login_reward_unverified");
+        verify("login_reward_cannot_target_reward_cell", t -> {reward(t);t.plan.put("target_bounds",new JSONArray(new int[]{140,444,76,32}));}, "login_reward_unverified");
+        for (String text : new String[]{"奖励现可领取","轻触领取","开包","打开卡包","商 店","购买","竞技场"})
+            verify("login_reward_rejects_"+text,t -> reward(t).getJSONArray("captions").put(text), "login_reward_unverified");
+        verify("login_reward_expiry_stays_strict", t -> {reward(t);t.now=6001;}, "frame_age_expired");
+        verify("login_reward_foreground_stays_strict", t -> {reward(t);t.generation++;}, "foreground_changed");
+        verify("login_reward_cancellation_stays_strict", t -> {reward(t);t.cancelled=true;}, "cancelled");
+        verify("login_reward_budget_stays_strict", t -> {reward(t);t.deadline=t.now+7999;}, "insufficient_verification_budget");
         verify("startup_unknown_allows_blank_without_popup_proof", t -> nativeStartup(t), null);
         verify("startup_queue_refuses_blank", t -> {nativeStartup(t);t.plan.put("queue_requested",true);}, "startup_cleanup_scope_required");
         verify("startup_disabled_refuses_blank", t -> {nativeStartup(t);t.plan.put("startup_cleanup",false);}, "startup_cleanup_scope_required");
@@ -177,7 +194,8 @@ public final class MenuDispatchGuardChecks {
             verify("changed_metadata_" + key, t -> t.plan.put(key, t.plan.getLong(key) + 1), "frame_metadata_mismatch");
         }
         verify("unsupported_source_size_refuses_input", t -> {
-            t.frame.put("source_width", 1600); t.plan.put("source_width", 1600);
+            // 1600x1080 is now a supported tablet ratio; use a truly unsupported near-square source.
+            t.frame.put("source_width", 1300); t.plan.put("source_width", 1300);
         }, "unsupported_frame_size");
         verify("non_game_foreground_refuses_input", t -> t.foreground = "com.kards.mobilert", "foreground_changed");
         verify("foreground_generation_cannot_change", t -> t.generation++, "foreground_changed");
@@ -244,6 +262,34 @@ public final class MenuDispatchGuardChecks {
             nativeOffer(t); t.plan.getJSONObject("promotion_evidence").getJSONObject("edge_top")
                     .put("offset", point(10, 0));
         }, "native_promotion_close_unverified");
+    }
+
+    private static JSONObject nativeReward(Case t,int w,int h) throws Exception {
+        t.frame.put("width",w).put("height",h).put("source_width",w).put("source_height",h).put("coordinate_space","source_pixels");
+        for (String key : new String[]{"width","height","source_width","source_height","coordinate_space"})
+            t.plan.put(key,t.frame.get(key));
+        boolean compact=h==960 || h==1200;
+        int top=h==960?48:h==1200?58:37;
+        int[] title={w/3,top,w/3,h/12}, prompt={w/3,(int)(h*.89),w/3,h/24};
+        String titleText="每日登录奖励", promptText="轻触任意位置进入主屏幕";
+        JSONObject proof=new JSONObject().put("basis","current_daily_login_title_and_continue_prompt")
+                .put("frame_id",3).put("scope",compact?"full_frame":"menu_controls")
+                .put("title",rewardRow(titleText,title)).put("prompt",rewardRow(promptText,prompt))
+                .put("captions",new JSONArray().put(titleText).put(promptText).put("1x核心卡包"))
+                .put("target_bounds",new JSONArray(prompt));
+        if (compact) {
+            proof.getJSONArray("captions").put("已领取");
+            proof.put("claimed",rewardRow("已领取",new int[]{w/4,h/2,w/16,h/30}));
+        }
+        JSONArray point=point(prompt[0]+prompt[2]/2.0,prompt[1]+prompt[3]/2.0);
+        t.plan.put("state","login_reward").put("context","menu_dismiss_reward").put("first_deck_selected",false)
+                .put("login_reward_evidence",proof).put("target_bounds",new JSONArray(prompt)).put("from",point).put("to",point);
+        return proof;
+    }
+
+    private static JSONObject reward(Case t) throws Exception { return nativeReward(t,1280,960); }
+    private static JSONObject rewardRow(String text,int[] bounds) throws Exception {
+        return new JSONObject().put("text",text).put("score",.99).put("bounds",new JSONArray(bounds));
     }
 
     private static void nativeGeneric(Case t) throws Exception {

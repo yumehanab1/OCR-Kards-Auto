@@ -19,6 +19,8 @@ STANDARD_16_9 = LayoutProfile('standard_16_9', (.12,.60), (.18,.75), (.03,.42),
                               (.55,.85), (.35,.55), (.30,.60))
 WIDE = LayoutProfile('wide', (.12,.60), (.18,.75), (.03,.42),
                      (.55,.85), (.35,.55), (.30,.60))
+TABLET = LayoutProfile('tablet_landscape', (.12,.60), (.18,.75), (.03,.42),
+                       (.55,.85), (.35,.55), (.30,.60))
 OTHER = LayoutProfile('other_native', (.12,.60), (.18,.75), (.03,.42),
                       (.55,.85), (.35,.55), (.30,.60))
 
@@ -26,6 +28,7 @@ def for_shape(shape):
     height,width=shape[:2]
     if height<=0 or width<=0: raise ValueError('invalid_layout_shape')
     ratio=width/height
+    if 1.28<=ratio<1.70: return TABLET
     if abs(ratio-16/9)<=.02: return STANDARD_16_9
     if ratio>16/9+.02: return WIDE
     return OTHER

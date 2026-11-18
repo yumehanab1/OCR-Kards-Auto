@@ -1,4 +1,4 @@
-# KARDS Android 0.2.3 / code152
+# KARDS Android 0.2.4 / code191
 
 这是手机版独立源码快照。Java 管理界面、无障碍截图、前台身份、取消、预算及真实触控回执；内置 Python/OpenCV 模块负责画面识别、动作选择和动作后验。OCR 模型、运行库、模板及内置引擎随 APK 提供，使用 APK 无需 PC、ADB、Termux 或另装 Python。
 
@@ -8,7 +8,7 @@ Android 11/API30 起可安装，包含 arm64-v8a 和 x86_64。Android 14/API34 �
 
 本快照支持 `com.android1939.kards` 与 `com.android1939.kardsapk`，并保留前台窗口的真实包名。“仅启动辅助 · 手动打开游戏”不再依赖安装探测，可先待命再手动打开游戏；自动打开入口仍需解析游戏启动 Intent，进入后继续校验真实游戏前台。
 
-完整安装说明和验证范围见[手机版文档](../../README.md)及[0.2.3 发布报告](../../../docs/reports/mobile/APK_0.2.3_RELEASE.md)。连续十局属于 code147 开发包，Android15三局属于code150；与code152正式构建分开记录，触控完成不等于每项游戏效果均已确认。
+安装及验证范围见[手机版文档](../../README.md)及[0.2.4 发布说明](../../releases/0.2.4.md)。正式包的设备组件验证与 code190 开发包的对局记录分开，不等于正式包整局验证。
 
 ## 构建
 
@@ -31,3 +31,5 @@ python tools/prepare_mobile_core.py --check --packaged-only
 Python 与 Android 测试源码保留，私有实机截图及运行日志不公开。需要回放图片的组件检查须先按 [TEST_FIXTURES.md](TEST_FIXTURES.md) 准备本地测试资产，缺图不能跳过断言或计为通过。正式 APK 排除测试 Python 及私有夹具；运行所需 OCR、引擎、模板及 atlas/mask 保留。
 
 手机版与 PC 源码独立维护；不要从仓库根目录 PC `src/` 覆盖 APK 内置引擎。
+
+[OCR 第三方许可及来源](app/src/main/assets/native-ocr/THIRD_PARTY_NOTICES.txt)随 APK 提供。

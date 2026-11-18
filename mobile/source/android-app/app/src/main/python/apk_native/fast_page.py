@@ -20,6 +20,7 @@ class FastPage:
         self.shape=None
         self.count=0
         self.stats={'local_hits':0,'full_fallbacks':0,'ocr_calls':0,'overlay_checks':0}
+        self.home_tracking=False
 
     def inspect_result(self,frame,result):
         result['result_proof']=self.results.inspect(frame,result,self.engine)
@@ -31,7 +32,7 @@ class FastPage:
 
     def probe_turn_result(self,frame,result):
         """Bounded semantic discovery even when an old turn glyph stays visible."""
-        if result.get('state') not in ('battle','opponent_turn'):return result
+        if result.get('state') not in ('battle','opponent_turn','unknown'):return result
         now=self.clock()
         if 'ocr_items' not in result and now-self.last_result_probe<5.:return result
         self.last_result_probe=now
@@ -121,6 +122,25 @@ class FastPage:
                 return evidence,result
         return evidence,None
 
+    def current_home(self,gray):
+        """Previous locations propose crops; both templates must match NEW pixels."""
+        if not self.home_tracking:return None
+        evidence={}
+        for name in ('home_play','home_tasks'):
+            previous=self.detector.locations.get(name,{})
+            if previous.get('score',0)<.93 or previous.get('bounds') is None:return None
+            needle=self.detector.scaled.get((name,gray.shape[0],previous.get('factor')))
+            if needle is None:return None
+            x,y,w,h=previous['bounds'];pad=12
+            left,top=max(0,x-pad),max(0,y-pad)
+            roi=gray[top:min(gray.shape[0],y+h+pad),left:min(gray.shape[1],x+w+pad)]
+            if roi.shape[0]<needle.shape[0] or roi.shape[1]<needle.shape[1]:return None
+            _,score,_,point=cv2.minMaxLoc(cv2.matchTemplate(roi,needle,cv2.TM_CCOEFF_NORMED))
+            if score<.93:return None
+            evidence[name]=dict(previous,score=float(score),ok=True,search='current_home_local',
+                                bounds=[left+point[0],top+point[1],needle.shape[1],needle.shape[0]])
+        return evidence
+
     def observe(self,frame,features=None):
         self.count+=1;ocr_used=False
         self.last_ocr_ms=0.
@@ -131,6 +151,7 @@ class FastPage:
             self.pending_result_state=None
             self.last_result_probe=self.clock()
             self.shape=frame.shape
+            self.home_tracking=False
         if self.pending_result_state is not None:
             # Discovery cadence must not delay the second independent frame.
             # ResultRecognizer checks the two current local crops first, then
@@ -144,8 +165,27 @@ class FastPage:
             self.pending_result_state=None
             pending_miss=pending
         gray=features.get('gray') if features is not None else cv2.cvtColor(frame,cv2.COLOR_BGR2GRAY)
+        home=self.current_home(gray)
+        if home is not None:
+            # Never reuse negative result evidence, even on a stable lobby.
+            evidence,override=self.inspect_result_overlays(frame,gray,features)
+            if override is not None:
+                self.home_tracking=False
+                return override
+            evidence.update(home)
+            self.detector.locations.update(home)
+            x,y,w,h=home['home_play']['bounds']
+            return dict(state='home',evidence=evidence,path='current_home_controls',ocr_used=False,
+                        plan=dict(action='open_start',point=[x+w/2,y+h/2],dispatch='offline_only'))
+        self.home_tracking=False
         hit=self.local(gray)
         scoped={'state':'unknown'}
+        probe=None
+        if hit is None:
+            # Result discovery must precede even the right-side turn OCR:
+            # animated result artwork there can consume the full frame age.
+            probe=self.probe_turn_result(frame,dict(state='unknown',plan={'action':None,'dispatch':'offline_only'}))
+            if probe.get('result_proof',{}).get('ready'):return probe
         if hit is None and self.inspect_turn_control(frame,scoped):
             # Current controls precede unrelated full-page template searches.
             # Result overlays retain their existing priority over the board.
@@ -154,6 +194,9 @@ class FastPage:
             scoped.update(path='current_scoped_turn_control',evidence=evidence)
             if pending_miss is not None and 'result_ocr' in pending_miss:
                 scoped['result_ocr']=pending_miss['result_ocr']
+            if probe is not None:
+                for key in ('ocr_used','result_ocr','result_probe'):
+                    if key in probe:scoped[key]=probe[key]
             return self.probe_turn_result(frame,scoped)
         # Recompute full-screen text candidates before every result check.
         # Use the same result evidence as the baseline; never reuse negatives.
@@ -170,6 +213,12 @@ class FastPage:
             return self.probe_turn_result(frame,result)
         self.stats['full_fallbacks']+=1
         result=self.detector.observe(frame,features)
+        if probe is not None:
+            for key in ('ocr_used','result_ocr','result_probe'):
+                if key in probe:result[key]=probe[key]
+        self.home_tracking=(result['state']=='home' and all(
+            result.get('evidence',{}).get(name,{}).get('score',0)>=.93
+            for name in ('home_play','home_tasks')))
         for key in ('turn_ocr','turn_ocr_items','ocr_used'):
             if key in scoped:result[key]=scoped[key]
         if result['state']=='battle':

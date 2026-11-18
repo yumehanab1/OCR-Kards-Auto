@@ -6,6 +6,11 @@ import org.json.JSONObject;
 /** Final menu tap boundary. It cannot authorize a battle action or retry a consumed frame. */
 final class MenuDispatchGuard {
     static final int MAX_INPUTS = 16;
+    private static final String REWARD_TITLE = "每日登录奖励", RETURN_HOME = "轻触任意位置进入主屏幕";
+    private static final java.util.regex.Pattern REWARD_CONFLICT = java.util.regex.Pattern.compile(
+            "领取|可领|开包|拆包|(?:打开|开启|开).*卡包|商店|购买|支付|充值|竞技场|[¥￥$€]");
+    private static final java.util.regex.Pattern REWARD_WHITESPACE = java.util.regex.Pattern.compile("[\\s\\p{Z}\\x{0085}\\x{001c}-\\x{001f}]+");
+    private static final java.util.regex.Pattern REWARD_END_PUNCTUATION = java.util.regex.Pattern.compile("[。.!！]+$");
 
     private MenuDispatchGuard() { }
 
@@ -71,6 +76,72 @@ final class MenuDispatchGuard {
         double frameWidth = nativePixels ? frame.getDouble("width") : 1280;
         double frameHeight = nativePixels ? frame.getDouble("height") : 720;
         if (x < 0 || y < 0 || w <= 0 || h <= 0 || x + w > frameWidth || y + h > frameHeight) return "invalid_target_bounds";
+        if (nativePixels && "menu_dismiss_reward".equals(context)
+                && !safeLoginReturn(plan.optJSONObject("login_reward_evidence"), frame, bounds, frameWidth, frameHeight))
+            return "login_reward_unverified";
+        if (context.endsWith("_daily")) {
+            if (!nativePixels) return "daily_requires_source_pixels";
+            JSONObject proof=plan.optJSONObject("daily_reward_evidence");
+            if (proof==null || !state.equals(proof.optString("state"))) return "daily_reward_unverified";
+            JSONArray target=proof.optJSONArray("target_bounds");
+            if(target==null || target.length()!=4)return "daily_reward_unverified";
+            for(int i=0;i<4;i++)if(!finite(target.opt(i)) || target.getDouble(i)!=bounds.getDouble(i))
+                return "daily_reward_bounds_mismatch";
+            boolean available="menu_claim_daily".equals(context);
+            String[] keys=available?new String[]{"title","available","claim"}:new String[]{"day_label","prompt"};
+            String[] texts=available?new String[]{"每日登录奖励","奖励现可领取","领取"}:
+                new String[]{"第"+proof.optInt("day")+"天","menu_collect_daily".equals(context)?"轻触领取":"轻触继续"};
+            for(int i=0;i<keys.length;i++) {
+                JSONObject row=proof.optJSONObject(keys[i]);
+                JSONArray box=row==null?null:row.optJSONArray("bounds");
+                if(row==null || !texts[i].equals(row.optString("text")) || !finite(row.opt("score"))
+                        || row.getDouble("score")<.90 || row.getDouble("score")>1 || box==null || box.length()!=4)
+                    return "daily_reward_unverified";
+                for(int j=0;j<4;j++)if(!finite(box.opt(j)))return "daily_reward_unverified";
+                if(box.getDouble(0)<0 || box.getDouble(1)<0 || box.getDouble(2)<=0 || box.getDouble(3)<=0
+                        || box.getDouble(0)+box.getDouble(2)>frameWidth || box.getDouble(1)+box.getDouble(3)>frameHeight)
+                    return "daily_reward_unverified";
+            }
+            if(available) {
+                if("current_daily_title_available_unique_claim_ticket".equals(proof.optString("basis"))) {
+                    JSONObject caption=proof.optJSONObject("caption");
+                    JSONArray cb=caption==null?null:caption.optJSONArray("bounds");
+                    if(caption==null || !caption.optString("text").matches("1[x×]?竞技场门票")
+                            || !finite(caption.opt("score")) || caption.getDouble("score")<.90
+                            || caption.getDouble("score")>1 || cb==null || cb.length()!=4)
+                        return "daily_reward_ticket_caption";
+                    for(int i=0;i<4;i++)if(!finite(cb.opt(i)))return "daily_reward_ticket_caption";
+                    double qx=cb.getDouble(0),qy=cb.getDouble(1),qw=cb.getDouble(2),qh=cb.getDouble(3);
+                    JSONArray claim=proof.getJSONObject("claim").getJSONArray("bounds");
+                    double cx=claim.getDouble(0)+claim.getDouble(2)/2;
+                    double cy=claim.getDouble(1)+claim.getDouble(3)/2;
+                    JSONArray title=proof.getJSONObject("title").getJSONArray("bounds");
+                    JSONArray avail=proof.getJSONObject("available").getJSONArray("bounds");
+                    double tx=title.getDouble(0)+title.getDouble(2)/2,ty=title.getDouble(1)+title.getDouble(3)/2;
+                    double ax=avail.getDouble(0)+avail.getDouble(2)/2,ay=avail.getDouble(1)+avail.getDouble(3)/2;
+                    if(qx<0 || qy<0 || qw<=0 || qh<=0 || qx+qw>frameWidth || qy+qh>frameHeight
+                            || tx<=frameWidth*.20 || tx>=frameWidth*.80 || ty<=frameHeight*.06 || ty>=frameHeight*.30
+                            || ax<=frameWidth*.20 || ax>=frameWidth*.80 || ay<=frameHeight*.70 || ay>=frameHeight*.96
+                            || cx<=frameWidth*.20 || cx>=frameWidth*.80 || cy<=frameHeight*.18 || cy>=frameHeight*.62
+                            || Math.abs(qx+qw/2-cx)>=frameWidth*.025 || qy+qh/2<=cy+frameHeight*.12
+                            || qy+qh/2>=cy+frameHeight*.32 || x>=cx || x+w<=cx
+                            || y<=cy+frameHeight*.03 || y>=cy+frameHeight*.12
+                            || y+h>=qy || y+h<=qy-frameHeight*.08
+                            || y<=frameHeight*.20 || y>=frameHeight*.68
+                            || w<=frameHeight*.10 || w>=frameHeight*.17 || h<=frameHeight*.11 || h>=frameHeight*.18
+                            || w/h<=.80 || w/h>=1.20)return "daily_reward_ticket_geometry";
+                } else if(!"current_daily_title_available_unique_claim_card".equals(proof.optString("basis"))
+                        || y<frameHeight*.22 || y+h>frameHeight*.80 || w<frameHeight*.075 || w>frameHeight*.18
+                        || h<frameHeight*.11 || h>frameHeight*.26 || w/h<.60 || w/h>.85)
+                    return "daily_reward_card_geometry";
+            } else {
+                if(!"current_daily_day_and_exact_prompt".equals(proof.optString("basis"))
+                        || proof.optInt("day")<1 || proof.optInt("day")>31 || y<frameHeight*.88
+                        || x+w/2<frameWidth*.30 || x+w/2>frameWidth*.70)return "daily_reward_prompt_geometry";
+                JSONArray prompt=proof.getJSONObject("prompt").getJSONArray("bounds");
+                for(int i=0;i<4;i++)if(prompt.getDouble(i)!=bounds.getDouble(i))return "daily_reward_bounds_mismatch";
+            }
+        }
         if ("menu_startup_cleanup".equals(context)) {
             if (!nativePixels || !Boolean.TRUE.equals(plan.opt("startup_cleanup"))
                     || !Boolean.FALSE.equals(plan.opt("queue_requested"))) return "startup_cleanup_scope_required";
@@ -123,6 +194,18 @@ final class MenuDispatchGuard {
             for (int i=0;i<4;i++) if (!finite(panel.opt(i)) || !finite(edges.opt(i))
                     || edges.getDouble(i)<0 || edges.getDouble(i)>1
                     || !currentShape && edges.getDouble(i)<.93) return "generic_popup_unverified";
+            if ("starter_bundle".equals(evidence.optString("offer_id"))) {
+                JSONArray captions=evidence.optJSONArray("caption_texts");
+                if (!currentShape || close.getDouble("score")<.93 || captions==null || captions.length()!=2
+                        || !"入门礼包".equals(captions.optString(0))
+                        || !"一次性优惠。".equals(captions.optString(1))) return "starter_offer_unverified";
+                int completeSides=0;
+                for (int i=0;i<4;i++) {
+                    if (edges.getDouble(i)<.80) return "starter_offer_unverified";
+                    if (edges.getDouble(i)>=.93) completeSides++;
+                }
+                if (completeSides<3) return "starter_offer_unverified";
+            }
             double px=panel.getDouble(0),py=panel.getDouble(1),pw=panel.getDouble(2),ph=panel.getDouble(3);
             if (px<0 || py<0 || px+pw>frameWidth || py+ph>frameHeight
                     || pw<=0 || ph<=0
@@ -192,6 +275,65 @@ final class MenuDispatchGuard {
         return null;
     }
 
+    private static boolean safeLoginReturn(JSONObject proof, JSONObject frame, JSONArray target,
+                                           double width, double height) throws Exception {
+        if (proof == null || !"current_daily_login_title_and_continue_prompt".equals(proof.optString("basis"))
+                || !sameNumber(proof, frame, "frame_id")) return false;
+        JSONArray captions = proof.optJSONArray("captions");
+        if (captions == null || captions.length() > 128) return false;
+        int titles = 0, prompts = 0, claims = 0;
+        for (int i = 0; i < captions.length(); i++) {
+            if (!(captions.opt(i) instanceof String)) return false;
+            String text = REWARD_END_PUNCTUATION.matcher(
+                    REWARD_WHITESPACE.matcher(captions.getString(i)).replaceAll("")).replaceAll("");
+            if (REWARD_TITLE.equals(text)) titles++;
+            else if (RETURN_HOME.equals(text)) prompts++;
+            else if ("已领取".equals(text)) claims++;
+            else if (REWARD_CONFLICT.matcher(text).find()) return false;
+        }
+        if (titles != 1 || prompts != 1) return false;
+        double[] title = rewardBox(proof.optJSONObject("title"), REWARD_TITLE, width, height);
+        double[] prompt = rewardBox(proof.optJSONObject("prompt"), RETURN_HOME, width, height);
+        if (title == null || prompt == null) return false;
+        JSONArray provedTarget = proof.optJSONArray("target_bounds");
+        if (provedTarget == null || provedTarget.length() != 4) return false;
+        for (int i = 0; i < 4; i++) if (!finite(provedTarget.opt(i))
+                || provedTarget.getDouble(i) != prompt[i] || target.getDouble(i) != prompt[i]) return false;
+        // Match semantic_login_reward's source-pixel bands; the narrow 4:3
+        // exception is safe only with an already-claimed cell in the grid.
+        boolean compact = width / height >= 1.30 && width / height <= 1.37;
+        if (compact) {
+            if (!"full_frame".equals(proof.optString("scope"))) return false;
+            double[] claim = rewardBox(proof.optJSONObject("claimed"), "已领取", width, height);
+            if (claims < 1 || claim == null || !between(claim[0]+claim[2]/2, width*.08, width*.92)
+                    || !between(claim[1]+claim[3]/2, height*.28, height*.73)
+                    || !between(claim[3], height*.012, height*.09)) return false;
+        }
+        double tx = title[0]+title[2]/2, px = prompt[0]+prompt[2]/2;
+        return between(tx, width*.20, width*.80) && between(title[1], (compact ? .045 : .05)*height, height*.43)
+                && between(title[3], height*.012, height*.14) && between(px, width*.20, width*.80)
+                && between(prompt[1], height*.60, height*.94) && between(prompt[3], height*.012, height*.14)
+                && title[1]+title[3]+.20*height < prompt[1] && Math.abs(tx-px) < width*.25;
+    }
+
+    private static double[] rewardBox(JSONObject row, String text, double width, double height) throws Exception {
+        if (row == null || !text.equals(row.opt("text")) || !finite(row.opt("score"))
+                || row.getDouble("score") < .90 || row.getDouble("score") > 1) return null;
+        JSONArray box = row.optJSONArray("bounds");
+        if (box == null || box.length() != 4) return null;
+        double[] values = new double[4];
+        for (int i = 0; i < 4; i++) {
+            if (!finite(box.opt(i))) return null;
+            values[i] = box.getDouble(i);
+        }
+        return values[0] >= 0 && values[1] >= 0 && values[2] > 0 && values[3] > 0
+                && values[0]+values[2] <= width && values[1]+values[3] <= height ? values : null;
+    }
+
+    private static boolean between(double value, double lower, double upper) {
+        return lower < value && value < upper;
+    }
+
     private static boolean allowed(String state, String action) {
         switch (state) {
             case "unknown": return "menu_startup_cleanup".equals(action);
@@ -201,6 +343,9 @@ final class MenuDispatchGuard {
             case "deck_ready": return "menu_select_casual".equals(action) || "menu_select_ranked".equals(action)
                     || "menu_start_queue".equals(action) || "menu_close_deck".equals(action);
             case "login_reward": return "menu_dismiss_reward".equals(action);
+            case "daily_reward_available": return "menu_claim_daily".equals(action);
+            case "daily_reward_claim": return "menu_collect_daily".equals(action);
+            case "daily_reward_continue": return "menu_continue_daily".equals(action);
             case "task_popup": return "menu_dismiss_task".equals(action);
             case "blocking_popup": return "menu_dismiss_blocking_popup".equals(action);
             case "login_popup_cleanup": return "menu_clear_login_popup".equals(action);

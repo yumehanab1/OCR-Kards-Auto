@@ -14,7 +14,12 @@ final class GamePackageChecks {
 
     static JSONObject run() throws Exception {
         GamePackageChecks test = new GamePackageChecks();
-        test.matrix();
+        String previous = GamePackages.selectedPackage();
+        try {
+            GamePackages.configureSelection(null);
+            test.matrix();
+            test.selectedPackages();
+        } finally { GamePackages.configureSelection(previous); }
         return new JSONObject().put("passed", true).put("checks", test.checks)
                 .put("check_count", test.checks.length()).put("failure_count", 0)
                 .put("device_inputs", 0).put("game_launches", 0);
@@ -143,5 +148,80 @@ final class GamePackageChecks {
                 check("guard_" + kind + "_cancelled_" + owner, () -> equal("cancelled", guard(kind, owner, 5, 1500, true)));
             }
         }
+    }
+
+    private void selectedPackages() throws Exception {
+        String[] variants = {"com.channel.kards.global", "com.publisher.cardgame", "net.vendor.kards_mobile"};
+        String hash = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+        String otherHash = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+        check("name_similarity_is_discovery_only", () -> {
+            GamePackages.configureSelection(null);
+            equal(1, GamePackages.discoveryRank(variants[0], "KARDS"));
+            equal(false, GamePackages.isGame(variants[0]));
+            equal(false, GamePackages.isGame("com.copy.kards"));
+            equal(2, GamePackages.discoveryRank(variants[1], "Card game"));
+        });
+        for (String invalid : new String[]{"", "kards", "bad/name.pkg", "bad..pkg", " a.b", "a.b\n", "com.kards.mobilert", "com.android.systemui"})
+            check("cannot_select_" + invalid, () -> equal(false, GamePackages.isSelectable(invalid)));
+        for (String owner : variants) {
+            GamePackages.configureSelection(owner);
+            check("selected_exact_owner_" + owner, () -> {
+                equal(true, GamePackages.isGame(owner));
+                equal(false, GamePackages.isGame(GamePackages.DEFAULT));
+                equal(false, GamePackages.isGame(GamePackages.APK));
+                equal(false, GamePackages.isGame(owner + ".clone"));
+                equal(false, GamePackages.isGame(null));
+            });
+            check("selected_launcher_no_fallback_" + owner, () -> {
+                equal(owner, GamePackages.findLaunchable(p -> p));
+                equal(null, GamePackages.findLaunchable(p -> GamePackages.DEFAULT.equals(p) ? p : null));
+            });
+            check("selected_signer_must_match_" + owner, () -> {
+                equal(true, GamePackages.matchesPinnedIdentity(owner, hash, owner, hash));
+                equal(false, GamePackages.matchesPinnedIdentity(owner, hash, owner, otherHash));
+                equal(false, GamePackages.matchesPinnedIdentity(owner, hash, variants[0] + ".copy", hash));
+                equal(false, GamePackages.matchesPinnedIdentity(owner, "", owner, ""));
+                equal(false, GamePackages.matchesPinnedIdentity(owner, null, owner, hash));
+            });
+            check("selected_admission_same_session_" + owner, () -> {
+                GameEntryGate gate = new GameEntryGate("launch_game", "helper", 5, 1000);
+                equal(GameEntryGate.WAITING, gate.check(GamePackages.DEFAULT, 6));
+                equal(null, gate.check(owner, 7));
+                equal(owner, gate.evidence().getString("admitted_package"));
+                equal("capture_before_arming", gate.checkCapture(999, 7));
+                equal("foreground_changed", gate.check(GamePackages.DEFAULT, 8));
+                equal("foreground_changed", gate.check(owner, 7));
+            });
+            check("selected_current_entry_" + owner, () -> {
+                GameEntryGate gate = new GameEntryGate("current_game", owner, 5, 1000);
+                equal(null, gate.check(owner, 5));
+                equal("foreground_changed", gate.check("other.app", 6));
+            });
+            check("selected_window_owner_" + owner, () -> {
+                GameWindowState state = GameWindowState.inspect(Arrays.asList(window(1, owner, 1)), false);
+                equal(owner, state.game.owner);
+                equal(null, GameWindowState.inspect(Arrays.asList(window(1, GamePackages.DEFAULT, 1)), false).game);
+                ForegroundDepartureTracker tracker = new ForegroundDepartureTracker();
+                equal(0L, tracker.observe(Arrays.asList(window(1, owner, 1)), false));
+                equal(1L, tracker.observe(Arrays.asList(window(2, GamePackages.DEFAULT, 1)), false));
+            });
+            for (int i = 0; i < 3; i++) {
+                final int kind = i;
+                check("selected_guard_accept_" + kind + owner, () -> equal(null, guard(kind, owner, 5, 1500, false)));
+                check("selected_guard_other_" + kind + owner, () -> equal("foreground_changed", guard(kind, GamePackages.DEFAULT, 5, 1500, false)));
+                check("selected_guard_stale_" + kind + owner, () -> equal("frame_age_expired", guard(kind, owner, 5, 5001, false)));
+                check("selected_guard_cancel_" + kind + owner, () -> equal("cancelled", guard(kind, owner, 5, 1500, true)));
+            }
+        }
+        check("invalid_selection_does_not_auto_fallback", () -> {
+            GamePackages.configureSelection("");
+            equal(false, GamePackages.isGame(GamePackages.DEFAULT));
+            equal(false, GamePackages.isGame(variants[0]));
+            equal(null, GamePackages.findLaunchable(p -> p));
+        });
+        check("automatic_restores_legacy_preference", () -> {
+            GamePackages.configureSelection(null);
+            equal(GamePackages.DEFAULT, GamePackages.findLaunchable(p -> p));
+        });
     }
 }

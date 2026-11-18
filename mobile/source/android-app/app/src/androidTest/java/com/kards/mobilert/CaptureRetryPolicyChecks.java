@@ -71,6 +71,21 @@ public final class CaptureRetryPolicyChecks {
         decision = new CaptureRetryPolicy().onFailure(INCOMPLETE, false, false);
         expect(decision.retry && decision.retriesUsed == 1, "new capture call gets a fresh retry budget");
         expect(!CaptureRetryPolicy.isRetryable(null), "missing reason cannot retry");
+        policy = new CaptureRetryPolicy();
+        String timeout = "兼容截图等待新帧超时（compat_capture_timeout）";
+        expect(!policy.retryStartupTimeout(timeout,false,0,false,false,0), "battle timeout cannot retry");
+        expect(!policy.retryStartupTimeout(timeout,true,1,false,false,0), "input seals startup retry");
+        expect(!policy.retryStartupTimeout(timeout,true,0,true,false,0), "cancel seals startup retry");
+        expect(!policy.retryStartupTimeout(timeout,true,0,false,true,0), "budget seals startup retry");
+        expect(!policy.retryStartupTimeout("compat_capture_revoked",true,0,false,false,0), "revocation is terminal");
+        expect(!policy.retryStartupTimeout("capture_timeout",true,0,false,false,0), "bridge timeout is terminal");
+        for(int n=0;n<CaptureRetryPolicy.MAX_STARTUP_TIMEOUT_RETRIES;n++)
+            expect(policy.retryStartupTimeout(timeout,true,0,false,false,n*1000), "bounded fresh startup retry "+n);
+        expect(!policy.retryStartupTimeout(timeout,true,0,false,false,16000), "count never resets on next capture");
+        policy = new CaptureRetryPolicy();
+        expect(policy.retryStartupTimeout(timeout,true,0,false,false,100), "first startup timeout");
+        expect(!policy.retryStartupTimeout(timeout,true,0,false,false,30100), "startup wall window bounded");
+        expect(!policy.retryStartupTimeout(timeout,true,0,false,false,99), "clock regression rejected");
         return checks;
     }
 

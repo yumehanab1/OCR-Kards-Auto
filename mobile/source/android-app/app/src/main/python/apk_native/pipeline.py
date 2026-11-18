@@ -107,7 +107,9 @@ def deployment(frame,page,scene,hand,probe):
     if hand and not any(b['orange'] for b in hand):return {'action':'skip_deploy','reason':'all_observed_fee_numerals_unavailable'}
     playable=[b for b in hand if b['kind']=='unit' and b['orange'] and b['grab_source']]
     fallback=blind_point(frame,hand);point=playable[0]['grab_source'] if playable else fallback['point']
-    return {'action':'deploy' if playable else ('blind_middle' if point else 'skip_deploy'),
+    candidates=[dict(action='deploy',grab_source=b['grab_source'],
+                     drop_source=[frame.shape[1]*.35,frame.shape[0]*.69]) for b in playable]
+    return {'candidates':candidates,'action':'deploy' if playable else ('blind_middle' if point else 'skip_deploy'),
             'reason':'all_blind_candidates_overlap_suspected_orders' if not playable and point is None else '',
             'grab_source':point,'drop_source':[frame.shape[1]*.35,frame.shape[0]*.69],
             'blind_selection':fallback,'dispatch':'offline_only','executable':False,
@@ -122,7 +124,8 @@ class Pipeline:
     def _validate(frame):
         if not isinstance(frame,np.ndarray) or frame.dtype!=np.uint8 or frame.ndim!=3 or frame.shape[2]!=3:
             raise ValueError('invalid_native_capture')
-        if not 1.70<=frame.shape[1]/frame.shape[0]<=2.30:raise ValueError('unsupported_native_capture_aspect')
+        if frame.shape[0]<=0 or frame.shape[1]<=0 or not 1.28<=frame.shape[1]/frame.shape[0]<=2.40:
+            raise ValueError('unsupported_native_capture_aspect')
 
     @staticmethod
     def _pixels_digest(frame):

@@ -306,6 +306,7 @@ class MenuFlow:
         self.mode, self.started = mode, started
         self.direct_controls = direct_controls
         self.selection_requested = False
+        self.reward_source_frame = None
         self.last_key = None
         self.last_time = None
         self.last_frame = None
@@ -327,8 +328,75 @@ class MenuFlow:
         self.startup_cleanup_sent = None
         self.popup_interrupted_navigation = None
         self.popup_navigation_retries = {}
+        self.daily_pending = None
+        self.daily_issued = set()
+        self.daily_candidate = None
+        self.daily_day = None
+        self.daily_ticket = False
+        self.daily_return_pair = None
+        self.daily_no_continue_verified = False
+
+    def daily_decision(self, observation, frame_id, now):
+        from apk_native.daily_reward import ACTIONS
+        state=observation['state'];proof=observation.get('daily_reward_evidence') or {}
+        if self.queue_requested is not None and state in ACTIONS:
+            return {'stop':'daily_reward_after_queue'}
+        if now-self.started>=180000:return {'stop':'menu_time_budget'}
+        if self.daily_pending:
+            expected,sent,old_frame=self.daily_pending
+            if frame_id==old_frame:return {'wait':state}
+            if state!=expected:
+                if expected=='login_reward' and state in ('home','mode_menu','deck_list','deck_ready'):
+                    self.daily_return_pair=None
+                    self.daily_pending=None
+                elif (expected=='daily_reward_continue' and self.daily_ticket
+                        and {'menu_claim_daily','menu_collect_daily'}<=self.daily_issued):
+                    returned=observation.get('daily_ticket_return') or {}
+                    valid=(now-sent<15000 and returned.get('basis')=='current_ticket_collected_normal_destination_no_daily_prompt'
+                        and returned.get('frame_id')==frame_id and returned.get('destination')==state
+                        and returned.get('captured_elapsed_ms',-1)>sent
+                        and 0<=now-returned.get('captured_elapsed_ms',-100000)<=3000)
+                    if valid:
+                        previous=self.daily_return_pair
+                        self.daily_return_pair=returned
+                        keys=('destination','foreground_generation','source_width','source_height')
+                        if (previous and previous['frame_id']!=frame_id
+                                and 400<=returned['captured_elapsed_ms']-previous['captured_elapsed_ms']<=8000
+                                and all(returned[k]==previous[k] for k in keys)):
+                            self.daily_pending=None
+                            self.pending=None
+                            self.daily_no_continue_verified=True
+                        elif now-sent>=15000:return {'stop':'daily_reward_stage_unconfirmed:'+expected}
+                        else:return {'wait':state}
+                    else:
+                        self.daily_return_pair=None
+                        if now-sent>=15000:return {'stop':'daily_reward_stage_unconfirmed:'+expected}
+                        return {'wait':state}
+                elif now-sent>=15000:return {'stop':'daily_reward_stage_unconfirmed:'+expected}
+                else:return {'wait':state}
+            else:
+                self.daily_pending=None
+                self.daily_return_pair=None
+        if state not in ACTIONS:return None
+        action=ACTIONS[state]
+        if now-self.started>=180000:return {'stop':'menu_time_budget'}
+        if action in self.daily_issued:return {'stop':'daily_reward_repeated_stage'}
+        if action!='menu_claim_daily' and 'menu_claim_daily' not in self.daily_issued:
+            return {'stop':'daily_reward_without_claim_receipt'}
+        if action=='menu_continue_daily' and ('menu_collect_daily' not in self.daily_issued
+                or proof.get('day')!=self.daily_day):return {'stop':'daily_reward_day_or_phase_mismatch'}
+        if self.inputs>=self.max_inputs:return {'stop':'menu_input_budget'}
+        bounds=observation.get('targets',{}).get(action)
+        if not bounds:return {'stop':'menu_target_missing'}
+        self.daily_candidate=(action,frame_id,proof.get('day'),proof.get('basis'))
+        return {'action':action,'bounds':bounds}
 
     def observe(self, observation, frame_id, now, opening=False):
+        if self.reward_source_frame is not None:
+            reward=self.reward_postcondition(observation['state'],frame_id,now)
+            if reward is not None:return reward
+        daily=self.daily_decision(observation,frame_id,now)
+        if daily is not None:return daily
         if self.direct_controls:
             return self.observe_controls(observation, frame_id, now, opening)
         if now-self.started >= 180000:
@@ -486,12 +554,25 @@ class MenuFlow:
             return {'stop': 'menu_target_missing'}
         return {'action': action, 'bounds': bounds}
 
+    def reward_postcondition(self,state,frame_id,now):
+        # A completed tap is only a receipt. Require a newer recognized
+        # destination/whitelisted overlay before any more menu input.
+        if now-self.started>=180000:
+            return {'stop':'menu_time_budget'}
+        if now-self.pending[1]>=15000:
+            return {'stop':'menu_action_unconfirmed:menu_dismiss_reward'}
+        if (frame_id<=self.reward_source_frame or now-self.pending[1]<750
+                or state not in ('home','mode_menu','deck_list','deck_ready',*NATIVE_POPUP_ACTIONS)):
+            return {'wait':state}
+        self.reward_source_frame=None
+        self.pending=None
+
     def observe_controls(self, observation, frame_id, now, opening=False):
         """Choose from this screen's controls without prescribing intermediate pages.
 
-        A completed navigation tap does not require a separately named destination.
-        The next capture supplies the next target, including after a delayed popup.
-        Queue requests remain single-shot because the game may already be matching.
+        A completed gesture is not proof that its navigation has finished.
+        A transitional capture can still expose the old source controls; wait
+        for a different current control rather than spending another input.
         """
         if now-self.started >= 180000:
             return {'stop':'menu_time_budget'}
@@ -521,6 +602,14 @@ class MenuFlow:
                       else 'menu_select_'+self.mode)
         if action is None:
             return {'wait':state}
+        navigation = {'menu_home_start','menu_battle_mode','menu_select_deck',
+                      'menu_close_deck','menu_select_casual','menu_select_ranked'}
+        if self.pending and self.pending[0] == action and action in navigation:
+            if now-self.pending[1] >= 15000:
+                return {'stop':'menu_action_unconfirmed:'+action}
+            return {'wait':state}
+        if action=='menu_dismiss_reward' and action in self.issued:
+            return {'stop':'menu_repeated_state:'+action}
         if self.inputs >= self.max_inputs:
             return {'stop':'menu_input_budget'}
         bounds = observation.get('targets',{}).get(action)
@@ -535,6 +624,17 @@ class MenuFlow:
         return {'action':action,'bounds':bounds}
 
     def accepted(self, action, now, popup_id=''):
+        if self.daily_candidate and self.daily_candidate[0]==action:
+            _,frame_id,day,basis=self.daily_candidate
+            self.daily_issued.add(action)
+            if action=='menu_claim_daily':
+                self.daily_ticket=basis=='current_daily_title_available_unique_claim_ticket'
+            if action=='menu_collect_daily':self.daily_day=day
+            expected={'menu_claim_daily':'daily_reward_claim',
+                      'menu_collect_daily':'daily_reward_continue',
+                      'menu_continue_daily':'login_reward'}[action]
+            self.daily_pending=(expected,now,frame_id)
+            self.daily_candidate=None
         self.inputs += 1
         if action == 'menu_startup_cleanup':
             self.startup_cleanup_attempts += 1
@@ -594,8 +694,20 @@ def run(bridge, assets_dir, mode, native=False):
             observation={'state':'unknown','targets':{},'selected_mode':'',
                          'reason':'native_queue_opening_only','opening_evidence':check}
         else:
-            if native: recognizer.startup = flow.startup_cleanup
+            if native:
+                recognizer.startup = flow.startup_cleanup
+                recognizer.daily_phase = bool(flow.daily_pending and flow.daily_pending[0] in
+                    ('daily_reward_claim','daily_reward_continue'))
             observation = recognizer.observe(frame, packet) if native else recognizer.observe(frame)
+        # Only after a completed ticket collect may a real normal destination
+        # propose the no-continue postcondition. Absence alone never releases it.
+        if (native and flow.daily_ticket and flow.daily_pending
+                and flow.daily_pending[0]=='daily_reward_continue'
+                and observation.get('state') in ('home','mode_menu','deck_list','deck_ready','blocking_popup')):
+            from apk_native.daily_reward import ticket_return_evidence
+            current,ocr_ok=recognizer.daily_return_probe or ([],False)
+            observation['daily_ticket_return']=ticket_return_evidence(observation,current,packet,
+                int(bridge.elapsedRealtime()),ocr_ok)
         observation.update(frame_reader=reader,
             frame_shape=list(frame.shape) if frame is not None else None,
             frame_path=str(packet['png_path']))
@@ -649,6 +761,8 @@ def run(bridge, assets_dir, mode, native=False):
                                startup_cleanup_attempts=flow.startup_cleanup_attempts,
                                generic_popup_evidence=observation.get('generic_popup_evidence'),
                                login_popup_evidence=observation.get('login_popup_evidence'),
+                               login_reward_evidence=observation.get('login_reward_evidence'),
+                               daily_reward_evidence=observation.get('daily_reward_evidence'),
                                promotion_evidence=observation.get('promotion_evidence'))
             request.update(state=observation['state'], mode=flow.mode,
                 selected_mode=observation.get('selected_mode',''), context=decision['action'],
@@ -675,8 +789,15 @@ def run(bridge, assets_dir, mode, native=False):
                     break
                 time.sleep(.5)
                 continue
-            if reply.get('accepted'):
+            if reply.get('accepted') is True and reply.get('completed') is True:
+                if native and decision['action']=='menu_dismiss_reward':
+                    flow.reward_source_frame=packet['frame_id']
                 flow.accepted(decision['action'], int(bridge.elapsedRealtime()),observation.get('popup_id',''))
+            elif reply.get('accepted') is True:
+                if decision['action'].endswith('_daily'):
+                    # Count uncertainty without granting the next daily phase.
+                    flow.inputs += 1
+                else:flow.accepted(decision['action'],int(bridge.elapsedRealtime()),observation.get('popup_id',''))
             if not reply.get('accepted') or not reply.get('completed'):
                 reason = 'menu_dispatch:'+str(reply.get('reason','unconfirmed'))
                 break
@@ -685,5 +806,6 @@ def run(bridge, assets_dir, mode, native=False):
     result = {'verified':verified, 'reason':reason, 'mode':flow.mode,
               'menu_inputs':flow.inputs, 'queue_requested':flow.queue_requested is not None,
               'first_deck_selected':flow.first_deck_selected,
+              'daily_ticket_no_continue_verified':flow.daily_no_continue_verified,
               'elapsed_ms':int(bridge.elapsedRealtime())-flow.started}
     return json.dumps(result, ensure_ascii=False)

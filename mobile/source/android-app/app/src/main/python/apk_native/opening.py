@@ -12,7 +12,7 @@ def opponent_mulligan_wait(frame,items):
     for row in items:
         text=row.get('text','');score=row.get('score',0)
         if not isinstance(text,str) or ''.join(text.split())!='敌方正在选择起始手牌':continue
-        if not isinstance(score,(int,float,np.number)) or not np.isfinite(score) or score<.90:continue
+        if not isinstance(score,(int,float,np.number)) or not np.isfinite(score) or not .90<=score<=1:continue
         matches.append(row)
     if len(matches)!=1:return None
     row=matches[0]
@@ -101,7 +101,7 @@ class OpeningRecognizer:
                 or list(frame.shape[:2])!=[packet.get('source_height'),packet.get('source_width')]):
             return dict(unknown,reason='native_opening_geometry_mismatch')
         h,w=frame.shape[:2]
-        if not 1.70<=w/h<=2.30:return dict(unknown,reason='unsupported_native_opening_aspect')
+        if not 1.28<=w/h<=2.40:return dict(unknown,reason='unsupported_native_opening_aspect')
         if self.shape!=frame.shape:self.detector.locations.clear();self.opening_labels=[];self.shape=frame.shape
         gray=cv2.cvtColor(frame,cv2.COLOR_BGR2GRAY);hsv=cv2.cvtColor(frame,cv2.COLOR_BGR2HSV)
         full_items=None
@@ -109,6 +109,16 @@ class OpeningRecognizer:
         resource_anchors=inspect_resources(frame,hsv)
         resources=resource_anchors['ok']
         unknown['resource_anchors']=resource_anchors
+        # Saved-source component: the real 16:10 post-confirm frames contain
+        # only the central opponent-mulligan caption. Broad template/full OCR
+        # took >5900 ms and expired every proof before the bounded wait gate.
+        # A current scoped positive is read-only, never a turn or a new tap.
+        if ocr is not None and hasattr(ocr,'region_engine'):
+            found,_=ocr.regions(frame,[[round(w*.20),round(h*.30),
+                round(w*.60),round(h*.30)]],scope='opening_controls')
+            items=[dict(box=np.asarray(b).tolist(),text=t,score=float(s)) for b,t,s in found or []]
+            waiting=opponent_mulligan_wait(frame,items)
+            if waiting:return dict(unknown,**waiting,resources=resources)
         # Current right-side control is independent of opening text. Search
         # the source pixels directly before unrelated whole-page templates.
         if self.source_turn:
@@ -142,6 +152,30 @@ class OpeningRecognizer:
                                 template_id='native_source_end_control',target_bounds=best['bounds'],
                                 reason='current_source_end_opening_title_absent',resources=resources,
                                 evidence={'end_turn_btn':best},opening_title_absence=absence)
+        # Current local end text also rescues the real wide phone frame whose
+        # broad template path took 4.5 s. Same source-title absence/semantic gates.
+        # This is the saved-source component, not the Java capture OCR bridge.
+        if ocr is not None and hasattr(ocr,'region_engine') and self.source_opening:
+            absent=True
+            for text,label in self.source_opening[1]:
+                if text=='确认':continue
+                region=gray[:round(h*.22),round(w*.30):round(w*.70)]
+                highest=-1.
+                for factor in SOURCE_LABEL_FACTORS:
+                    scale=h/self.source_opening[0]*factor
+                    needle=cv2.resize(label,(round(label.shape[1]*scale),round(label.shape[0]*scale)))
+                    if needle.shape[0]<=region.shape[0] and needle.shape[1]<=region.shape[1]:
+                        highest=max(highest,float(cv2.minMaxLoc(cv2.matchTemplate(region,needle,cv2.TM_CCOEFF_NORMED))[1]))
+                if highest>=.70:absent=False
+            if absent:
+                found,_=ocr.regions(frame,[[round(w*.75),round(h*.45),w-round(w*.75),round(h*.37)]],scope='turn_controls')
+                current=[dict(box=np.asarray(b).tolist(),text=t,score=float(s)) for b,t,s in found or []]
+                from .turn_ui import structural_end
+                control=structural_end(frame,current)
+                if control:
+                    return dict(unknown,phase='CONFIRMED_MY_TURN',score=control['score'],
+                        template_id='native_tablet_scoped_end_structure',target_bounds=control['bounds'],
+                        reason='current_end_text',structure=control,resources=resources)
         if ocr is not None:
             from .opening_dynamic import inspect as dynamic_opening
             dynamic=dynamic_opening(frame,ocr,resources)

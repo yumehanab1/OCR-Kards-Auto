@@ -31,6 +31,7 @@ final class GameFloatingControl {
     private boolean expanded, destroyed, gameVisible;
     private volatile boolean attached;
     private volatile int attachedWindowId=-1;
+    private volatile Rect attachedBounds;
     private int hidden;
     private String action="", message="";
     private long actionAt;
@@ -98,29 +99,35 @@ final class GameFloatingControl {
         for(Button button:new Button[]{attach,stop})button.setLayoutParams(new LinearLayout.LayoutParams(
                 twoColumns?0:LinearLayout.LayoutParams.MATCH_PARENT,height,twoColumns?1:0));
     }
-    private void rebuild() {
-        root.removeAllViews();actionButtons=null;
-        GradientDrawable background=new GradientDrawable();background.setColor(Color.rgb(25,35,45));
-        background.setCornerRadius(dp(12));background.setStroke(dp(1),Color.rgb(90,115,130));root.setBackground(background);
-        if(!expanded) {
-            compact=text(11);compact.setGravity(Gravity.CENTER);compact.setPadding(dp(3),dp(2),dp(3),dp(2));
-            compact.setOnClickListener(v->setExpanded(true));root.addView(compact);
-        } else {
-            ScrollView scroll=new ScrollView(service);LinearLayout column=new LinearLayout(service);
-            expandedScroll=scroll;
-            column.setOrientation(LinearLayout.VERTICAL);column.setPadding(dp(8),dp(5),dp(8),dp(5));
-            headline=text(13);details=text(11);column.addView(headline);column.addView(details);
-            actionButtons=new LinearLayout(service);
-            attach=button("接管当前局",()->start(true));stop=button("停止",service::cancelBattle);
-            actionButtons.addView(attach);actionButtons.addView(stop);arrangeActionButtons();
-            column.addView(actionButtons,new LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,LinearLayout.LayoutParams.WRAP_CONTENT));
-            start=button("从菜单开局",()->start(false));column.addView(start);
-            collapse=button("收起 ›",()->setExpanded(false));column.addView(collapse);
-            scroll.addView(column,new ScrollView.LayoutParams(ScrollView.LayoutParams.MATCH_PARENT,ScrollView.LayoutParams.WRAP_CONTENT));
-            root.addView(scroll,new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT,FrameLayout.LayoutParams.MATCH_PARENT));
-        }
-    }
+     private void rebuild() {
+         root.removeAllViews();actionButtons=null;
+         GradientDrawable background=new GradientDrawable();background.setColor(Color.argb(230,24,38,28));
+         background.setCornerRadius(dp(12));background.setStroke(dp(1),Color.rgb(55,82,60));root.setBackground(background);
+         if(!expanded) {
+             compact=text(11);compact.setGravity(Gravity.CENTER);compact.setPadding(dp(4),dp(3),dp(4),dp(3));
+             compact.setOnClickListener(v->setExpanded(true));root.addView(compact);
+         } else {
+             ScrollView scroll=new ScrollView(service);LinearLayout column=new LinearLayout(service);
+             expandedScroll=scroll;
+             column.setOrientation(LinearLayout.VERTICAL);column.setPadding(dp(10),dp(8),dp(10),dp(6));
+             headline=text(13);headline.setTypeface(android.graphics.Typeface.create("sans-serif-medium",android.graphics.Typeface.NORMAL));
+             details=text(11);details.setTextColor(Color.rgb(175,195,170));details.setLineSpacing(dp(2),1);
+             column.addView(headline);column.addView(details);
+             actionButtons=new LinearLayout(service);
+             attach=button("接管当前局",()->start(true));stop=button("停止",service::cancelBattle);
+             actionButtons.addView(attach);actionButtons.addView(stop);arrangeActionButtons();
+             column.addView(actionButtons,new LinearLayout.LayoutParams(
+                     LinearLayout.LayoutParams.MATCH_PARENT,LinearLayout.LayoutParams.WRAP_CONTENT));
+             start=button("从菜单开局",()->start(false));column.addView(start);
+             collapse=button("收起 ↑",()->setExpanded(false));
+             collapse.setTextSize(11);collapse.setAllCaps(false);collapse.setGravity(Gravity.CENTER);
+             collapse.setTextColor(Color.rgb(140,170,145));collapse.setPadding(dp(4),dp(6),dp(4),dp(6));
+             collapse.setBackground(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));
+             column.addView(collapse,new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,-2));
+             scroll.addView(column,new ScrollView.LayoutParams(ScrollView.LayoutParams.MATCH_PARENT,ScrollView.LayoutParams.WRAP_CONTENT));
+             root.addView(scroll,new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT,FrameLayout.LayoutParams.MATCH_PARENT));
+         }
+     }
     private void start(boolean currentBattle) {
         message=service.startFromFloatingControl(currentBattle)?"":BattleStartAttempt.userMessage(service.lastStartAttempt());
         update(gameVisible);
@@ -138,11 +145,12 @@ final class GameFloatingControl {
         updateViewAlpha();
         FloatingStatus state=FloatingStatus.from(service.battleProgressReport(),
                 SystemClock.elapsedRealtime()-actionAt<3000?action:"");
-        if(expanded) {
-            headline.setText((state.active?"● 运行中":"● 已停止")+" · "+state.phase);
-            details.setText(state.detail+(message.isEmpty()?"":"\n"+message));
-            boolean busy=BattleWorkerLease.isOwned();attach.setEnabled(!busy);start.setEnabled(!busy);stop.setEnabled(busy);
-        } else {compact.setText(state.compact);compact.setTextColor(state.active?Color.rgb(136,236,179):Color.rgb(250,217,150));}
+         if(expanded) {
+             headline.setTextColor(state.active?Color.rgb(152,230,180):Color.rgb(180,195,178));
+             headline.setText((state.active?"● 运行中":"● 已停止")+" · "+state.phase);
+             details.setText(state.detail+(message.isEmpty()?"":" \n"+message));
+             boolean busy=BattleWorkerLease.isOwned();attach.setEnabled(!busy);start.setEnabled(!busy);stop.setEnabled(busy);
+         } else {compact.setText(state.compact);compact.setTextColor(state.active?Color.rgb(152,230,180):Color.rgb(245,208,120));}
         if(attached) {
             WindowManager.LayoutParams old=(WindowManager.LayoutParams)root.getLayoutParams(),next=layout();
             if(old.width!=next.width || old.height!=next.height || old.y!=next.y
@@ -156,7 +164,7 @@ final class GameFloatingControl {
                 windows.addView(root,layout());attached=true;rememberWindowId();root.post(this::rememberWindowId);
             }
             catch(RuntimeException e) { android.util.Log.w("KardsOverlay","Cannot attach control",e); }
-        } else if(!visible&&attached) {windows.removeView(root);attached=false;attachedWindowId=-1;}
+        } else if(!visible&&attached) {windows.removeView(root);attached=false;attachedWindowId=-1;attachedBounds=null;}
         if(attached)rememberWindowId();
     }
     private int windowId() {
@@ -167,8 +175,23 @@ final class GameFloatingControl {
         // Alpha-only hiding retains the visible View and its accessibility identity.
         if(!attached || root.getVisibility()!=View.VISIBLE)return;
         int id=windowId();if(id>=0)attachedWindowId=id;
+        if(root.getWidth()>0 && root.getHeight()>0) {
+            int[] position=new int[2];root.getLocationOnScreen(position);
+            attachedBounds=new Rect(position[0],position[1],position[0]+root.getWidth(),position[1]+root.getHeight());
+        }
     }
     boolean ownsWindow(int id) { return attached && id!=-1 && id==attachedWindowId; }
+    boolean ownsWindow(int id,int type,String owner,Rect area) {
+        if(ownsWindow(id))return true;
+        Rect actual=attachedBounds;
+        // ID registration may lag on phones. Owner alone or geometry alone is
+        // insufficient: require our exact owner, overlay type AND attached View bounds.
+        return matchesAttachedOverlay(attached,type,service.getPackageName().equals(owner),actual,area);
+    }
+    static boolean matchesAttachedOverlay(boolean attached,int type,boolean ownOwner,Rect actual,Rect area) {
+        return attached && type==android.view.accessibility.AccessibilityWindowInfo.TYPE_ACCESSIBILITY_OVERLAY
+                && ownOwner && actual!=null && actual.equals(area);
+    }
     void withoutOverlay(Consumer<Runnable> work) {
         // A lease is idempotent and nested captures/inputs cannot restore each other's overlay.
         boolean wait=attached,firstLease=hidden==0;rememberWindowId();hidden++;
@@ -194,7 +217,7 @@ final class GameFloatingControl {
         // Window alpha and touch flags must reach SurfaceFlinger before submission.
         if(wait)main.postDelayed(begin,80);else begin.run();
     }
-    void destroy() { destroyed=true;main.removeCallbacks(tick);if(attached){windows.removeView(root);attached=false;}attachedWindowId=-1; }
+    void destroy() { destroyed=true;main.removeCallbacks(tick);if(attached){windows.removeView(root);attached=false;}attachedWindowId=-1;attachedBounds=null; }
     // Device tests use the real window manager without launching or touching the game.
     void showForTest(boolean expanded) { setExpanded(expanded);update(true);main.removeCallbacks(tick); }
     boolean hiddenForTest() { return hidden>0 && attached && root.getAlpha()==0f && windowAlphaForTest()==0f && windowTouchBlockedForTest(); }
