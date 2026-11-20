@@ -15,6 +15,7 @@
 - [贡献指南](../CONTRIBUTING.md)：环境、回归用例、判据修改纪律、发布流程。
 - [开发工具索引](../dev/README.md)：测试、探针、A/B 工具和现场排查脚本。
 - [当前可用指令清单](generated/指令卡清单.md)：按出牌方式查看已放行卡名。
+- [全卡能力覆盖清单](generated/card_coverage.md)：按cardId区分现行规则、执行路径、信息缺口与尚未登记的逐卡策略/实机证据；不是全卡实测声明。
 - [src/archive 说明](../src/archive/README.md)：早期实验，不能当作运行时模块使用。
 
 ## 文档分层

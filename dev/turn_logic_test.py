@@ -96,7 +96,13 @@ def fake_drag_deploy(hwnd, card_x, card_y=700, drop=None, jitter=6,
 
 
 turn_engine.drag_deploy = fake_drag_deploy
-turn_engine.click = lambda x, y, jitter=5: clicks.append((x, y))
+def fake_end_click(x, y, jitter=5):
+    clicks.append((x, y))
+    state['end_turn'] = False  # subsequent capture confirms the game transition
+    return True
+
+
+turn_engine.click = fake_end_click
 
 # ---- 战场读数替身 ----
 # 用假的四条线卡数;真实的 board 依赖真实画面,离线测不了。
@@ -631,6 +637,9 @@ def run_turn(eng, max_steps=12):
         if eng.afford.max_cost is not None:
             state["max_cost_seen"] = eng.afford.max_cost
         if statuses[-1] == "ended_turn":
+            # This helper models a complete cycle. A later invocation on the
+            # same engine starts the next own turn, not the old opponent frame.
+            state["end_turn"] = True
             break
     return statuses
 
@@ -2589,8 +2598,12 @@ with patch.object(turn_engine, "click", return_value=False), \
     parking.assert_not_called()
 with patch.object(turn_engine, "click", return_value=True), \
      patch.object(turn_engine, "park_cursor", return_value=True) as parking:
+    assert end_hover_engine.think() == "end_turn_pending"
+    assert end_hover_engine.phase == "end_turn_pending"
+    assert end_hover_engine.kredits_left == 4
+    parking.assert_called_once_with(end_hover_engine.hwnd)
+    state['end_turn'] = False
     assert end_hover_engine.think() == "ended_turn"
     assert end_hover_engine.phase == "wait_our_turn"
-    parking.assert_called_once_with(end_hover_engine.hwnd)
 print("ALL CASES PASSED")
 print("=" * 78)

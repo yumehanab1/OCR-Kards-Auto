@@ -10,6 +10,7 @@ import sys
 import tempfile
 import time
 import unittest
+import uuid
 from unittest.mock import patch
 import zipfile
 
@@ -31,9 +32,11 @@ class Fixture:
     def __init__(self, root, mode='range', corrupt=False):
         self.root=root; self.mode=mode; self.requests=[]
         self.files={'src/a.txt': b'new A', 'src/b.txt': b'new B',
+                    'src/emu_runtime/python/apk_simple_combat.py': b'# bundled runtime\n',
                     'config/app_version.json': b'{"version":"0.3.0"}',
                     'python/unchanged.bin': os.urandom(500000),
                     'config/gui_options.json': b'remote settings',
+                    'config/emu_options.json': b'remote emulator settings',
                     'config/card_hashes.json': b'remote learned data',
                     'mobile/source.txt': b'mobile'}
         self.manifest={'schema':1,'version':'0.3.0','files':{k:meta(v) for k,v in self.files.items()}}
@@ -50,6 +53,7 @@ class Fixture:
         self.put('config/app_version.json',b'{"version":"0.2.1"}')
         self.put('python/unchanged.bin',self.files['python/unchanged.bin'])
         self.put('config/gui_options.json',b'my settings')
+        self.put('config/emu_options.json',b'my emulator settings')
         self.put('config/card_hashes.json',b'my learned data')
         self.put('mobile/source.txt',b'my mobile'); self.put('src/unlisted.txt',b'keep extra')
     def put(self,rel,data):
@@ -68,14 +72,44 @@ class Fixture:
 
 class Updates(unittest.TestCase):
     def setUp(self):
-        self.temp=tempfile.TemporaryDirectory(); self.root=Path(self.temp.name)
-    def tearDown(self): self.temp.cleanup()
+        # Inherit the temp parent's ACL; Python 3.14's mode=0700 temp
+        # directories exclude the Windows sandbox's restricted token.
+        self.temp_root=Path(tempfile.gettempdir()).resolve()
+        self.root=self.temp_root/('kards-update-test-'+uuid.uuid4().hex)
+        self.root.mkdir()
+    def tearDown(self):
+        self.assertEqual(self.root.resolve().parent,self.temp_root)
+        shutil.rmtree(self.root)
     def unchanged(self, f):
         self.assertEqual((self.root/'python/unchanged.bin').read_bytes(),f.files['python/unchanged.bin'])
         self.assertEqual((self.root/'config/gui_options.json').read_bytes(),b'my settings')
+        self.assertEqual((self.root/'config/emu_options.json').read_bytes(),b'my emulator settings')
         self.assertEqual((self.root/'config/card_hashes.json').read_bytes(),b'my learned data')
         self.assertEqual((self.root/'mobile/source.txt').read_bytes(),b'my mobile')
         self.assertEqual((self.root/'src/unlisted.txt').read_bytes(),b'keep extra')
+    def test_emulator_options_protected_and_runtime_planned(self):
+        f=Fixture(self.root)
+        self.assertTrue(ui.protected('config/emu_options.json'))
+        runtime='src/emu_runtime/python/apk_simple_combat.py'
+        plan=ui.plan_update(self.root,f.manifest)
+        self.assertIn('config/emu_options.json',plan['skipped'])
+        self.assertIn('mobile/source.txt',plan['skipped'])
+        paths={entry['path'] for entry in plan['files']}
+        self.assertNotIn('config/emu_options.json',paths)
+        self.assertIn(runtime,paths)
+        self.unchanged(f)
+
+    def test_023_to_030_installs_runtime_preserves_emulator_options(self):
+        f=Fixture(self.root)
+        f.put('config/app_version.json',b'{"version":"0.2.3"}')
+        runtime='src/emu_runtime/python/apk_simple_combat.py'
+        self.assertFalse((self.root/runtime).exists())
+        job=f.stage()
+        self.assertTrue(ui.apply_job(job)['ok'])
+        self.assertEqual((self.root/runtime).read_bytes(),f.files[runtime])
+        self.assertEqual(json.loads((self.root/'config/app_version.json').read_text())['version'],'0.3.0')
+        self.unchanged(f)
+
     def test_range_only_changed_and_new(self):
         f=Fixture(self.root); (self.root/'src/b.txt').unlink()
         before=(self.root/'python/unchanged.bin').stat().st_mtime_ns

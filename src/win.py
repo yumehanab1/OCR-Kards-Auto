@@ -590,7 +590,17 @@ def capture_screen_bgr(monitor_index: int = 0) -> Optional[np.ndarray]:
         return arr
 
 
+class _ScreenCoordinate(int):
+    """An int-compatible screen coordinate retaining its client conversion source."""
+    def __new__(cls, value, hwnd, origin):
+        obj = int.__new__(cls, value)
+        obj.input_source = (int(hwnd), tuple(origin))
+        return obj
+
+
 def client_to_screen(hwnd: int, cx: int, cy: int) -> tuple[int, int]:
-    """Convert client-area point (cx, cy) to screen coordinates."""
-    pt = win32gui.ClientToScreen(hwnd, (cx, cy))
-    return pt
+    """Retain conversion provenance so message input can reject moved windows."""
+    cx, cy = int(cx), int(cy)
+    sx, sy = win32gui.ClientToScreen(hwnd, (cx, cy))
+    origin = (sx - cx, sy - cy)
+    return (_ScreenCoordinate(sx, hwnd, origin), _ScreenCoordinate(sy, hwnd, origin))

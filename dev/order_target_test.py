@@ -312,8 +312,10 @@ C("② 旧的逐卡定向表已经删掉(不许再有'全局默认 + 逐卡覆�
   and not hasattr(order_target, "kind6_side_pref"),
   str([n for n in ("KIND6_SIDE_BY_CARD", "kind6_side_pref")
        if hasattr(order_target, n)]))
-C("③ 表里那一档有 10 张卡名(用例下面要逐张过)",
-  len(_g6) == 10, f"实得 {len(_g6)}:{_g6}")
+C("③ kind 6 为10个普通卡名加1个天气版本(下面全部逐张检查)",
+  len([n for n in _g6 if not orders.is_weather(n)]) == 10
+  and {orders.rec_of(n).get('cardId') for n in _g6 if orders.is_weather(n)} == {'temp_deluge_1'},
+  f"实得 {len(_g6)}:{_g6}")
 
 c6_cd = "捕风捉影"      # 6-cd:rows 同时含 c(敌方支援)/ d(我方支援)
 c6_ab = "运输补给"      # 6-ab:rows 同时含 a(敌方前线)/ b(我方前线)

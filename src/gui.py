@@ -41,6 +41,7 @@ import sys
 import tempfile
 import threading
 import time
+import uuid
 from types import SimpleNamespace
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -233,6 +234,8 @@ SWITCHES = [
      "hint": "使用已标定的手牌坐标(需先完成标定，速度更快)"},
     {"key": "classic_strategy", "flag": "--classic-strategy", "label": "传统策略",
      "hint": "绕过橙色筛选和凑费，使用传统扫描与出牌流程；停止后重新开始生效"},
+    {"key": "message_input", "flag": "--message-input", "label": "不抢鼠标（实验）",
+     "hint": "关=物理鼠标；开=窗口消息悬停/点击/拖拽。游戏须前台可见；可能不响应，不自动回退；停止后重启生效"},
     {"key": "end_turn", "flag": "--end-turn", "label": "结束回合",
      "hint": "只在未开启『自动打完一局』时单独点结束回合"},
     #  ★ 2026-09-21 用户要求改口径:干跑**是调试用的,平时不需要开**
@@ -572,6 +575,7 @@ def clamp_to_screen(x: int, y: int, w: int, h: int) -> tuple:
 JS_API_METHODS = (
     'snapshot', 'save_settings', 'start', 'stop',
     'check_update', 'install_update', 'open_release',
+    'emu_snapshot', 'emu_save_options', 'emu_start', 'emu_stop', 'emu_control',
 )
 
 
@@ -593,12 +597,93 @@ class Api:
         self.saved_options = load_options()
         self.error: str | None = None
         self._fh = None
+        self._stop_file = None
         self.window = None
         self._update_lock = threading.Lock()
         self._update_release = None
         self._update_state = update_install.latest_status(PROJECT_ROOT)
         self._log_lock = threading.Lock()
         self._log_cache = None
+        self._emu_manager = None
+        self._emu_root = None
+        self._emu_lock = threading.RLock()
+
+    def _get_emu_manager(self):
+        import emu_manager
+        with self._emu_lock:
+            root = os.path.abspath(PROJECT_ROOT)
+            if self._emu_manager is None or self._emu_root != root:
+                if self._emu_manager is not None:
+                    if self._emu_manager.has_running_workers():
+                        raise RuntimeError("请先停止模拟器自动对局，再切换项目目录")
+                self._emu_manager = emu_manager.EmuManager(PROJECT_ROOT, python_exe=engine_python())
+                self._emu_root = root
+            return self._emu_manager
+
+    def emu_snapshot(self, selected_log_id: str = "", log_since_rev: str = "") -> dict:
+        result = self._get_emu_manager().snapshot(
+            selected_log_id=selected_log_id, log_since_rev=log_since_rev)
+        result = dict(result)
+        if result.get("log") is not None:
+            result["log"] = dict(result["log"])
+            result["log"]["log_lines"] = [[mark_line(ln), ln] for ln in result["log"]["lines"]]
+        return result
+
+    def emu_save_options(self, opts: dict) -> dict:
+        try:
+            import emu_manager
+            saved = emu_manager.save_emu_options(opts, PROJECT_ROOT)
+            return {"ok": True, "options": saved, "msg": "模拟器配置已保存"}
+        except Exception as exc:
+            return {"ok": False, "msg": str(exc)}
+
+    def emu_start(self, instance_ids: list[str], opts: dict | None = None) -> dict:
+        # Serialize starts with update preparation; PC method signatures stay unchanged.
+        if self._update_state.get("phase") in ("preparing", "closing", "recovery"):
+            return {"ok": False, "msg": "更新期间不能启动自动对局",
+                    "started": [], "failed": list(instance_ids), "results": {}}
+        with self._update_lock, self._emu_lock:
+            if self._update_state.get("phase") in ("preparing", "closing", "recovery"):
+                return {"ok": False, "msg": "更新期间不能启动自动对局",
+                        "started": [], "failed": list(instance_ids), "results": {}}
+            try:
+                if opts is not None:
+                    saved = self.emu_save_options(opts)
+                    if not saved["ok"]:
+                        raise ValueError(saved["msg"])
+                    opts = saved["options"]
+                result = self._get_emu_manager().start_many(instance_ids, opts=opts)
+                return dict(result, msg=f"已启动 {len(result['started'])} 个实例；失败 {len(result['failed'])} 个")
+            except Exception as exc:
+                return {"ok": False, "msg": str(exc), "started": [],
+                        "failed": list(instance_ids), "results": {}}
+
+    def emu_stop(self, instance_ids: list[str] | None = None) -> dict:
+        try:
+            with self._emu_lock:
+                # Closing a PC-only panel must not import or construct the emulator manager.
+                if self._emu_manager is None:
+                    return {"ok": True, "msg": "模拟器自动对局已停止", "stopped": []}
+                mgr = self._emu_manager
+                if not instance_ids:
+                    result = mgr.stop_all()
+                    return dict(result, msg="模拟器自动对局已停止")
+                results = {iid: mgr.stop_instance(iid) for iid in dict.fromkeys(instance_ids)}
+                stopped = [iid for iid, r in results.items() if r["ok"]]
+                return {"ok": True, "msg": f"已停止 {len(stopped)} 个实例", "stopped": stopped}
+        except Exception as exc:
+            return {"ok": False, "msg": str(exc), "stopped": []}
+
+    def emu_control(self, instance_id: str, action: str) -> dict:
+        if action not in ("launch", "shutdown"):
+            return {"ok": False, "msg": "不支持的模拟器操作"}
+        try:
+            mgr = self._get_emu_manager()
+            result = (mgr.launch_emulator(instance_id) if action == "launch"
+                      else mgr.shutdown_emulator(instance_id))
+            return dict(result, msg=result.get("msg") or ("操作已完成" if result["ok"] else "操作失败"))
+        except Exception as exc:
+            return {"ok": False, "msg": str(exc)}
 
     def _close_run_log(self) -> None:
         """Release the child log handle after the child has stopped."""
@@ -700,9 +785,17 @@ class Api:
             self._fh = open(GUI_RUN_LOG, "ab", buffering=0)
             self._fh.write(f"\n=== {time.strftime('%Y-%m-%d %H:%M:%S')} "
                            f"{' '.join(cmd)} ===\n".encode("utf-8"))
+            env = os.environ.copy()
+            env.pop('KARDS_AUTO_STOP_FILE', None)
+            self._stop_file = None
+            if opts.get('message_input'):
+                controls = os.path.join(PROJECT_ROOT, 'logs', 'controls')
+                os.makedirs(controls, exist_ok=True)
+                self._stop_file = os.path.join(controls, uuid.uuid4().hex + '.stop')
+                env['KARDS_AUTO_STOP_FILE'] = self._stop_file
             self.proc = subprocess.Popen(
                 cmd, cwd=PROJECT_ROOT, stdout=self._fh,
-                stderr=subprocess.STDOUT, creationflags=flags)
+                stderr=subprocess.STDOUT, creationflags=flags, env=env)
             self.started_at = time.time()
             self.error = None
             self.last_opts = {"argv": argv, **{k: bool(v) for k, v in (opts or {}).items()}}
@@ -734,6 +827,16 @@ class Api:
         if self.proc is None or self.proc.poll() is not None:
             return {"ok": False, "msg": "没在跑"}
         try:
+            if self.last_opts.get('message_input'):
+                if not self._stop_file:
+                    return {"ok": False, "msg": "缺少安全停止通道，未强杀消息输入进程"}
+                with open(self._stop_file, 'w', encoding='utf-8') as marker:
+                    marker.write('stop\n')
+                try:
+                    self.proc.wait(timeout=6)
+                except subprocess.TimeoutExpired:
+                    return {"ok": True, "msg": "停止已请求，等待识别结束并安全释放；未强杀进程"}
+                return {"ok": True, "msg": f"已安全停止(退出码 {self.proc.returncode})"}
             self.proc.terminate()
             try:
                 self.proc.wait(timeout=6)
@@ -745,7 +848,8 @@ class Api:
             self.error = f"{type(e).__name__}: {e}"
             return {"ok": False, "msg": self.error}
         finally:
-            self._close_run_log()
+            if self.proc.poll() is not None:
+                self._close_run_log()
 
     # ---- 检测更新 ----
     def check_update(self) -> dict:
@@ -810,6 +914,8 @@ class Api:
         return dict(r, version=local)
 
     def install_update(self) -> dict:
+        if self._emu_manager is not None and self._emu_manager.has_running_workers():
+            return {"ok": False, "msg": "请先停止自动对局，再应用更新"}
         if self.proc is not None and self.proc.poll() is None:
             return {'ok': False, 'msg': '请先停止自动对局，再应用更新'}
         if not self.window:
@@ -818,6 +924,9 @@ class Api:
             return {'ok': False, 'msg': '请先检测更新'}
         if not self._update_lock.acquire(blocking=False):
             return {'ok': False, 'msg': '更新正在进行中'}
+        if self._emu_manager is not None and self._emu_manager.has_running_workers():
+            self._update_lock.release()
+            return {"ok": False, "msg": "请先停止自动对局，再应用更新"}
         recovery = self._update_state if self._update_state.get('phase') == 'recovery' else None
         release = self._update_release
         self._update_state = {'phase': 'preparing', 'msg': '正在准备更新'}
@@ -865,150 +974,102 @@ class Api:
 
 
 HTML = r"""<!doctype html>
-<html lang="zh"><head><meta charset="utf-8">
-<title>KARDS AUTO</title>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>KARDS AUTO · 桌面控制台</title>
 <style>
- :root{
-   --bg:#0a0e13; --panel:#111823; --panel2:#0d141c; --line:#1d2836;
-   --fg:#dbe4ee; --dim:#7b8899; --orange:#ff8a1f; --grey:#67727f;
-   --ok:#39d98a; --warn:#ffc24b; --bad:#ff5c78; --accent:#38bdf8;
- }
- *{box-sizing:border-box}
- html,body{height:100%}
- body{margin:0;background:
-     radial-gradient(1100px 520px at 12% -12%, #16222f 0%, transparent 60%),
-     radial-gradient(900px 500px at 100% 0%, #1a1622 0%, transparent 55%),
-     var(--bg);
-   color:var(--fg);font:13px/1.55 "Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;
-   display:flex;flex-direction:column;overflow:hidden;user-select:none}
- header{display:flex;align-items:center;gap:14px;padding:11px 16px;
-   border-bottom:1px solid var(--line);background:linear-gradient(180deg,rgba(255,138,31,.05),transparent)}
- .logo{font:700 15px/1 Consolas,"Cascadia Mono",monospace;letter-spacing:.2em;color:#fff}
- .logo b{color:var(--orange);text-shadow:0 0 14px rgba(255,138,31,.5)}
- .ver{font:11px/1 Consolas,monospace;color:var(--dim)}
- .spacer{flex:1}
- .pill{display:inline-flex;align-items:center;gap:7px;padding:5px 11px;border-radius:999px;
-   border:1px solid var(--line);background:var(--panel2);font-size:12px}
- .dot{width:8px;height:8px;border-radius:50%;background:var(--grey);box-shadow:0 0 8px currentColor}
- .pill.run{border-color:rgba(57,217,138,.45);color:var(--ok)}
- .pill.run .dot{background:var(--ok);color:var(--ok);animation:pulse 1.4s infinite}
- .pill.idle .dot{background:var(--grey);color:var(--grey)}
- @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
- button{font:600 13px/1 "Microsoft YaHei UI","Microsoft YaHei",sans-serif;color:#0a0e13;
-   background:linear-gradient(180deg,#ffa03d,#f07d10);border:0;border-radius:8px;
-   padding:10px 18px;cursor:pointer;letter-spacing:.05em;
-   box-shadow:0 4px 14px rgba(255,138,31,.25)}
- button:hover{filter:brightness(1.08)}
- button:disabled{opacity:.35;cursor:not-allowed;filter:none;box-shadow:none}
- button.ghost{background:transparent;color:var(--fg);border:1px solid var(--line);
-   box-shadow:none;font-weight:500}
- button.ghost:hover{border-color:var(--accent);color:#fff}
- button.danger{background:linear-gradient(180deg,#ff6b85,#e03050);color:#fff;
-   box-shadow:0 4px 14px rgba(224,48,80,.25)}
- main{flex:1;display:grid;grid-template-columns:330px minmax(280px,1fr) 1.35fr;
-   gap:12px;padding:12px;min-height:0}
- .card{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line);
-   border-radius:11px;display:flex;flex-direction:column;min-height:0;overflow:hidden}
- .card>h2{margin:0;padding:9px 13px;font-size:11px;font-weight:600;letter-spacing:.18em;
-   color:var(--dim);border-bottom:1px solid var(--line);background:rgba(255,255,255,.015);
-   display:flex;align-items:center;gap:8px}
- .card>h2 .tag{margin-left:auto;font:10px/1 Consolas,monospace;color:var(--dim);
-   border:1px solid var(--line);border-radius:5px;padding:2px 6px}
- .body{padding:11px 13px;overflow:auto;min-height:0;flex:1}
- .sw{display:flex;gap:10px;align-items:flex-start;padding:7px 0;border-bottom:1px dashed rgba(255,255,255,.045)}
- .sw:last-child{border-bottom:0}
- .sw input{appearance:none;width:36px;height:19px;border-radius:999px;background:#20293a;
-   border:1px solid var(--line);position:relative;cursor:pointer;flex:0 0 auto;margin-top:2px;
-   transition:background .18s}
- .sw input:checked{background:linear-gradient(90deg,#f07d10,#ffa03d);border-color:#ffa03d}
- .sw input::after{content:"";position:absolute;top:2px;left:2px;width:13px;height:13px;
-   border-radius:50%;background:#8b96a6;transition:left .18s,background .18s}
- .sw input:checked::after{left:19px;background:#0a0e13}
- .sw .txt{min-width:0}
- .sw .lbl{font-weight:600}
- .sw .hint{color:var(--dim);font-size:11.5px;line-height:1.4}
- .row{display:flex;align-items:center;gap:9px;margin:10px 0}
- .row label{color:var(--dim);font-size:12px}
- input[type=number]{width:70px;background:#0b1219;color:var(--fg);border:1px solid var(--line);
-   border-radius:7px;padding:7px 9px;font:13px/1 Consolas,monospace}
- input[type=number]:focus{outline:0;border-color:var(--orange)}
- .kv{display:grid;grid-template-columns:88px 1fr;gap:4px 10px;font-size:12.5px}
- .kv .k{color:var(--dim)}
- .kv .v{font-family:Consolas,monospace;word-break:break-all}
- .big{font:700 22px/1.15 Consolas,monospace;letter-spacing:.04em}
- .sub{color:var(--dim);font-size:11.5px}
- .badge{display:inline-block;padding:2px 7px;border-radius:5px;font:11px/1.5 Consolas,monospace;
-   border:1px solid var(--line);color:var(--dim);margin-right:5px}
- .badge.ok{color:var(--ok);border-color:rgba(57,217,138,.4)}
- .badge.bad{color:var(--bad);border-color:rgba(255,92,120,.4)}
- #log{font:12px/1.5 Consolas,"Cascadia Mono",monospace;white-space:pre-wrap;
-   word-break:break-all;padding:9px 12px}
- #log div{padding:1px 0;border-left:2px solid transparent;padding-left:8px}
- #log .ok{color:var(--ok)}
- #log .warn{color:var(--warn)}
- #log .bad{color:var(--bad)}
- #log .turn{color:var(--orange);font-weight:600}
- #log .state{color:var(--accent)}
- #log .act{color:#cfe0f0}
- #log .dim{color:#5d6a7a}
- .toast{position:fixed;right:16px;bottom:16px;background:var(--panel);border:1px solid var(--line);
-   border-left:3px solid var(--orange);border-radius:9px;padding:10px 14px;font-size:12.5px;
-   box-shadow:0 10px 30px rgba(0,0,0,.45);opacity:0;transform:translateY(8px);
-   transition:opacity .2s,transform .2s;pointer-events:none;max-width:380px}
- .toast.show{opacity:1;transform:none}
- .note{color:var(--dim);font-size:11.5px;line-height:1.5;margin-top:10px;
-   border-top:1px dashed rgba(255,255,255,.06);padding-top:9px}
+:root {
+  color-scheme:dark; --bg:#141416; --panel:#222225; --subpanel:#29292d; --well:#19191c;
+  --line:#39393e; --edge:#808088; --text:#f1efe9; --muted:#b1afb5; --iris:#ac9af7;
+  --light:#c9bcff; --tint:#363046; --deep:#231b36; --warn:#ecbd7d; --bad:#f3a5ac; --info:#b2c1e8;
+  --mono:Consolas,'Cascadia Mono',monospace; accent-color:var(--iris); font:14px/1.5 'Segoe UI','Microsoft YaHei UI',sans-serif;
+}
+* {box-sizing:border-box}
+body {margin:0; height:100vh; display:flex; flex-direction:column; color:var(--text); background:var(--bg)}
+h1,h2,p,dl,dd {margin:0} h1 {font-size:24px} h2 {font-size:20px} code {font-family:var(--mono)}
+button,input {font:inherit} button {padding:6px 12px; background:#303035; border:1px solid var(--edge); color:var(--text); border-radius:6px; cursor:pointer; transition:background .14s,border-color .14s,color .14s}
+button:not(:disabled):hover {background:#3b3b42; border-color:var(--muted)} button:not(:disabled):active {background:#484850} button:disabled {background:var(--subpanel); color:#97959c; border-color:var(--line); cursor:not-allowed}
+button:focus-visible,input:focus-visible,summary:focus-visible,#log:focus-visible {outline:3px solid var(--light); outline-offset:2px}
+header,.tools,.buttons,.title-line,.journal-head,.field {display:flex;align-items:center;gap:10px} header {min-height:60px; padding:8px 22px; background:var(--well);border-bottom:1px solid var(--line);flex:none}
+.brand {display:flex;align-items:center;gap:9px} .brand svg {width:36px;height:36px;color:var(--iris)} .brand strong {display:block;font:750 20px/1.1 'Segoe UI',sans-serif;letter-spacing:.04em} .brand b {color:var(--iris)} .brand small,.eyebrow {display:block;font:650 10px/1.5 var(--mono);letter-spacing:.14em;color:var(--muted)}
+.mast-title {border-left:1px solid var(--line);padding-left:16px;margin-left:6px;color:var(--muted)} .tools {margin-left:auto;flex-wrap:wrap;justify-content:flex-end} #ver {color:var(--muted);font-family:var(--mono)}
+main {flex:1; min-height:0; padding:16px 22px; display:grid; grid-template-columns:clamp(275px,27vw,370px) minmax(0,1fr); gap:16px}
+.panel {min-width:0; background:var(--panel); border:1px solid var(--line); border-radius:10px; overflow:hidden} .settings,.journal {display:flex;flex-direction:column;min-height:0}
+.heading,.journal-head {padding:12px 17px;border-bottom:1px solid var(--line)} .journal-head {justify-content:space-between;flex-wrap:wrap}
+#switches {overflow:auto;min-height:0;flex:1;padding:0 17px} .sw {display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid var(--line);cursor:pointer} .sw:last-child {border-bottom:0}
+.sw .txt {order:-1;min-width:0} .sw .lbl {display:block;font-weight:650} .sw .hint {display:block;font-size:12px;color:var(--muted);margin-top:1px} .sw input {appearance:none;flex:none;width:36px;height:21px;margin:0;padding:2px;border:1px solid var(--edge);border-radius:20px;background:#303035;cursor:pointer}
+.sw input::before {content:'';display:block;width:15px;height:15px;border-radius:50%;background:var(--muted);transition:transform .16s ease,background .16s} .sw input {appearance:none;flex:none;width:36px;height:21px;margin:0;padding:2px;border:1px solid var(--edge);border-radius:20px;background:#303035;cursor:pointer;transition:background .16s,border-color .16s} .sw input:checked {background:var(--iris);border-color:var(--iris)} .sw input:checked::before {transform:translateX(15px);background:var(--deep)}
+.launch {flex:none;padding:12px 17px;background:var(--subpanel);border-top:1px solid var(--line)} .field {justify-content:space-between;font-weight:600} #rounds {width:70px;padding:4px 6px;background:var(--well);border:1px solid var(--edge);border-radius:5px;color:var(--text)} .field small,.hint-text {color:var(--muted);font-size:12px;font-weight:400} #saveStatus {margin:6px 0 9px} .launch .hint-text:last-child {margin-top:5px}
+#btnStart {flex:1;font-weight:650} #btnStart:not(:disabled) {background:var(--iris);color:var(--deep);border-color:var(--iris)} #btnStart:not(:disabled):hover {background:var(--light)} #btnStop:not(:disabled) {color:var(--bad);border-color:var(--bad)}
+.workspace {display:grid;min-height:0;min-width:0;overflow:auto;grid-template-rows:auto minmax(170px,1fr);gap:14px} .hero {padding:13px 18px;background:linear-gradient(105deg,var(--subpanel) 40%,var(--tint))} .hero .eyebrow {color:var(--light)} .title-line {flex-wrap:wrap} #stSub {font-size:13px;color:var(--muted)}
+.pill,.badge {display:inline-flex;align-items:center;gap:5px;font-size:12px;padding:2px 8px;border:1px solid var(--edge);border-radius:14px} .dot {width:7px;height:7px;border-radius:50%;background:currentColor} .pill.run,.badge.ok {color:var(--light);border-color:var(--iris);background:var(--tint)} .pill.run .dot {animation:dot-pulse 1.6s ease-in-out infinite} .badge.bad {color:var(--warn);margin-right:4px}
+.metrics {display:grid;grid-template-columns:1fr 1fr 1.35fr; padding:12px 0} .metrics div {padding:0 18px;min-width:0;border-right:1px solid var(--line)} .metrics div:last-child {border:0} dt {color:var(--muted);font-size:13px} .metrics dd {font:600 16px/1.55 var(--mono),'Microsoft YaHei UI';overflow-wrap:anywhere}
+.activity {margin:0 18px;padding:8px 0;border-top:1px solid var(--line);display:flex;gap:14px} .activity dt {flex:none} .activity dd {max-height:4.5em;overflow:auto;overflow-wrap:anywhere}
+.details {padding:7px 18px;background:var(--subpanel);border-top:1px solid var(--line)} summary {cursor:pointer;font-size:13px;color:var(--muted)} summary:hover {color:var(--light)} .details dl {display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 12px;padding-top:7px} .details dd {overflow-wrap:anywhere} #stIssues {margin-left:8px}
+#log {flex:1; min-height:0;overflow:auto;overflow-anchor:none;white-space:pre-wrap;overflow-wrap:anywhere;background:var(--well);padding:8px 15px; font:13px/1.6 var(--mono),'Microsoft YaHei UI';scrollbar-color:var(--edge) var(--well)} #log:focus-visible {outline-offset:-3px} #log:empty::before {content:'暂无符合条件的日志';display:block;padding:12px 0;color:var(--muted)} #log div {padding:3px 0;border-bottom:1px solid #ffffff0c} #log .ok {color:var(--light)} #log .warn {color:var(--warn)} #log .bad {color:var(--bad)} #log .state {color:var(--info)} #log .dim {color:var(--muted)} #log .turn {font-weight:650}
+#btnKey[aria-pressed=true] {color:var(--light);background:var(--tint);border-color:var(--iris)} .journal-foot {padding:4px 15px;font:12px/1.6 var(--mono);color:var(--muted);background:var(--subpanel)}
+@keyframes dot-pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.7)}}
+.toast {position:fixed;right:18px;bottom:16px;max-width:min(500px,90vw);padding:10px 15px;border:1px solid var(--edge);border-left:3px solid var(--iris);border-radius:6px;background:var(--subpanel);overflow-wrap:anywhere;box-shadow:0 4px 18px #0005;pointer-events:none;opacity:0;transform:translateY(8px);transition:opacity .18s,transform .18s} .toast.show {opacity:1;transform:none}
+@media(max-width:820px),(max-height:510px){body{height:auto;min-height:100vh} main{grid-template-columns:1fr;padding:12px} .workspace{overflow:visible;grid-template-rows:auto minmax(280px,48vh)} .mast-title{display:none} #switches{max-height:45vh;flex:auto} header{flex-wrap:wrap}}
+
+.mode-tabs {display:flex;gap:3px;padding:3px;background:var(--bg);border-radius:8px}
+.mode-tabs button {border-color:transparent;white-space:nowrap}
+.mode-tabs button[aria-pressed=true] {background:var(--tint);color:var(--light);border-color:var(--iris)}
+.emu-fields {overflow:auto;min-height:0;flex:1;padding:8px 17px}
+.emu-fields .field {margin:8px 0;flex-wrap:wrap}
+.emu-fields select,.emu-fields input:not([type=checkbox]) {font:inherit;color:var(--text);background:var(--well);border:1px solid var(--edge);border-radius:5px;padding:6px;min-width:0}
+.emu-fields input[type=text] {width:100%}
+.emu-fields input[type=number] {width:80px}
+#emuView .buttons {flex-wrap:wrap}
+#btnEmuStartSel:not(:disabled) {background:var(--iris);color:var(--deep)}
+#emuView .workspace {grid-template-rows:minmax(180px,1fr) minmax(180px,1fr)}
+#emuInstances {overflow:auto;min-height:0;flex:1;padding:0 16px}
+.emu-instance {padding:13px 0;border-bottom:1px solid var(--line);display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px 12px}
+.emu-instance label {font-weight:650;display:flex;align-items:center;gap:8px;overflow-wrap:anywhere}
+.emu-instance .hint-text {margin-top:5px}
+.emu-instance .buttons {justify-content:flex-end;align-content:center}
+#emuSaveStatus {margin-bottom:8px}
+@media(max-width:1000px){.emu-instance{grid-template-columns:1fr}.emu-instance .buttons{justify-content:flex-start}}
+#emuLog {flex:1; min-height:0;overflow:auto;overflow-anchor:none;white-space:pre-wrap;overflow-wrap:anywhere;background:var(--well);padding:8px 15px; font:13px/1.6 var(--mono),'Microsoft YaHei UI';scrollbar-color:var(--edge) var(--well)} #emuLog:focus-visible {outline-offset:-3px} #emuLog:empty::before {content:'暂无符合条件的日志';display:block;padding:12px 0;color:var(--muted)} #emuLog div {padding:3px 0;border-bottom:1px solid #ffffff0c} #emuLog .ok {color:var(--light)} #emuLog .warn {color:var(--warn)} #emuLog .bad {color:var(--bad)} #emuLog .state {color:var(--info)} #emuLog .dim {color:var(--muted)} #emuLog .turn {font-weight:650}
 </style></head><body>
-<header>
-  <div class="logo">KARDS<b>·</b>AUTO</div>
-  <div class="ver" id="ver">v?</div>
-  <div class="pill idle" id="pill"><span class="dot"></span><span id="pilltxt">空闲</span></div>
-  <div class="spacer"></div>
-  <button class="ghost" id="btnUpdate">检测更新</button>
-  <button id="btnApplyUpdate" style="display:none">应用更新</button>
-  <button class="ghost" id="btnRelease" style="display:none">发布页</button>
-  <button id="btnStart" disabled>开始</button>
-  <button class="danger" id="btnStop" disabled>停止</button>
-</header>
-<main>
-  <section class="card">
-    <h2>功能选择<span class="tag">命令行开关</span></h2>
-    <div class="body" id="switches"></div>
-    <div class="body" style="flex:0 0 auto;border-top:1px solid var(--line)">
-      <div class="row"><label>跑几局</label>
-        <input type="number" id="rounds" min="0" max="99" value="3" disabled>
-        <span class="sub">0 = 一直跑</span></div>
-      <div class="sub" id="saveStatus" role="status" style="margin-top:6px">选项与局数自动保存，重启后恢复。</div>
-      <div class="note">跑的时候别让面板盖住 KARDS —— 窗口被盖住时引擎会
-        fail-closed 不动作(它本来就这么设计)。</div>
-    </div>
-  </section>
-  <section class="card">
-    <h2>实时状态<span class="tag" id="elapsed">—</span></h2>
-    <div class="body">
-      <div class="big" id="stState">—</div>
-      <div class="sub" id="stSub">等待日志…</div>
-      <div style="height:12px"></div>
-      <div class="kv">
-        <div class="k">费用读数</div><div class="v" id="stKre">—</div>
-        <div class="k">我方支援</div><div class="v" id="stBoard">—</div>
-        <div class="k">最近动作</div><div class="v" id="stAct">—</div>
-        <div class="k">本段局数</div><div class="v" id="stRounds">—</div>
-        <div class="k">启动参数</div><div class="v" id="stArgv">—</div>
-      </div>
-      <div id="stIssues" style="margin-top:10px"></div>
-    </div>
-  </section>
-  <section class="card">
-    <h2>日志<span class="tag" id="logtag">main_loop.log</span>
-      <button class="ghost" style="margin-left:8px;padding:4px 9px;font-size:11px"
-        id="btnKey">只看关键行</button>
-      <button class="ghost" style="padding:4px 9px;font-size:11px" id="btnBottom">到底部</button>
-    </h2>
-    <div class="body" id="log" style="padding:0"></div>
-  </section>
+<header><div class="brand"><svg viewBox="0 0 42 42" aria-hidden="true"><rect x="5" y="11" width="20" height="25" rx="3" transform="rotate(-13 15 23)" fill="none" stroke="currentColor" stroke-width="2"/><rect x="15" y="5" width="21" height="29" rx="3" fill="currentColor"/><path d="m25 12 5 7-5 7-5-7z" fill="var(--well)"/></svg><div><strong>KARDS <b>AUTO</b></strong><small>DESKTOP CONTROL</small></div></div>
+<span class="mast-title">桌面控制台</span><nav class="mode-tabs" aria-label="运行平台"><button id="tabPc" aria-pressed="true" aria-controls="pcView">PC 端游</button><button id="tabEmu" aria-pressed="false" aria-controls="emuView">模拟器多开</button></nav><div class="tools"><span id="ver">版本 —</span><button id="btnUpdate">检测更新</button><button id="btnApplyUpdate" style="display:none">应用更新</button><button id="btnRelease" style="display:none">发布页</button></div></header>
+<main id="pcView">
+  <section class="panel settings" aria-labelledby="settings-title"><div class="heading"><span class="eyebrow">CONFIGURATION</span><h2 id="settings-title">运行设置</h2></div><div id="switches"></div>
+    <div class="launch"><div class="field"><label for="rounds">目标局数 <small>0 表示不限</small></label><input type="number" id="rounds" min="0" max="99" value="3" disabled></div>
+      <p id="saveStatus" class="hint-text" role="status">选项与局数自动保存，重启后恢复。</p><div class="buttons"><button id="btnStart" disabled>开始运行</button><button id="btnStop" disabled>停止</button></div><p class="hint-text">运行时请勿遮挡 KARDS 游戏窗口。</p></div></section>
+  <div class="workspace"><section class="panel" aria-labelledby="overview-title">
+    <div class="hero"><span class="eyebrow">SESSION OVERVIEW</span><div class="title-line"><h1 id="overview-title">运行总览</h1><div id="pill" class="pill idle" role="status"><span class="dot"></span><span id="pilltxt">连接中</span></div></div><p id="stSub">正在读取状态…</p></div>
+    <dl class="metrics"><div><dt>运行时长</dt><dd id="elapsed">—</dd></div><div><dt>费用读数</dt><dd id="stKre">—</dd></div><div><dt>我方支援 / 前线</dt><dd id="stBoard">—</dd></div></dl>
+    <dl class="activity"><dt>最近动作</dt><dd id="stAct">—</dd></dl>
+    <details class="details"><summary>会话详情 <span id="stIssues"></span></summary><dl><dt>对局阶段</dt><dd id="stState">—</dd><dt>最近三局</dt><dd id="stRounds">—</dd><dt>启动参数</dt><dd><code id="stArgv">—</code></dd></dl></details>
+  </section><section class="panel journal" aria-labelledby="journal-title"><div class="journal-head"><div><span class="eyebrow">EVENT JOURNAL</span><h2 id="journal-title">运行日志</h2></div><div class="buttons"><button id="btnKey" aria-pressed="false">只看关键行</button><button id="btnBottom">回到底部 ↓</button></div></div><div id="log" tabindex="0" role="region" aria-label="日志内容"></div><div class="journal-foot" id="logtag">main_loop.log</div></section></div>
 </main>
-<div class="toast" id="toast"></div>
+<main id="emuView" style="display:none">
+  <section class="panel settings" aria-labelledby="emuSettingsTitle">
+    <div class="heading"><span class="eyebrow">EMULATOR CONTROL</span><h2 id="emuSettingsTitle">模拟器多开设置</h2></div>
+    <fieldset class="emu-fields" id="emuFields" disabled style="border:0;margin:0">
+      <div class="field"><label for="emuMode">对战模式</label><select id="emuMode"><option value="training">训练模式</option><option value="casual">休闲对战</option><option value="ranked">排位模式</option></select></div>
+      <div class="field"><label for="emuDeck">卡组名称</label><input type="text" id="emuDeck" placeholder="留空默认选首个卡组"></div>
+      <div class="field"><label for="emuRounds">目标局数 <small>0 表示不限</small></label><input type="number" id="emuRounds" min="0" max="99" value="3"></div>
+      <div class="field"><label for="emuStagger">启动间隔 <small>秒</small></label><input type="number" id="emuStagger" min="0" max="10" step="0.1" value="1.5"></div>
+<label class="sw"><input type="checkbox" id="emuPreferIpc"><span class="txt"><span class="lbl">MuMu IPC 高速截图</span></span></label>
+<label class="sw"><input type="checkbox" id="emuDeploy"><span class="txt"><span class="lbl">自动部署单位</span></span></label>
+<label class="sw"><input type="checkbox" id="emuAttack"><span class="txt"><span class="lbl">自动进攻与上前线</span></span></label>
+<label class="sw"><input type="checkbox" id="emuEndTurn"><span class="txt"><span class="lbl">自动结束回合</span></span></label>
+<label class="sw"><input type="checkbox" id="emuAutoLaunch"><span class="txt"><span class="lbl">自动拉起 KARDS</span></span></label>
+<label class="sw"><input type="checkbox" id="emuDryRun"><span class="txt"><span class="lbl">只看日志不点击 (Dry-Run)</span></span></label>
+
+      <div class="field"><label for="emuExtraSerials">自定义 ADB 端点</label><input type="text" id="emuExtraSerials" placeholder="127.0.0.1:5555" aria-describedby="emuAdbHint"></div>
+      <p class="hint-text" id="emuAdbHint">雷电/蓝叠等其他模拟器可填 ADB 端口，以逗号或空格分隔。</p>
+    </fieldset>
+    <div class="launch"><p id="emuSaveStatus" class="hint-text" role="status">正在读取模拟器配置…</p><div class="buttons"><button id="btnEmuRefresh">刷新实例</button><button id="btnEmuStartSel" disabled>启动已选</button><button id="btnEmuStopAll">全部停止</button></div></div>
+  </section>
+  <div class="workspace">
+    <section class="panel settings" aria-labelledby="emuInstancesTitle"><div class="journal-head"><div><span class="eyebrow">INSTANCES</span><h2 id="emuInstancesTitle">模拟器实例列表</h2></div><span class="hint-text" id="emuCount">正在发现实例…</span></div><div id="emuInstances"></div></section>
+    <section class="panel journal" aria-labelledby="emuJournalTitle"><div class="journal-head"><div><span class="eyebrow">INSTANCE JOURNAL</span><h2 id="emuJournalTitle">实例运行日志</h2></div><button id="btnEmuBottom">回到底部 ↓</button></div><div id="emuLog" tabindex="0" role="region" aria-label="实例日志内容"></div><div class="journal-foot" id="emuLogTag">请选择实例的「日志」</div></section>
+  </div>
+</main>
+<div id="toast" class="toast" role="status"></div>
 <script>
 let onlyKey = false, autoscroll = true, lastRev = '', polling = false;
 let updUrl = '', lastUpdateMessage = '', checkingUpdate=false;   // 查到新版本后存发布页地址,按钮第二次点就是打开它
@@ -1022,9 +1083,10 @@ function renderSwitches(list, opts){
   $('#rounds').disabled = false;
   for(const s of list){
     const d = document.createElement('label'); d.className='sw';
+    d.title = s.flag;
     d.innerHTML = `<input type="checkbox" id="sw_${s.key}" ${opts[s.key]?'checked':''}>
       <span class="txt"><span class="lbl">${s.label}</span>
-      <span class="hint">${s.hint}<br>${s.flag}</span></span>`;
+      <span class="hint">${s.hint}</span></span>`;
     const input = d.querySelector('input');
     input.addEventListener('change', ()=>{
       if(s.key === 'ranked' && input.checked && !window.confirm(
@@ -1058,10 +1120,11 @@ function render(s){
     victory:'胜利', defeat:'失败', None:'—'};
   $('#stState').textContent = run ? (stMap[st.state] ?? (st.state||'启动中…')) : '空闲';
   const rr = (st.rounds||[]).slice(-3).map(r=>`第${r.n}局 ${r.result} ${r.min}min`).join(' · ');
-  $('#stSub').textContent = st.waiting
+  const waiting = run && st.waiting;
+  $('#stSub').textContent = waiting
       ? '⚠ 引擎在等窗口 —— KARDS 没开、或被别的窗口盖住了(下面是上一局的旧状态)'
-      : (rr || (run ? '等第一局结束…' : '点右上角「开始」'));
-  $('#stSub').style.color = st.waiting ? 'var(--warn)' : '';
+      : (run ? (stMap[st.state] || st.state || '正在等待游戏状态…') : (st.last_line ? '当前未运行，下方显示最近日志记录。' : '选择功能和目标局数后，点击「开始运行」。'));
+  $('#stSub').style.color = waiting ? 'var(--warn)' : '';
   $('#stKre').textContent = st.kredits!=null ? `${st.kredits}  ${st.kredits_how?('['+st.kredits_how+']'):''}` : '—';
   $('#stBoard').textContent = st.board ? `${st.board.our} 张(单位 ${st.board.our_units}) / 前线 ${st.board.front}` : '—';
   $('#stAct').textContent = st.last_action ? `[${st.last_action.tag}] ${st.last_action.text}` : '—';
@@ -1140,12 +1203,13 @@ function persistOptions(){
 }
 window.addEventListener('pywebviewready', async ()=>{
   poll(); setInterval(poll, 1000);
-  $('#rounds').addEventListener('input', persistOptions);
+  let _rt; $('#rounds').addEventListener('input', ()=>{ clearTimeout(_rt); _rt=setTimeout(persistOptions, 350); });
   $('#btnStart').onclick = async ()=>{
     if(starting) return;
     starting = true;
     $('#btnStart').disabled = true;
     lockOptionControls(true);
+    clearTimeout(_rt);
     try {
       await flushOptionSaves();
       // Controls stay locked through the Python start call, so the command
@@ -1178,10 +1242,151 @@ window.addEventListener('pywebviewready', async ()=>{
     const r=await window.pywebview.api.install_update(); toast(r.msg,11000); poll();
   };
   $('#btnKey').onclick = ()=>{ onlyKey=!onlyKey; lastRev='';
+    $('#btnKey').setAttribute('aria-pressed', String(onlyKey));
     $('#btnKey').textContent = onlyKey?'看全部':'只看关键行'; poll(); };
   $('#btnBottom').onclick = ()=>{ autoscroll=true; $('#log').scrollTop=$('#log').scrollHeight; };
   $('#log').addEventListener('scroll', ()=>{ const l=$('#log');
     autoscroll = l.scrollTop + l.clientHeight >= l.scrollHeight - 30; });
+});
+
+// Emulator requests and log revisions are independent of the PC viewer.
+let emuActive=false, emuPolling=false, emuReady=false, emuBusy=false;
+let emuSelected=new Set(), emuLogId='', emuLogRev='', emuAutoscroll=true;
+let emuSaveQueue=Promise.resolve(), emuSaveRevision=0, emuLastPoll=0, emuListKey='';
+const emuToggles={emuPreferIpc:'prefer_ipc',emuDeploy:'allow_deploy',emuAttack:'allow_attack',
+  emuEndTurn:'allow_end_turn',emuAutoLaunch:'auto_launch_kards',emuDryRun:'dry_run'};
+function emuCollect(){
+  return {mode:$('#emuMode').value,deck_name:$('#emuDeck').value,
+    max_rounds:Number($('#emuRounds').value),stagger_seconds:Number($('#emuStagger').value),
+    extra_serials:$('#emuExtraSerials').value.split(/[,，\s]+/).filter(Boolean),
+    selected_instances:[...emuSelected],
+    ...Object.fromEntries(Object.entries(emuToggles).map(([id,key])=>[key,$('#'+id).checked]))};
+}
+function emuLoad(o){
+  $('#emuMode').value=o.mode; $('#emuDeck').value=o.deck_name;
+  $('#emuRounds').value=o.max_rounds; $('#emuStagger').value=o.stagger_seconds;
+  $('#emuExtraSerials').value=o.extra_serials.join(', ');
+  for(const [id,key] of Object.entries(emuToggles)) $('#'+id).checked=o[key];
+  emuSelected=new Set(o.selected_instances); emuReady=true;
+  $('#emuFields').disabled=emuBusy; $('#btnEmuStartSel').disabled=emuBusy;
+  $('#emuSaveStatus').textContent='选项自动保存；停止后重新启动生效。';
+}
+function emuValid(){
+  const rounds=Number($('#emuRounds').value), stagger=Number($('#emuStagger').value);
+  return $('#emuRounds').value!=='' && $('#emuStagger').value!=='' &&
+    Number.isInteger(rounds) && rounds>=0 && rounds<=99 &&
+    Number.isFinite(stagger) && stagger>=0 && stagger<=10;
+}
+function emuPersist(){
+  if(!emuReady) return;
+  const revision=++emuSaveRevision, opts=emuCollect();
+  if(!emuValid()){
+    $('#emuSaveStatus').textContent='局数须为 0~99 的整数，间隔须为 0~10 秒。'; return;
+  }
+  $('#emuSaveStatus').textContent='正在自动保存…';
+  emuSaveQueue=emuSaveQueue.then(async()=>{
+    try{
+      const r=await window.pywebview.api.emu_save_options(opts);
+      if(revision===emuSaveRevision) $('#emuSaveStatus').textContent=r.msg;
+    }catch(e){$('#emuSaveStatus').textContent='保存失败：'+e;}
+  });
+}
+function emuChooseLog(id){
+  emuLogId=id; emuLogRev=''; emuAutoscroll=true;
+  $('#emuLog').replaceChildren(); $('#emuLogTag').textContent=id; emuListKey=''; emuPoll(true);
+}
+async function emuAction(action){
+  if(emuBusy) return;
+  emuBusy=true; $('#emuFields').disabled=true; $('#btnEmuStartSel').disabled=true;
+  document.querySelectorAll('#emuInstances button, #emuInstances input').forEach(e=>e.disabled=true);
+  try{
+    await emuSaveQueue;
+    const r=await action(); toast(r.msg || (r.ok?'操作已完成':'操作失败'),r.ok?3200:10000);
+  }catch(e){toast('模拟器操作失败：'+e,10000);}
+  finally{
+    emuBusy=false; $('#emuFields').disabled=!emuReady; $('#btnEmuStartSel').disabled=!emuReady;
+    emuListKey=''; emuPoll(true);
+  }
+}
+function emuStart(ids){
+  if(!ids.length) return {ok:false,msg:'请先选择模拟器实例'};
+  if(!emuValid()) return {ok:false,msg:'请检查目标局数和启动间隔'};
+  return window.pywebview.api.emu_start(ids,emuCollect());
+}
+function emuRenderInstances(instances){
+  const key=JSON.stringify([instances,[...emuSelected],emuLogId,emuBusy]);
+  if(key===emuListKey) return;
+  emuListKey=key;
+  const box=$('#emuInstances'), fragment=document.createDocumentFragment();
+  for(const i of instances){
+    const row=document.createElement('div'); row.className='emu-instance';
+    const info=document.createElement('div'), label=document.createElement('label');
+    const check=document.createElement('input'); check.type='checkbox'; check.checked=emuSelected.has(i.instance_id); check.disabled=emuBusy;
+    check.onchange=()=>{if(check.checked) emuSelected.add(i.instance_id); else emuSelected.delete(i.instance_id); emuPersist();};
+    label.append(check,document.createTextNode(i.name)); info.append(label);
+    const badges=document.createElement('div'); badges.className='hint-text';
+    const provider=i.provider==='mumu'?'MuMu'+(i.android_version?' '+i.android_version:''):'ADB';
+    badges.textContent=provider+(i.ipc_available?' · IPC':'')+' · '+(i.running?'运行中':'未启动'); info.append(badges);
+    const status=document.createElement('div'); status.className='hint-text';
+    status.textContent=i.worker_running?('运行中 · '+i.worker_state+' · '+i.rounds_done+'局('+i.victories+'胜'+i.defeats+'负) · '+(i.avg_capture_ms==null?'—':Math.round(i.avg_capture_ms))+'ms'):'空闲';
+    info.append(status);
+    if(i.last_error){const err=document.createElement('div'); err.className='hint-text'; err.style.color='var(--bad)'; err.textContent=i.last_error; info.append(err);}
+    const buttons=document.createElement('div'); buttons.className='buttons';
+    function button(text,fn){const b=document.createElement('button'); b.textContent=text; b.disabled=emuBusy; b.onclick=fn; buttons.append(b); return b;}
+    if(i.provider==='mumu' || i.extra?.controllable){
+      button(i.running?'关机':'开机',()=>emuAction(async()=>{
+        if(i.running && i.worker_running){const r=await window.pywebview.api.emu_stop([i.instance_id]); if(!r.ok) return r;}
+        return window.pywebview.api.emu_control(i.instance_id,i.running?'shutdown':'launch');
+      }));
+    }
+    button(i.worker_running?'停止':'启动',()=>emuAction(()=>i.worker_running?
+      window.pywebview.api.emu_stop([i.instance_id]):emuStart([i.instance_id])));
+    const logButton=button('日志',()=>emuChooseLog(i.instance_id)); logButton.setAttribute('aria-pressed',String(emuLogId===i.instance_id));
+    row.append(info,buttons); fragment.append(row);
+  }
+  if(!instances.length){const empty=document.createElement('p'); empty.className='hint-text'; empty.style.padding='18px 0'; empty.textContent='未发现实例。请打开模拟器，或填写 ADB 端点后刷新。'; fragment.append(empty);}
+  box.replaceChildren(fragment); $('#emuCount').textContent=instances.length+' 个实例';
+}
+async function emuPoll(force=false){
+  if(emuPolling || (!force && !emuActive && Date.now()-emuLastPoll<3000)) return;
+  emuPolling=true; emuLastPoll=Date.now();
+  const id=emuActive?emuLogId:'', rev=emuActive?emuLogRev:'';
+  try{
+    const s=await window.pywebview.api.emu_snapshot(id,rev);
+    $('#tabEmu').textContent='模拟器多开'+(s.running_count?' ('+s.running_count+')':'');
+    if(!emuReady) emuLoad(s.options);
+    emuRenderInstances(s.instances);
+    if(emuActive && id && id===emuLogId && s.log){
+      $('#emuLogTag').textContent=id;
+      if(s.log.changed){
+        emuLogRev=s.log.rev;
+        const fragment=document.createDocumentFragment();
+        for(const [cls,line] of s.log.log_lines){const div=document.createElement('div'); div.className=cls; div.textContent=line; fragment.append(div);}
+        $('#emuLog').replaceChildren(fragment);
+        if(emuAutoscroll) $('#emuLog').scrollTop=$('#emuLog').scrollHeight;
+      }
+    }
+  }catch(e){$('#emuCount').textContent='读取失败，请刷新重试'; $('#emuLogTag').textContent='模拟器状态读取失败：'+e;}
+  finally{emuPolling=false;}
+}
+window.addEventListener('pywebviewready',()=>{
+  function mode(active){
+    emuActive=active; $('#pcView').style.display=active?'none':''; $('#emuView').style.display=active?'':'none';
+    $('#tabPc').setAttribute('aria-pressed',String(!active)); $('#tabEmu').setAttribute('aria-pressed',String(active));
+    if(active) emuPoll(true);
+  }
+  $('#tabPc').onclick=()=>mode(false); $('#tabEmu').onclick=()=>mode(true);
+  $('#emuFields').addEventListener('change',e=>{
+    if(e.target.id==='emuMode' && e.target.value==='ranked' && !window.confirm(
+      '警告：排位模式下的自动操作可能被游戏检测，存在封号风险。\n\n确认要启用排位模式吗？')) e.target.value='training';
+    emuPersist();
+  });
+  $('#btnEmuRefresh').onclick=async()=>{await emuSaveQueue; emuPoll(true);};
+  $('#btnEmuStartSel').onclick=()=>emuAction(()=>emuStart([...emuSelected]));
+  $('#btnEmuStopAll').onclick=()=>emuAction(()=>window.pywebview.api.emu_stop());
+  $('#btnEmuBottom').onclick=()=>{emuAutoscroll=true; $('#emuLog').scrollTop=$('#emuLog').scrollHeight;};
+  $('#emuLog').addEventListener('scroll',()=>{const l=$('#emuLog'); emuAutoscroll=l.scrollTop+l.clientHeight>=l.scrollHeight-30;});
+  setInterval(emuPoll,1000);
 });
 </script></body></html>
 """
@@ -1241,7 +1446,11 @@ def main() -> int:
             "version": read_version(),
             "options_file": options_path(),
             "saved_options": load_options(),
+            "emulator_multi_instance": {"available": True, "providers": ["mumu", "adb"], "ipc_supported": True},
             "classic_strategy": True,
+            "message_input": {"available": True, "default": False,
+                              "flag": "--message-input", "physical_fallback": False,
+                              "cooperative_stop": True, "force_kill_on_stop": False},
             "beta_updates": {
                 "stable_after_beta": update_check.is_newer('0.2.2', '0.2.2_beta'),
                 "package_suffix": bool(update_check.parse_release_assets(
@@ -1279,7 +1488,7 @@ def main() -> int:
         x, y = clamp_to_screen(x, y, w, h)
     window = webview.create_window(
         APP_NAME, html=HTML, js_api=make_js_api(api), width=w, height=h, x=x, y=y,
-        min_size=WIN_MIN, background_color="#0a0e13", text_select=False)
+        min_size=WIN_MIN, background_color="#141416", text_select=True)
     api.window = window
 
     def _remember(*_a, **_k):
@@ -1306,7 +1515,12 @@ def main() -> int:
         try:
             r = api.stop()
             if r.get("ok"):
-                log_update(f"[面板] 关窗口时把引擎一起停了:{r.get('msg')}")
+                log_update(f"[面板] 关窗口停止请求:{r.get('msg')}")
+        except Exception:
+            pass
+
+        try:
+            api.emu_stop()
         except Exception:
             pass
 

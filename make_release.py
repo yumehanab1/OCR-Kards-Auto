@@ -43,7 +43,7 @@ SKIP_DIRS = {".venv", "venv", "build", "dist", ".git", "shots",
 
 #: 这些文件名是"这台机器专属"的,别人拿了没用,而且 panel_token 是口令。
 SKIP_FILES = {"gui_window.json", "gui_options.json", "panel_token.txt",
-              "AGENTS.md", "SYSTEM_HANDOFF.md"}
+              "emu_options.json", "TODO.md", "AGENTS.md", "SYSTEM_HANDOFF.md"}
 
 # 双系统交接与现场报告包含本机路径和取证信息，属于共享工作区资料。
 # 发布包只需要运行代码；另一系统从同一仓库读取交接文件。
@@ -56,6 +56,24 @@ SKIP_REL_FILES = {"config/update_manifest.json"}
 #:   两个 exe 不知道该点哪个,包还白胖一大截。跟 `logs` 那次一样,靠人记得删是靠不住的,
 #:   把规则写死在这里,并在自检里再拦一道。
 SKIP_SUFFIXES = (".bak", ".old", ".orig", ".tmp", ".rej", "~")
+
+
+def iter_emu_runtime_files(root: str):
+    """Map the read-only Android vision sources into the PC runtime tree."""
+    main = os.path.join(root, "mobile", "source", "android-app", "app", "src", "main")
+    for subtree in ("python", "assets/mobile-core"):
+        source = os.path.join(main, *subtree.split("/"))
+        for directory, dirs, files in os.walk(source):
+            dirs[:] = sorted(d for d in dirs if d != "__pycache__")
+            for name in sorted(files):
+                if (name.endswith((".pyc", ".pyo", "_test.py") + SKIP_SUFFIXES)
+                        or (subtree == "python" and not name.endswith(".py"))):
+                    continue
+                full = os.path.join(directory, name)
+                sub = os.path.relpath(full, source).replace(os.sep, "/")
+                yield full, f"src/emu_runtime/{subtree}/{sub}"
+    yield (os.path.join(main, "assets", "match-entry", "defeat_banner.png"),
+           "src/emu_runtime/assets/match-entry/defeat_banner.png")
 
 
 def read_version() -> str:
@@ -113,6 +131,14 @@ def main() -> int:
                                       "size": os.path.getsize(full)}
                 n += 1
 
+        for full, rel in iter_emu_runtime_files(ROOT):
+            if rel in manifest_files:
+                continue
+            z.write(full, f"{BASE}/{rel}")
+            manifest_files[rel] = {"sha256": file_sha256(full),
+                                   "size": os.path.getsize(full)}
+            n += 1
+
         # Keep the manifest inside the installed package as a tiny local
         # index.  It is also written next to the zip below for GitHub Release
         # upload, so the updater can compare hashes without downloading the
@@ -155,6 +181,8 @@ def main() -> int:
             problems.append("**包里混进了面板口令 panel_token.txt**")
         if any(x.endswith("/gui_options.json") for x in names):
             problems.append("混进了本机面板配置 gui_options.json")
+        if any(x.endswith("/emu_options.json") for x in names):
+            problems.append("混进了本机模拟器配置 emu_options.json")
         if any(x.endswith(("/AGENTS.md", "/SYSTEM_HANDOFF.md")) for x in names):
             problems.append("混进了本机项目指令或双系统交接")
         if any("/docs/reports/" in x for x in names):
@@ -187,6 +215,14 @@ def main() -> int:
                 f"{BASE}/config/weather_variants.json",
                 f"{BASE}/src/weather_cards.py", f"{BASE}/src/hand_cost_filter.py",
                 f"{BASE}/src/update_install.py",
+                f"{BASE}/src/emu_discovery.py",
+                f"{BASE}/src/emu_transport.py",
+                f"{BASE}/src/emu_vision.py",
+                f"{BASE}/src/emu_worker.py",
+                f"{BASE}/src/emu_manager.py",
+                f"{BASE}/src/emu_runtime/python/apk_simple_combat.py",
+                f"{BASE}/src/emu_runtime/assets/mobile-core/src/mobile_board.py",
+                f"{BASE}/src/emu_runtime/assets/match-entry/defeat_banner.png",
                 f"{BASE}/src/log_io.py",
                 f"{BASE}/config/hand_cost_digits/1.png"]
         for w in need:

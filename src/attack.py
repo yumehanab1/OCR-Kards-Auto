@@ -359,12 +359,27 @@ def move_unit_to_front(hwnd, src, dst=None, log=print):
     ★ 这个动作**还没在实机上验证过** —— 第一次跑请盯日志和画面。
     """
     dx, dy = dst if dst else (src[0], FRONT_LINE_DROP_Y)
-    sx, sy = client_to_screen(hwnd, src[0], src[1])
-    ex, ey = client_to_screen(hwnd, dx, dy)
+    detail = {"src": src, "dst": (dx, dy)}
+    try:
+        sx, sy = client_to_screen(hwnd, src[0], src[1])
+        ex, ey = client_to_screen(hwnd, dx, dy)
+    except Exception as e:
+        detail["reason"] = f"坐标换算失败: {type(e).__name__}: {e}"
+        log(f"[move] 输入失败({detail['reason']})")
+        return False, detail
     log(f"[move] 把单位 x{src[0]}@y{src[1]} 拖到前线 ({dx},{dy})")
-    move_drag(sx, sy, ex, ey)
+    try:
+        delivered = move_drag(sx, sy, ex, ey)
+    except Exception as e:
+        detail["reason"] = f"拖拽异常: {type(e).__name__}: {e}"
+        log(f"[move] 输入失败({detail['reason']})")
+        return False, detail
+    if delivered is not True:
+        detail["reason"] = "拖拽输入未确认完成(未发送或中途失败)"
+        log(f"[move] 输入失败({detail['reason']})")
+        return False, detail
     time.sleep(MOVE_SETTLE)
-    return True, {"src": src, "dst": (dx, dy)}
+    return True, detail
 
 
 # ★★ 诊断用:把攻击阶段那一帧存下来(便于事后逐帧核对"徽章到底有没有/判成什么")。
@@ -451,6 +466,8 @@ class FrontMover:
         self.moved = 0
         self.tried = set()
         self.refused = 0
+        self.input_failed = 0        # 输入未完成，不等同于游戏拒绝
+        self.input_failed_all = 0
         # ★ 跨回合累计(**不随 reset_turn 清零**)—— §7 第 44 条:
         #   `think()` 点完结束回合会 `reset_turn()`,把回合内计数清零,
         #   于是在循环跑完之后断言"回合内计数"必然失败、而且看起来像功能坏了。
@@ -462,6 +479,7 @@ class FrontMover:
         self.moved = 0
         self.tried = set()
         self.refused = 0
+        self.input_failed = 0
 
     # ---- helpers ----
     def _frame(self):
@@ -543,6 +561,8 @@ class FrontMover:
           而实测同时出现 `前线 3->3` —— 单位离开了支援线却没出现在前线,
           到底去哪了没确认。只看一个方向的计数变化是 §7 第 46 条同一种错。
         """
+        if self.input_failed:
+            return self.moved, self.refused  # 本回合不重发失败/可能部分完成的输入
         for _ in range(max(0, self.max_moves)):
             if hard_stop is not None and hard_stop():
                 self.log("[move] 我方回合结束,停止上前线")
@@ -609,10 +629,15 @@ class FrontMover:
                      f"y{adv['src'][1]} -> 前线空槽位 ({dx},{dy})"
                      f"(前线行 cy={fcy:.0f};归属={owner})")
             try:
-                move_unit_to_front(self.hwnd, adv["src"], dst=(dx, dy),
-                                   log=lambda m: None)
+                ok, detail = move_unit_to_front(
+                    self.hwnd, adv["src"], dst=(dx, dy), log=lambda m: None)
             except Exception as e:
-                self.log(f"[move] 拖拽出错({type(e).__name__}: {e})-> 停止")
+                ok, detail = False, {"reason": f"{type(e).__name__}: {e}"}
+            if ok is not True:
+                self.input_failed += 1
+                self.input_failed_all += 1
+                self.log(f"[move] 输入失败({detail.get('reason') or '拖拽未确认完成'})"
+                         " -> 停止本段，不做移动判定，本回合不重发")
                 break
             time.sleep(MOVE_SETTLE)
 
@@ -662,6 +687,8 @@ class Attacker:
         self.tried = set()          # 已经试过的"我方单位"坐标
         self.attempts = 0
         self.landed = 0
+        self.input_failed = 0        # attempts 包含输入失败，但 landed 绝不包含
+        self.input_failed_all = 0
         # ★★ 2026-09-12 实机发现:这两个原因原来**共用一个计数器**,
         #   日志写成"需先上前线的 N 个已跳过" —— 而其中可能有一个是**类型没认出来**,
         #   两者的处置完全相反(前者是规则,后者是要去补的活)。
@@ -695,6 +722,7 @@ class Attacker:
         self.tried = set()
         self.attempts = 0
         self.landed = 0
+        self.input_failed = 0
         self.skipped_needs_front = 0
         self.skipped_unknown_type = 0
         self.skipped_no_front_owner = 0
@@ -1460,8 +1488,8 @@ class Attacker:
         #   下一行本该是拖拽后的判据,却什么都没有 —— 中间只有这一段代码。
         #   这里 fail-soft(项目原则:宁可少打一次,也不能把整局弄崩):
         #   换算/拖拽失败 -> 记一条**醒目**日志,按"这一发没发出去"返回 False。
-        #   调用方随后照常走"打中了没有"的判据,而判据看到的是"什么都没变",
-        #   该报"被拒绝/结论不可信"就照报 —— 不会因为这里而伪造出结论。
+        #   调用方必须检查返回值：只有明确 True 才做后验。False 也可能是
+        #   拖到一半失败，不能当游戏拒绝、更不能用无关画面变化记成命中。
         #   (顶层还加了兜底:真出了别的异常,`main_loop.main()` 会把 traceback
         #    写进 `logs/main_loop.log`,不再只丢给控制台。)
         try:
@@ -1497,6 +1525,8 @@ class Attacker:
             日志里会明确写"结论不可信"(以前那种"画面差异"的退路只在总部血量
             读不到时才走,而且会写明)。
         """
+        if self.input_failed:
+            return self.attempts, self.landed  # reset_turn 前不重发失败输入
         for _ in range(self.max_attacks):
             if hard_stop is not None and hard_stop():
                 self.log("[attack] 我方回合结束,停止攻击")
@@ -1633,7 +1663,12 @@ class Attacker:
                      f"-> {target['label']} x{drop[0]}"
                      f"@y{drop[1]}(血量 {hp_before};判据 {source};"
                      f"前线归属 {owner or '读不出'})")
-            self._attack(src["src"], drop)
+            if self._attack(src["src"], drop) is not True:
+                self.input_failed += 1
+                self.input_failed_all += 1
+                self.log(f"[attack] #{self.attempts} 输入失败(拖拽未确认完成)"
+                         " -> 停止本段，不做命中判定、不封总部，本回合不重发")
+                break
             time.sleep(ATTACK_SETTLE)
 
             self._park()

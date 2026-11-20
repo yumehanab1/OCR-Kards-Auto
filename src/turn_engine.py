@@ -200,6 +200,8 @@ class TurnEngine:
         self.attempted_x = set()     # every position we dragged from
         self.deployed_this_turn = 0  # 本回合"确认成功"的部署数(用战场卡数确认)
         self.deploy_refused = 0      # 本回合被拒绝的拖拽数(战场卡数没变)
+        self.deploy_input_failed = 0
+        self.deploy_input_failed_all = 0
         self.unknown_tried = 0       # 本回合试过的"完全认不出"的牌数
         self.hand_at_turn_start = 0
         #: 黑名单卡只提醒一次(整个进程一次就够;它是"卡组建议",不是每回合的状态)
@@ -275,6 +277,7 @@ class TurnEngine:
         self.attempted_x = set()
         self.deployed_this_turn = 0
         self.deploy_refused = 0
+        self.deploy_input_failed = 0
         self.unknown_tried = 0
         self._blacklist_warned = False       # 新一局重新提醒一次(换牌=换卡组)
         self.attacked_this_turn = 0
@@ -1304,6 +1307,15 @@ class TurnEngine:
             return "selection_resolved"
         et = self._end_turn_visible(frame)
 
+        if self.phase == 'end_turn_pending':
+            if et:
+                # Posting a click is not a new turn. Keep all failure locks and
+                # ledgers intact; never replay the action chain or end click.
+                return 'end_turn_pending'
+            self.log('[turn] 新帧确认结束回合按钮消失，清理当前回合账本')
+            self.reset_turn()
+            return 'ended_turn'
+
         if self.phase == "wait_our_turn":
             if not et:
                 return "opponent_turn"
@@ -1547,7 +1559,7 @@ class TurnEngine:
                     self.log(f"[choice] ⚠️ 拖牌异常 {type(e).__name__}: {e} -> 停手")
                     self._dump_frame("drag_error", name, subdir="choice")
                     return "selection_blocked"
-                if dragged is False:
+                if dragged is not True:
                     self.phase = "selection_blocked"
                     self.log("[choice] ⚠️ 拖牌输入失败 -> 停手")
                     self._dump_frame("drag_failed", name, subdir="choice")
@@ -1679,10 +1691,25 @@ class TurnEngine:
                          f"cost {cost}) 手牌x={target['x']} -> 落点#{attempt}"
                          f"({dx},{dy})(本回合剩余预算 {self.kredits_left})"
                          f" | {self._ident_text(target)}")
-                drag_deploy(self.hwnd, target["x"], drop=(dx, dy),
-                            hover_wait=self.scanner.hold,
-                            on_pressed=lambda: self._dump_drag_frame(
-                                name, target))
+                try:
+                    dragged = drag_deploy(self.hwnd, target["x"], drop=(dx, dy),
+                                          hover_wait=self.scanner.hold,
+                                          on_pressed=lambda: self._dump_drag_frame(name, target))
+                except Exception as error:
+                    dragged = False
+                    self.log(f"[turn] 拖牌输入异常:{type(error).__name__}: {error}")
+                if dragged is not True:
+                    self.deploy_input_failed = getattr(self, 'deploy_input_failed', 0) + 1
+                    self.deploy_input_failed_all = getattr(self, 'deploy_input_failed_all', 0) + 1
+                    # Delivery may be partial. Do not infer success/refusal from
+                    # unchanged zero-cost digits, refund, or try another slot.
+                    self.kredits_left = None
+                    self.cards = []
+                    self.phase = 'end_turn'
+                    self.log(f"[turn] ⚠️ {name} 输入未完整派发，本回合停止拖牌；"
+                             f"不做后验、不计成功或游戏拒绝、不换槽重发"
+                             f"(本回合输入失败 {self.deploy_input_failed} 次)")
+                    return 'deploy_input_failed'
                 time.sleep(DEPLOY_SETTLE)
                 # Unit deployment may trigger a menu. Entry is based on the
                 # frame, while this record only defers the deployment verdict
@@ -1790,7 +1817,8 @@ class TurnEngine:
             if (self.phase in ("selection_pending", "selection_blocked")
                     or self._enter_screen_selection(capture_client_bgr(self.hwnd))):
                 return self.phase
-            self.log(f"[turn] 攻击阶段结束:尝试 {attempts} 次,被接受 {landed} 次"
+            self.log(f"[turn] 攻击阶段结束:尝试 {attempts} 次,被接受 {landed} 次,"
+                     f"输入失败 {getattr(self.attacker, 'input_failed', 0)} 次"
                      f"(本回合累计 {self.attacked_this_turn})")
             # ★ 2026-09-13:攻击之后进"上前线"阶段 —— 能打的已经打了(变灰),
             #   剩下的"够不着目标"的步兵/坦克才挪上去。
@@ -1811,7 +1839,8 @@ class TurnEngine:
             if (self.phase in ("selection_pending", "selection_blocked")
                     or self._enter_screen_selection(capture_client_bgr(self.hwnd))):
                 return self.phase
-            self.log(f"[turn] 上前线阶段结束:挪上去 {moved} 个,没动成 {refused} 个"
+            self.log(f"[turn] 上前线阶段结束:挪上去 {moved} 个,没动成 {refused} 个,"
+                     f"输入失败 {getattr(self.front_mover, 'input_failed', 0)} 次"
                      f"(本回合累计 {self.moved_this_turn})")
             # ★★ 2026-09-13:上前线会把我们自己的单位**挪离支援线**(空出位置),
             #   而 `field_at_turn_start` 是**挪之前**的快照 —— 拿它判"线满没满"
@@ -1845,13 +1874,13 @@ class TurnEngine:
             if reg and s >= END_TURN_MIN_SCORE:
                 cx = reg[0] + reg[2] // 2
                 cy = reg[1] + reg[3] // 2
-                sx, sy = client_to_screen(self.hwnd, cx, cy)
                 try:
+                    sx, sy = client_to_screen(self.hwnd, cx, cy)
                     clicked = click(sx, sy)
                 except Exception as e:
                     clicked = False
                     self.log(f"[turn] 结束回合点击异常:{type(e).__name__}: {e}")
-                if clicked is False:
+                if clicked is not True:
                     # Keep the phase and all per-turn ledgers intact.  A
                     # blocked mouse input is not evidence that the turn
                     # actually ended; resetting here would allow the engine
@@ -1873,7 +1902,8 @@ class TurnEngine:
                 # advanced to the opponent turn; resync the per-turn ledger.
                 self.reset_turn()
                 return "turn_switched"
-            self.reset_turn()
-            return "ended_turn"
+            self.phase = 'end_turn_pending'
+            self.log('[turn] 结束回合输入已派发，等待新帧确认；未清账或解除失败锁')
+            return 'end_turn_pending'
 
         return "unknown"

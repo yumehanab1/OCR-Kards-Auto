@@ -83,6 +83,11 @@ LOG = os.path.join(PROJECT_ROOT, "logs", "main_loop.log")
 COOLDOWN_AFTER_CLICK = 2.5
 BLANK_TOLERANCE = 6          # consecutive blank frames before we pause acting
 POST_MATCH_DARK_REWARD = True  # rollback switch for dark claim-screen recognition
+MESSAGE_CONFIRM_S = 4.0  # only for an explicit, state-changing message click
+
+
+class MessageInputUnconfirmed(RuntimeError):
+    """The game did not visibly acknowledge a delivered message; do not replay it."""
 
 
 def post_match_reward_visible(frame) -> bool:
@@ -214,7 +219,8 @@ class Controller:
     def __init__(self, proc: str, dry: bool, max_rounds: int, end_turn: bool,
                  play: bool = False, fast_scan: bool = False,
                  attack: bool = True, lazy_scan: bool = True,
-                 ranked: bool = False, classic_strategy: bool = False):
+                 ranked: bool = False, classic_strategy: bool = False,
+                 message_input: bool = False):
         self.proc = proc
         self.dry = dry
         self.max_rounds = max_rounds
@@ -226,6 +232,8 @@ class Controller:
         # ★ 惰性扫描:找到第一张出得起的牌就停,不读整手牌(默认开,见 §11)
         self.lazy_scan = lazy_scan
         self.classic_strategy = bool(classic_strategy)
+        self.input_mode = "message" if message_input else "physical"
+        actions_mod.configure_input(self.input_mode)
         self.turn_engine = None
         self.last_turn_status = None
         self.hwnd = None
@@ -275,13 +283,16 @@ class Controller:
         if self.hwnd is None:
             wins = find_by_process(self.proc)
             if not wins:
+                actions_mod.bind_message_window(None)
                 return None
             self.hwnd = wins[0]["hwnd"]
+        actions_mod.bind_message_window(self.hwnd)
         frame = capture_client_bgr(self.hwnd)
         if frame is None:
             self._capture_misses += 1
             if self._capture_misses >= 3:
                 self.hwnd = None
+                actions_mod.bind_message_window(None)
                 self._capture_misses = 0
         else:
             self._capture_misses = 0
@@ -290,9 +301,41 @@ class Controller:
     def client_to_screen(self, x: int, y: int):
         if self.hwnd is None:
             return (x, y)
-        return win32gui.ClientToScreen(self.hwnd, (int(x), int(y)))
+        from win import client_to_screen
+        return client_to_screen(self.hwnd, x, y)
 
     # ---- click helpers ----
+    def _confirm_message_click(self, button):
+        # A posted WM_LBUTTONUP is not a game response. Observe only: no retry,
+        # physical fallback, second engine tick or change to the current ledger.
+        if self.dry or self.input_mode != 'message' or button not in ('play_btn', 'end_turn_btn'):
+            return
+        target = self.hwnd
+        deadline = time.monotonic() + MESSAGE_CONFIRM_S
+        consecutive = 0
+        while time.monotonic() < deadline:
+            time.sleep(.2)
+            if actions_mod.stop_requested():
+                raise actions_mod.InputStopped()
+            if foreground_window() != target or not window_is_capturable(target, quiet=True):
+                consecutive = 0
+                continue
+            f = capture_client_bgr(target)
+            if (f is None or f.shape[:2] != (720, 1280) or f.std() < 8
+                    or foreground_window() != target or not window_is_capturable(target, quiet=True)):
+                consecutive = 0
+                continue
+            if button == 'play_btn':
+                state, hits = classify(f, self.templates, self.states)
+                changed = state in ('deck_select', 'queueing', 'mulligan', 'in_game') or 'deck_ok_btn' in hits
+            else:
+                changed = match_one(f, self.templates[button])[0] < END_TURN_MIN_SCORE
+            consecutive = consecutive + 1 if changed else 0
+            if consecutive >= 2:
+                return
+        label = '开始' if button == 'play_btn' else '结束回合'
+        raise MessageInputUnconfirmed(f'窗口消息已发出，{MESSAGE_CONFIRM_S:g} 秒内未确认「{label}」生效。')
+
     def click_template(self, name: str) -> bool:
         if name not in self.templates:
             log(f"template '{name}' not loaded")
@@ -318,6 +361,7 @@ class Controller:
                 _why = actions_mod.take_input_error() or "原因读不出"
                 log(f"⚠️ [{self.current_state}] {name} 这一下**没点成**:{_why}")
                 return False
+            self._confirm_message_click(name)
         self.last_click = time.time()
         return True
 
@@ -512,6 +556,8 @@ class Controller:
                         log(f"[in_game] turn engine error 同一处又犯了 "
                             f"{self._te_err_n} 次({_sig})—— traceback 见上面第一条")
                 return
+            if st == 'end_turn_pending' and self.last_turn_status != st:
+                self._confirm_message_click('end_turn_btn')
             if st != self.last_turn_status:
                 log(f"[in_game] turn engine: {st} "
                     f"(phase={self.turn_engine.phase}, "
@@ -959,10 +1005,17 @@ class Controller:
     def run(self) -> int:
         log(f"main_loop start (dry={self.dry} end_turn={self.end_turn} "
             f"max_rounds={self.max_rounds})")
+        log("[input] " + ("窗口消息输入(实验)：不移动系统鼠标，不回退物理输入；"
+                            "仅确认消息投递，游戏是否接受仍需后验"
+                            if self.input_mode == "message" else "物理鼠标输入")
+            + "；KARDS 须前台可见，停止后重新开始可切换")
         self.round_started = time.time()
         last_state_log = ""
         ticks = 0
         while True:
+            if actions_mod.stop_requested():
+                log("[input] 收到停止请求，不再采样或派发动作")
+                break
             ticks += 1
             if self.max_ticks and ticks > self.max_ticks:
                 log(f"max_ticks reached ({self.max_ticks}), stopping")
@@ -1153,7 +1206,12 @@ class Controller:
             if self._post_clicks_left <= 0 and self._max_rounds_hit():
                 break
 
-            if state:
+            if (state is None and self.turn_engine is not None
+                    and self.turn_engine.phase == 'end_turn_pending'):
+                # Opponent frames may classify as unknown. This phase only
+                # observes the end-button posterior; it never replays actions.
+                self.handle_in_game()
+            elif state:
                 self.handle_state(state)
             else:
                 # unknown screen: wait, log only on change
@@ -1179,7 +1237,7 @@ class Controller:
         if (self.play and not self.dry and engine is not None
                 and self.current_state == 'in_game'
                 and not getattr(self, 'classic_strategy', False)
-                and engine.phase in ('attack', 'move_front', 'play', 'end_turn')):
+                and engine.phase in ('attack', 'move_front', 'play', 'end_turn', 'end_turn_pending')):
             return 0.15
         return 0.8
 
@@ -1266,6 +1324,8 @@ def main() -> int:
                          "不是单位的探针;见 src/hand_memory.py。")
     ap.add_argument('--classic-strategy', action='store_true',
                     help='绕过橙色筛选/凑费/同点重悬停，使用传统手牌扫描和出牌流程')
+    ap.add_argument('--message-input', action='store_true',
+                    help='实验：窗口消息悬停/点击/拖拽，不移动系统鼠标；KARDS须前台可见，不自动回退物理输入')
     args = ap.parse_args()
     log('[strategy] ' + ('传统策略：手牌记忆/布局探针，禁用橙色筛选与凑费'
                          if args.classic_strategy else '当前策略：橙色候选首张扫描')
@@ -1406,10 +1466,19 @@ def main() -> int:
     ctl = Controller(args.proc, args.dry_run, args.max_rounds, args.end_turn,
                      play=args.play, fast_scan=args.fast_scan,
                      attack=args.attack, lazy_scan=not args.no_lazy,
-                     ranked=args.ranked, classic_strategy=args.classic_strategy)
+                     ranked=args.ranked, classic_strategy=args.classic_strategy,
+                     message_input=args.message_input)
     ctl.max_ticks = args.max_ticks
+    stop_file = os.environ.get('KARDS_AUTO_STOP_FILE')
+    actions_mod.configure_stop((lambda: os.path.exists(stop_file)) if stop_file else None)
     try:
         return ctl.run()
+    except MessageInputUnconfirmed as error:
+        log(f'[input] ⚠️ {error} 已停止，未重发或切换物理输入。需要继续时请关闭「不抢鼠标」再开始。')
+        return 2
+    except actions_mod.InputStopped:
+        log("[input] 已安全停止，消息按键释放路径已执行")
+        return 0
     except KeyboardInterrupt:
         log("interrupted by user")
         return 0
@@ -1427,6 +1496,9 @@ def main() -> int:
         for ln in traceback.format_exc().rstrip().splitlines():
             log("    " + ln)
         return 3
+    finally:
+        if not actions_mod.release_message_input():
+            log("[input] ⚠️ 消息按键释放投递未确认，请检查游戏窗口状态")
 
 
 if __name__ == "__main__":

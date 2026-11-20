@@ -26,6 +26,7 @@ import zipfile
 PROTECTED_DIRS = {'.git', '.venv', 'venv', 'logs', 'shots', 'mobile', 'build',
                   'dist', '__pycache__', 'shots_hp_bogus', 'hp_bogus'}
 PROTECTED_FILES = {'agents.md', 'system_handoff.md', 'config/gui_options.json',
+                   'config/emu_options.json',
                    'config/gui_window.json', 'config/panel_token.txt',
                    'config/card_hashes.json'}
 MAX_FILE = 512 * 1024 * 1024

@@ -67,4 +67,6 @@ desktop.ini
 
 # 本机面板选项与原子保存临时文件
 config/gui_options.json
+config/emu_options.json
+config/emu_options_*.tmp
 config/gui_options_*.tmp

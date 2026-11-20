@@ -16,6 +16,47 @@ import win32api
 import win32con
 
 CLICK_DOWN_MS = (40, 90)
+_stop_checker = None
+_stop_latched = False
+_message_held = None
+
+
+class InputStopped(KeyboardInterrupt):
+    """Cooperative stop; release finally blocks run before the engine exits."""
+
+
+def configure_stop(checker=None) -> None:
+    global _stop_checker, _stop_latched
+    _stop_checker, _stop_latched = checker, False
+
+
+def stop_requested() -> bool:
+    global _stop_latched
+    if not _stop_latched and _stop_checker is not None:
+        try:
+            _stop_latched = bool(_stop_checker())
+        except Exception:
+            _stop_latched = True  # an unreadable stop channel cannot authorize input
+    return _stop_latched
+
+
+def _check_input_stop() -> None:
+    if stop_requested():
+        raise InputStopped()
+
+
+def _pause_input(seconds: float) -> None:
+    _check_input_stop()
+    remaining = max(0.0, seconds)
+    if _stop_checker is None:
+        time.sleep(remaining)
+    else:
+        while remaining > 0:
+            delay = min(.05, remaining)
+            time.sleep(delay)
+            remaining -= delay
+            _check_input_stop()
+    _check_input_stop()
 
 # ★★ 安全点(和 `hand_scanner_v2.SAFE_POINT` 同一个点:屏幕中线最右侧,悬停不弹面板)。
 #   2026-09-12 实机抓到的后果:攻击/上前线阶段**从不把光标挪走** ——
@@ -36,7 +77,8 @@ def park_cursor(hwnd, settle: float = 0.20) -> bool:
     try:
         from win import client_to_screen
         sx, sy = client_to_screen(hwnd, *SAFE_POINT_CLIENT)
-        set_cursor(sx, sy)
+        if not set_cursor(sx, sy):
+            return False
         time.sleep(settle)
         return True
     except Exception:
@@ -97,7 +139,10 @@ def _input_failed(what: str, err) -> None:
     _input_fails += 1
     LAST_INPUT_ERROR = f"{what} 失败({type(err).__name__}: {err})"
     if _input_fails >= INPUT_FAIL_HINT_AT:
-        LAST_INPUT_ERROR += " —— " + _INPUT_HINT
+        hint = ("窗口消息输入未成功；确认 KARDS 前台可见且客户区为1280×720。"
+                "游戏可能不响应消息输入；停止后关闭『不抢鼠标』可切回物理模式，不自动回退。"
+                if INPUT_MODE == "message" else _INPUT_HINT)
+        LAST_INPUT_ERROR += " —— " + hint
     return LAST_INPUT_ERROR
 
 
@@ -109,6 +154,9 @@ def set_cursor(x: int, y: int) -> bool:
       整轮就结束了(见文件头那段实机证据)。现在失败只记账,由调用方决定怎么办。
     """
     global _input_fails
+    _check_input_stop()
+    if INPUT_MODE == "message":
+        return move_message(x, y)
     try:
         win32api.SetCursorPos((int(x), int(y)))
         if _input_fails:            # 恢复了 -> 清零(下次失败会重新提示)
@@ -149,6 +197,8 @@ def set_cursor_checked(x: int, y: int):
     """
     if not set_cursor(x, y):
         return None
+    if INPUT_MODE == "message":
+        return (int(x), int(y))  # virtual hover point, never read the user's cursor
     try:
         return win32api.GetCursorPos()
     except Exception:
@@ -162,6 +212,8 @@ def cursor_moved_from(x: int, y: int, tol: int = 8) -> bool:
     用途:自动化脚本把鼠标放到某处后,如果光标自己跑掉了,说明【用户正在操作】,
     脚本应当让路而不是继续抢鼠标。
     """
+    if INPUT_MODE == "message":
+        return False  # this channel does not own the system cursor
     try:
         cx, cy = win32api.GetCursorPos()
     except Exception:
@@ -306,92 +358,82 @@ def move_drag(sx: int, sy: int, ex: int, ey: int,
 
     # ★ 2026-09-20:消息模式(不碰真实光标)—— 见文件末尾那一大段。
     if INPUT_MODE == "message":
-        return drag_message(sx, sy, ex, ey, hold=dwell, press_delay=press_delay)
+        return drag_message(sx, sy, ex, ey, hold=dwell, press_delay=press_delay,
+                            settle=settle, on_pressed=on_pressed)
 
     # ★ 2026-09-19:按下之前先确认"光标真能挪到起点" —— 挪不过去就**不要按**,
     #   否则按下/松开落在光标当时所在的地方(屏幕上别的位置),那比不拖更糟。
     if not set_cursor(sx, sy):
         _input_failed(f"拖拽起点 ({sx},{sy})", "光标没挪到位")
         return False
-    time.sleep(settle)
-    win32api.mouse_event(win32con.MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0)
-    time.sleep(press_delay)
-    if on_pressed is not None:
-        # 诊断回调:现在光标上就挂着"被拖起来的那张牌"。
-        # ★ 绝不许它把拖拽弄崩(§7 第 57 条:诊断代码只许丢一行日志)。
-        try:
-            on_pressed()
-        except Exception:
-            pass
+    down = False
     try:
-        cur = win32api.GetCursorPos()
-    except Exception:
-        cur = (ex, ey)
-    if not move_stepped(cur[0], cur[1], ex, ey):
-        # 已经按下去了,但挪不到目标 —— **松手回原位**(放回手牌)比乱放好。
-        # 中途松手会落在光标当前所在的格子上;这里选择直接松开并如实报失败,
-        # 交给上层按"这一发没发出去"记账(和 `attack._attack` 的 fail-soft 一致)。
+        _pause_input(settle)
+        down = True  # even an uncertain DOWN must be followed by a release attempt
+        win32api.mouse_event(win32con.MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0)
+        _pause_input(press_delay)
+        if on_pressed is not None:
+            try:
+                on_pressed()
+            except Exception:
+                pass
         try:
-            win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
+            cur = win32api.GetCursorPos()
         except Exception:
-            pass
-        _input_failed(f"拖到 ({ex},{ey})", "中途挪不动")
+            cur = (sx, sy)
+        if not move_stepped(cur[0], cur[1], ex, ey):
+            raise OSError("拖拽中途挪不动")
+        if not set_cursor(ex, ey):
+            raise OSError("拖拽精确落位失败")
+        per = min(.12, max(.04, dwell / (jiggle + 1))) if jiggle else 0.0
+        for i in range(max(0, jiggle)):
+            off = DWELL_JIGGLE_PX if i % 2 == 0 else -DWELL_JIGGLE_PX
+            if not set_cursor(ex + off, ey + off):
+                raise OSError("拖拽停留移动失败")
+            _pause_input(per)
+        if not set_cursor(ex, ey):
+            raise OSError("拖拽最终落位失败")
+        _pause_input(max(0.0, dwell - per * max(0, jiggle)))
+        win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
+        down = False
+        _pause_input(RELEASE_SETTLE)
+        return True
+    except Exception as error:
+        _input_failed(f"拖到 ({ex},{ey})", error)
         return False
-
-    # ② 精确落位:分步移动的末步带抖动,不钉一下的话落点是随机的
-    set_cursor(ex, ey)
-    # ③ 在目标上停住:小幅抖动几下 + 保持 dwell 秒,再松手
-    #   ★★ 2026-09-13:"抖动"的时间**算在 dwell 里面**,不再额外加 ——
-    #      用户的判据是"**在目标上停留总共 400ms 就够**",所以整段停留必须 ≈ dwell,
-    #      而不是 dwell + 抖动(旧写法实际停 1.36s,后来会变成 0.7s,和用户说的不符)。
-    _per = min(0.12, max(0.04, dwell / (jiggle + 1))) if jiggle else 0.0
-    for i in range(max(0, jiggle)):
-        off = DWELL_JIGGLE_PX if i % 2 == 0 else -DWELL_JIGGLE_PX
-        set_cursor(ex + off, ey + off)
-        time.sleep(_per)
-    set_cursor(ex, ey)
-    time.sleep(max(0.0, dwell - _per * max(0, jiggle)))
-    win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
-    time.sleep(RELEASE_SETTLE)
-    return True
+    finally:
+        if down:
+            try:
+                win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
+            except Exception as error:
+                _input_failed("物理拖拽释放", error)
 
 
 # ===========================================================================
-# ★★★ 2026-09-20:**"不抢鼠标"那条路 —— 窗口消息输入**(默认关,先实测再开)
-#
-# 用户原话:*"程序运行抢鼠标很烦,有没有可能模拟鼠标点击……前提是不注入内存,
-# 完全物理操作"*。先把结论写在这儿,免得以后又绕回来:
-#
-#   ① **物理层做不到"不抢"** —— Windows **只有一个系统光标**,`SendInput` /
-#      `mouse_event` / `SetCursorPos` 动的就是它。硬件盒子(KMBox / Arduino HID)
-#      也一样:它模拟的是一只**真鼠标**,动的还是**同一个**光标,只是更难被
-#      软件发现 —— 所以"换硬件"并不能解决抢鼠标这件事。
-#   ② 真正不抢的只有两条路:**不碰光标、直接往窗口发消息**(本段),或者
-#      **换一个会话/机器**(把游戏放进另一个 Windows 会话或虚拟机)。
-#
-# ① 能不能用**完全取决于游戏**:消息是"投递"给窗口的,而游戏有可能压根不看窗口
-#   消息(改成 Raw Input 直接读设备;UE 就有 `Slate.ForceRawInputSimulation`
-#   这类开关)。**这一条只能实测** —— `dev\click_probe.py` 就是干这个的,它走的
-#   就是本段这几个函数:探针说能用,把 `INPUT_MODE` 改成 `"message"`,
-#   `click` / `move_drag` 两条路会**整体**切过去。
-#
-# ★ 实测通过之后也要记住的取舍:
-#   · 消息点击**没有"光标在哪"这回事** —— `park_cursor`(把光标挪到安全点、让悬停
-#     面板消失)在消息模式下没有意义;不过画面上那个放大悬停面板是**上一次物理
-#     悬停**留下的,只要不再物理移动光标,它就不会被刷新(想清掉还是得物理挪一次)。
-#   · 让行判据 `cursor_moved_from` 只对物理模式有意义(消息模式本来就没占光标,
-#     也就没有"用户在抢"这回事)。
-# ===========================================================================
-INPUT_MODE = "physical"          # "physical"(默认,老行为) | "message"
+# Window-message input is experimental: transport success is not game acceptance.
+# The runtime binds the discovered KARDS hwnd; there is never physical fallback.
+# Standalone click_probe calls may still resolve a window under a point.
+INPUT_MODE = "physical"
+MESSAGE_HWND = None
+
+
+def configure_input(mode: str, hwnd=None) -> None:
+    """Select once at engine startup; changing GUI settings does not hot-switch."""
+    global INPUT_MODE, MESSAGE_HWND
+    if mode not in ("physical", "message"):
+        raise ValueError(f"Unknown input mode: {mode}")
+    INPUT_MODE = mode
+    MESSAGE_HWND = int(hwnd) if mode == "message" and hwnd else None
+
+
+def bind_message_window(hwnd) -> None:
+    global MESSAGE_HWND
+    if INPUT_MODE == "message":
+        MESSAGE_HWND = int(hwnd) if hwnd else None
 
 
 def window_under(sx: int, sy: int):
-    """
-    屏幕坐标 (sx, sy) 底下那个**顶层窗口**,连同它的客户区坐标一起返回。
-
-    为什么用"点底下是谁"、而不是让调用方把 hwnd 一路传下来:引擎里几百个调用点
-    手里只有屏幕坐标(`click(sx, sy)`),这样**改一处**就能整体切到消息模式。
-    """
+    """Resolve a top-level window for standalone diagnostic probes only."""
     import win32gui
     try:
         hwnd = win32gui.WindowFromPoint((int(sx), int(sy)))
@@ -404,86 +446,181 @@ def window_under(sx: int, sy: int):
         return None, 0, 0
 
 
+def _message_point(sx: int, sy: int, hwnd=None):
+    """Fail closed on missing/stale/covered/nonforeground target or bad geometry."""
+    import win32gui
+    target = hwnd or MESSAGE_HWND
+    if not target:
+        if INPUT_MODE == "message":
+            raise ValueError("未绑定 KARDS 窗口，不发送消息")
+        target, _, _ = window_under(sx, sy)
+    if not target or not win32gui.IsWindow(target):
+        raise ValueError("目标窗口已失效")
+    if win32gui.IsIconic(target) or not win32gui.IsWindowVisible(target):
+        raise ValueError("目标窗口最小化或不可见")
+    foreground = win32gui.GetForegroundWindow()
+    foreground = win32gui.GetAncestor(foreground, win32con.GA_ROOT) or foreground
+    if foreground != target:
+        raise ValueError("KARDS 不在前台")
+    covering = win32gui.WindowFromPoint((int(sx), int(sy)))
+    covering = win32gui.GetAncestor(covering, win32con.GA_ROOT) or covering
+    if covering != target:
+        raise ValueError("输入位置被其他窗口遮挡")
+    origin = _message_origin(target)
+    for coordinate in (sx, sy):
+        source = getattr(coordinate, "input_source", None)
+        if source is not None and source != (int(target), origin):
+            raise ValueError("坐标换算来源窗口已移动或更换，不使用旧屏幕坐标")
+    cx, cy = win32gui.ScreenToClient(target, (int(sx), int(sy)))
+    if (cx, cy) != (int(sx) - origin[0], int(sy) - origin[1]):
+        raise ValueError("坐标换算期间窗口位置发生变化")
+    left, top, right, bottom = win32gui.GetClientRect(target)
+    if MESSAGE_HWND and (right - left, bottom - top) != (1280, 720):
+        raise ValueError("KARDS 客户区不是 1280×720")
+    if not (left <= cx < right and top <= cy < bottom and cx <= 32767 and cy <= 32767):
+        raise ValueError("消息坐标超出客户区")
+    _check_message_origin(target, origin)
+    return target, cx, cy
+
+
+def _message_origin(hwnd):
+    import win32gui
+    return win32gui.ClientToScreen(hwnd, (0, 0))
+
+
+def _check_message_origin(hwnd, origin) -> None:
+    if _message_origin(hwnd) != origin:
+        raise ValueError("窗口位置已变化，停止使用旧屏幕坐标")
+
+
+def _message_succeeded() -> None:
+    global _input_fails
+    _input_fails = 0
+
+
 def _lp(x: int, y: int) -> int:
-    """WM_* 鼠标消息的 lParam:低 16 位是 x、高 16 位是 y(**客户区坐标**)。"""
     return (int(x) & 0xFFFF) | ((int(y) & 0xFFFF) << 16)
 
 
 def _send(hwnd, msg: int, wparam: int, lparam: int, sync: bool) -> None:
     import win32gui
+    global _message_held
+    if msg != win32con.WM_LBUTTONUP:
+        _check_input_stop()
+    if msg == win32con.WM_LBUTTONDOWN:
+        _message_held = (hwnd, lparam)
     (win32gui.SendMessage if sync else win32gui.PostMessage)(hwnd, msg, wparam, lparam)
+    if msg == win32con.WM_LBUTTONUP:
+        _message_held = None
+
+
+def release_message_input() -> bool:
+    """Cleanup only: release the same target without focus/geometry or stop gates."""
+    if _message_held is None:
+        return True
+    hwnd, point = _message_held
+    try:
+        _send(hwnd, win32con.WM_LBUTTONUP, 0, point, False)
+        return True
+    except Exception as error:
+        _input_failed("停止时释放消息按键", error)
+        return False
+
+
+def move_message(sx: int, sy: int) -> bool:
+    """Hover/park without SetCursorPos. True means posted, not visibly hovered."""
+    try:
+        hwnd, cx, cy = _message_point(sx, sy)
+        _send(hwnd, win32con.WM_MOUSEMOVE, 0, _lp(cx, cy), False)
+        _message_succeeded()
+        return True
+    except Exception as e:
+        _input_failed(f"消息悬停 ({sx},{sy})", e)
+        return False
 
 
 def click_message(sx: int, sy: int, jitter: int = 5, hold: float = 0.05,
                   sync: bool = False, moves: int = 2) -> bool:
-    """
-    往 (sx, sy) 底下的窗口**发消息**点一下 —— **完全不碰真实光标**。
-
-    `sync=True` 用 `SendMessage`(等窗口处理完才返回,更像真点击,但游戏卡住时
-    会把我们自己也卡住);默认 `PostMessage`(投递完就返回)。
-
-    ★ 返回 True 只代表"消息投出去了",**不代表游戏认了** —— 认没认要看界面有没有变
-      (`dev\\click_probe.py` 就是拿界面状态当判据)。
-    """
-    jx = sx + random.randint(-jitter, jitter)
-    jy = sy + random.randint(-jitter, jitter)
-    hwnd, cx, cy = window_under(jx, jy)
-    if not hwnd:
-        _input_failed(f"消息点到 ({jx},{jy})", "那个位置底下没有窗口")
-        return False
+    """Post a click to the bound game only; no physical input or auto-focus."""
+    hwnd, cx, cy, down = None, 0, 0, False
+    jx, jy = sx, sy
     try:
-        # 先送几次"移动":很多 UI 只在收到鼠标移动之后才做命中判定/画高亮
+        hwnd, base_x, base_y = _message_point(sx, sy)  # validate provenance before jitter loses metadata
+        origin = (int(sx) - base_x, int(sy) - base_y)
+        jx, jy = sx + random.randint(-jitter, jitter), sy + random.randint(-jitter, jitter)
+        _, cx, cy = _message_point(jx, jy, hwnd)
+        _check_message_origin(hwnd, origin)
         for _ in range(max(1, moves)):
             _send(hwnd, win32con.WM_MOUSEMOVE, 0, _lp(cx, cy), sync)
-            time.sleep(0.012)
+            _pause_input(0.012)
+        _message_point(jx, jy, hwnd)  # state may change during hover
+        _check_message_origin(hwnd, origin)
+        down = True  # attempt release even if posting DOWN raises
         _send(hwnd, win32con.WM_LBUTTONDOWN, win32con.MK_LBUTTON, _lp(cx, cy), sync)
-        time.sleep(hold)
+        _pause_input(hold)
+        _message_point(jx, jy, hwnd)
+        _check_message_origin(hwnd, origin)
         _send(hwnd, win32con.WM_LBUTTONUP, 0, _lp(cx, cy), sync)
+        down = False
+        _message_succeeded()
         return True
     except Exception as e:
-        _input_failed(f"消息点到 ({jx},{jy})", e)
+        _input_failed(f"消息点击 ({jx},{jy})", e)
         return False
+    finally:
+        if down and hwnd:
+            try:
+                _send(hwnd, win32con.WM_LBUTTONUP, 0, _lp(cx, cy), sync)
+            except Exception as e:
+                _input_failed("消息点击释放", e)
 
 
 def drag_message(sx: int, sy: int, ex: int, ey: int, steps: int = 14,
                  hold: float = 0.40, press_delay: float = 0.20,
-                 sync: bool = False) -> bool:
-    """
-    窗口消息版的拖拽(部署手牌、攻击敌方目标走的都是这条)。
-
-    ★ 和物理版一样保留三段时序(按下后等一会儿才动 / 在目标上停住 / 停够再松),
-      因为那三段是**实测出来**的(见 `move_drag` 的说明),换成消息投递之后
-      游戏那边的判定逻辑没变,时序大概也得照旧。
-
-    ★ 起点和终点都在游戏窗口里(拖拽本来就是窗口内操作),所以只取**起点**底下的
-      窗口,终点按同一个窗口换算客户区坐标。
-    """
-    import win32gui
-    hwnd, cx0, cy0 = window_under(sx, sy)
-    if not hwnd:
-        _input_failed(f"消息拖拽起点 ({sx},{sy})", "那个位置底下没有窗口")
-        return False
+                 sync: bool = False, settle: float = 0.15, on_pressed=None) -> bool:
+    """Preserve hover/press/dwell/callback; failed delivery never means accepted."""
+    hwnd, cx0, cy0, down = None, 0, 0, False
     try:
-        cx1, cy1 = win32gui.ScreenToClient(hwnd, (int(ex), int(ey)))
-    except Exception:
-        cx1, cy1 = cx0, cy0
-    try:
+        hwnd, cx0, cy0 = _message_point(sx, sy)
+        origin = (int(sx) - cx0, int(sy) - cy0)
+        _, cx1, cy1 = _message_point(ex, ey, hwnd)
+        _check_message_origin(hwnd, origin)
         _send(hwnd, win32con.WM_MOUSEMOVE, 0, _lp(cx0, cy0), sync)
-        time.sleep(0.05)
+        _pause_input(max(0.0, settle))
+        _message_point(sx, sy, hwnd)
+        _message_point(ex, ey, hwnd)
+        _check_message_origin(hwnd, origin)
+        down = True
         _send(hwnd, win32con.WM_LBUTTONDOWN, win32con.MK_LBUTTON, _lp(cx0, cy0), sync)
-        time.sleep(press_delay)
+        _pause_input(max(0.0, press_delay))
+        if on_pressed is not None:
+            try:
+                on_pressed()
+            except Exception:
+                pass  # evidence callback must not leave a held button
         n = max(2, int(steps))
         for i in range(1, n + 1):
             t = i / n
-            mx = int(cx0 + (cx1 - cx0) * t)
-            my = int(cy0 + (cy1 - cy0) * t)
+            _message_point(sx + (ex - sx) * t, sy + (ey - sy) * t, hwnd)
+            _check_message_origin(hwnd, origin)
+            mx, my = int(cx0 + (cx1 - cx0) * t), int(cy0 + (cy1 - cy0) * t)
             _send(hwnd, win32con.WM_MOUSEMOVE, win32con.MK_LBUTTON, _lp(mx, my), sync)
-            time.sleep(0.02)
-        # 在目标上停住(和物理版同一个理由:快松会被当成没投放)
-        time.sleep(max(0.0, hold))
+            _pause_input(0.02)
+        _pause_input(max(0.0, hold))
+        _message_point(ex, ey, hwnd)
+        _check_message_origin(hwnd, origin)
         _send(hwnd, win32con.WM_MOUSEMOVE, win32con.MK_LBUTTON, _lp(cx1, cy1), sync)
         _send(hwnd, win32con.WM_LBUTTONUP, 0, _lp(cx1, cy1), sync)
+        down = False
+        _pause_input(RELEASE_SETTLE)
+        _message_succeeded()
         return True
     except Exception as e:
-        _input_failed(f"消息拖到 ({ex},{ey})", e)
+        _input_failed(f"消息拖拽 ({sx},{sy})->({ex},{ey})", e)
         return False
+    finally:
+        if down and hwnd:
+            try:
+                _send(hwnd, win32con.WM_LBUTTONUP, 0, _lp(cx0, cy0), sync)
+            except Exception as e:
+                _input_failed("消息拖拽释放", e)

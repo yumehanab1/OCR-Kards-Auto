@@ -36,33 +36,54 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 _NAME_SET = None
 _NAME_LIST = None
+_EN_TO_ZH = None      # {norm_upper(en_name): zh_name}
+_EN_LIST = None       # [(norm_upper(en_name), zh_name)] longest first
 _OCR_ENGINE = None
 
 
 def _load_names():
-    global _NAME_SET, _NAME_LIST
+    global _NAME_SET, _NAME_LIST, _EN_TO_ZH, _EN_LIST
     if _NAME_SET is not None:
         return
     names = set()
+    en_to_zh: dict[str, str] = {}
     try:
         with open(DATA_JSON, "r", encoding="utf-8") as f:
             data = json.load(f)
         for c in data.get("cards", []):
-            zh = (c.get("json", {}).get("title") or {}).get("zh-Hans", "")
+            title = (c.get("json", {}).get("title") or {})
+            zh = title.get("zh-Hans", "")
+            en = title.get("en-EN", "")
             if zh:
                 names.add(zh)
+            if zh and en:
+                key = _norm(en).upper()
+                if key and key not in en_to_zh:
+                    en_to_zh[key] = zh
     except Exception:
         pass
     _NAME_SET = names
     _NAME_LIST = sorted(names, key=len, reverse=True)
-    print(f"hover_card_reader: loaded {len(names)} zh names")
+    _EN_TO_ZH = en_to_zh
+    _EN_LIST = sorted(en_to_zh.items(), key=lambda kv: len(kv[0]), reverse=True)
+    print(f"hover_card_reader: loaded {len(names)} zh names, {len(en_to_zh)} en names")
 
 
 def _ocr(img_bgr):
     global _OCR_ENGINE
     if _OCR_ENGINE is None:
-        from rapidocr_onnxruntime import RapidOCR
-        _OCR_ENGINE = RapidOCR()
+        from rapidocr_onnxruntime import RapidOCR, __file__ as rapidocr_file
+
+        engine_dir = os.path.dirname(rapidocr_file)
+        config_path = os.path.join(engine_dir, "config_ppocrv6.yaml")
+        # RapidOCR silently falls back to v4 if config_path is missing.
+        if not os.path.isfile(config_path):
+            raise FileNotFoundError(config_path)
+        # Official PP-OCRv6 small models need their own CTC dictionary.
+        _OCR_ENGINE = RapidOCR(
+            config_path=config_path,
+            rec_keys_path=os.path.join(engine_dir, "models", "ppocrv6_dict.txt"),
+        )
     res, _ = _OCR_ENGINE(img_bgr)
     out = []
     if res:
@@ -87,18 +108,33 @@ def _norm(t):
 
 
 def _match_name(t):
-    """Return canonical name if OCR text matches a known card, else None."""
+    """Return canonical zh-Hans name if OCR text matches a known card, else None.
+
+    Tries Chinese first, then English (en-EN field, case-insensitive).
+    Short titles may match exactly; a fragment shorter than four normalised
+    characters is not sufficient evidence for a longer card title.
+    """
     tn = _norm(t)
     if not tn:
         return None
+    # Check exact short titles, but do not turn a board glyph (e.g. K) into a card.
     if tn in _NAME_SET:
         return tn
     for cand in _NAME_LIST:
         c = _norm(cand)
         if c == tn:
             return cand
-        if len(c) >= 4 and (c in tn or tn in c):
+        if len(c) >= 4 and len(tn) >= 4 and (c in tn or tn in c):
             return cand
+    # --- English path ---
+    tnu = tn.upper()
+    if tnu in _EN_TO_ZH:
+        return _EN_TO_ZH[tnu]
+    for en_key, zh in _EN_LIST:
+        if en_key == tnu:
+            return zh
+        if len(en_key) >= 4 and len(tnu) >= 4 and (en_key in tnu or tnu in en_key):
+            return zh
     return None
 
 

@@ -8,15 +8,14 @@ Windows 64 位 KARDS 画面自动化工具：只读屏幕、模拟鼠标，不�
 
 ## 直接使用
 
-当前PC正式版：[0.2.3](https://github.com/yumehanab1/OCR-Kards-Auto/releases/tag/v0.2.3)，修复橙色费用重复拒识与天气复核长等待，保留可切换的“传统策略”。后续更新从[稳定版下载页](https://github.com/yumehanab1/OCR-Kards-Auto/releases/latest)获取。
+当前PC正式版：[0.3.0](https://github.com/yumehanab1/OCR-Kards-Auto/releases/tag/v0.3.0)，新增「模拟器多开」（MuMu IPC 高速后台截屏/触控 + 通用 ADB，不抢宿主鼠标），升级 PP-OCRv6 并补齐英文卡名匹配与输入/执行可靠性修复。后续更新从[稳定版下载页](https://github.com/yumehanab1/OCR-Kards-Auto/releases/latest)获取。
 
 从 [Releases](https://github.com/yumehanab1/OCR-Kards-Auto/releases) 下载 `kards-auto_vX.Y.Z_x86_64.zip`，解压到空目录后：
 
-1. KARDS 设置为简体中文、`1280×720`、窗口或无边框模式。
-2. 打开 KARDS，停在主界面。
-3. 双击 `KARDS AUTO.exe`，选择局数后点“开始”。
+1. **PC 端游模式**：KARDS 设置为简体中文、`1280×720`、窗口或无边框模式，停在主界面；双击 `KARDS AUTO.exe`，选择局数后点“开始”。
+2. **模拟器多开模式**：在安卓模拟器（推荐 MuMu 模拟器 12，亦支持通用 ADB 模拟器）内安装官方 KARDS 并设分辨率为 `1280×720`（平板横屏）；双击 `KARDS AUTO.exe` 切到顶部「模拟器多开」页签，刷新实例列表后一键单独或批量启动（不抢宿主鼠标，支持遮挡/最小化后台运行）。
 
-游戏窗口必须可见且在前台。日志在 `logs/main_loop.log`；遇到问题请附日志，不要附账号信息或完整截图。
+游戏窗口必须可见且在前台（模拟器多开走 MuMu IPC 时支持遮挡/最小化后台运行）。日志在 `logs/main_loop.log`（模拟器多开各实例为 `logs/emu_*.log`）；遇到问题请附日志，不要附账号信息或完整截图。
 
 面板只读取日志末尾，并限制超长行的显示长度；完整内容仍在日志文件中。
 单个日志达到8MiB后，下次启动时会归档到 `logs/archive/`，历史日志保留。
@@ -33,7 +32,7 @@ Windows 64 位 KARDS 画面自动化工具：只读屏幕、模拟鼠标，不�
 下载服务器支持分段时，只读取 ZIP 目录和变更文件；不支持时会下载完整包，安装仍仅替换变更文件。
 没有配套 PC 文件清单时，请使用发布页下载。已有旧面板需要先换用一次带“应用更新”的新版面板，后续即可直接更新。
 
-已有`0.2.2_beta`在面板检测并应用一次“通道迁移”修订，自动重启后再次检测，即可升级`0.2.3`；以后跟随正式版。也可直接下载`0.2.3`完整PC包解压到新目录。迁移保留本机选项和学习数据。
+已有`0.2.2_beta`在面板检测并应用一次“通道迁移”修订，自动重启后再次检测，即可升级至最新正式版；以后跟随正式版。也可直接下载完整PC包解压到新目录。迁移保留本机选项和学习数据。
 
 ## 面板开关
 
@@ -43,6 +42,7 @@ Windows 64 位 KARDS 画面自动化工具：只读屏幕、模拟鼠标，不�
 | 攻击 | 开 | 按规则表攻击和上前线 |
 | 坐标表直扫 | 开 | 使用已标定的手牌坐标加快扫描 |
 | 传统策略 | 关 | 绕过橙色筛选和凑费，使用传统手牌记忆/布局扫描；停止后重新开始生效 |
+| 不抢鼠标（实验） | 关 | 窗口消息悬停、点击和拖拽，不移动系统光标；停止后重新开始生效 |
 | 结束回合 | 关 | 未开启自动打完一局时主动点击结束回合 |
 | 排位模式 | 关 | 启用前会提示检测和封号风险 |
 | 只看不动 | 关 | 调试用，不移动鼠标 |
@@ -50,7 +50,11 @@ Windows 64 位 KARDS 画面自动化工具：只读屏幕、模拟鼠标，不�
 
 排位模式只在有 `ranked_mode_btn` 模板时点击排位；模板缺失会安全停住，不会回退到休闲模式。
 
-开关和局数修改后自动写入 `config/gui_options.json`，重启面板自动恢复，不会自动运行。
+开关和局数修改后自动写入 `config/gui_options.json`（模拟器多开配置单独保存在 `config/emu_options.json`），重启面板自动恢复，不会自动运行。
+
+面板提供“不抢鼠标（实验）”开关：关闭使用原物理鼠标，开启传入 `--message-input`，
+悬停、点击和拖拽统一投递给已绑定的 PC 端 KARDS 窗口，不自动回退到物理输入（注：UE5 客户端目前无法通过窗口消息触发手牌悬停，如需真正后台不抢鼠标挂机请使用顶部「模拟器多开」页签）。
+消息模式点“停止”会先请求安全释放并退出；若识别尚未返回，面板显示等待，不直接强杀。
 
 如果橙色策略耗时较长，可勾选“传统策略”后重新开始。它保留最新卡库、天气/选牌与守护修复；剩余1费仍可找牌，手牌不少于5张时最多成功出3张。单次传统扫描保留12秒协作截止，在途OCR可结束，不能据此保证整个回合的用时。
 
@@ -89,7 +93,7 @@ install.cmd
 
 ## 手机端 / Android
 
-当前手机版：[Android 0.2.4 下载与安装](mobile/README.md) · [此版本源码](https://github.com/yumehanab1/OCR-Kards-Auto/tree/v0.2.4/mobile/source/android-app)。本次仅更新手机端，Windows 仍为 [PC 0.2.3](https://github.com/yumehanab1/OCR-Kards-Auto/releases/tag/v0.2.3)。
+当前手机版：[Android 0.2.4 下载与安装](mobile/README.md) · [v0.2.4 Release](https://github.com/yumehanab1/OCR-Kards-Auto/releases/tag/v0.2.4) · [此版本源码](https://github.com/yumehanab1/OCR-Kards-Auto/tree/v0.2.4/mobile/source/android-app)。本次 `v0.3.0` 仅更新 PC 客户端（含模拟器多开），手机版请继续下载 Android `0.2.4`（versionCode 191）。
 
 ### 历史：Android 0.2.2
 

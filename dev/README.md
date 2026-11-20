@@ -2,7 +2,72 @@
 
 `dev/` 不参与运行时。这里的脚本分为离线回归、图像判据分析、现场取证和文档生成四类。
 
+## PC 读取模拟器：路线 B 单局原型
+
+`emu_battle_pilot.py` 是 Windows 侧的开发原型，未发布，不接入默认 PC 面板或引擎。模拟器不需要助手 APK；PC 原型仍须通过 `--mobile-root` **只读**加载已核对的本地手游规则和模板。只处理已确认的训练战场，不从主页开局，不点换牌、选目标或结算，不出指令、盲拖未知牌、移动或攻击。
+
+可选识图工具：
+
+- `emu_training_profile.py` 的 `TrainingVision` 使用同局、绑定一致且人工核过的两张首回合空支援线图，仅为原相邻落点补证；抓牌另要求局部完整卡名精确对应卡库单位。独立的 `RightmostUnitTitles` 只逐帧读取唯一、完整露出的右端单位名，不复用旧读数，不接入基础 CLI 默认路径；读牌本身不是派发许可。
+- `emu_board_witness.py` 只识别已审 1280×720 简中「选择目标」提示，用于行动选择及等待后验；命中停在 `target_selection_pending`，已派发的效果仍未决，不点目标、不结束回合。
+- `emu_rejection_witness.py` 独立识别已审 1280×720 简中「指挥点数不足，无法使用此卡牌」；原型只在部署后验阶段用它标记 `deploy_rejected_insufficient_kredits`，不确认部署、不猜实际抓中的牌、不重发。两个提示未命中都不是放行依据。
+- `emu_route_b_fast_vision.py` 是可选的同帧识图适配器：共享重复的像素计算，但每张图仍重读完整卡名、卡面费和可用费用。`emu_route_b_readonly.py` 校验并加载第三局归档的识图配置，只接收已保存的 1280×720 PNG，向标准输出写 JSONL；不连接设备，也没有派发或续局入口。
+
+在 PC 仓库根目录用便携 Python 执行以下**离线**命令，不启动 ADB 或触控。事先令 `$mobile` 指向本地手游源码树（规则、模板和保存的测试样本），`$png` 指向已有原始 PNG，`$newDir` 指向手游树之外、尚不存在的本地输出目录：
+
+```powershell
+$env:PYTHONUTF8 = '1'
+$env:PYTHONDONTWRITEBYTECODE = '1'
+$env:PYTHONNOUSERSITE = '1'
+$py = '.\python\python.exe'
+$old = 'logs/pc_emu_b_20261119_0128'
+$reopened = 'logs/pc_emu_b_20261119_reboot_0224'
+$battleE = Join-Path $old 'battle-E-resolved-deploy'
+$live01 = Join-Path $reopened 'live-01'
+$live04 = Join-Path $reopened 'live-04'
+
+& $py -B dev/emu_battle_pilot.py --mobile-root $mobile --frame $png --out $newDir
+& $py -B dev/emu_battle_pilot_test.py --mobile-root $mobile --battle-e $battleE --card3-run $live01
+& $py -B dev/emu_training_profile_test.py --mobile-root $mobile --capture $reopened --previous-capture $old
+& $py -B dev/emu_rightmost_title_test.py --capture $live04
+& $py -B dev/emu_board_witness_test.py --battle-dir $battleE
+& $py -B dev/emu_rejection_witness_test.py --replay
+```
+
+`--frame` 是单张文件检查，只向新目录写 `events.jsonl` 和该帧的副本；未传 `--frame` 的设备采帧不是离线。测试命令带齐对应的本机证据参数才覆盖真实帧；`emu_rejection_witness_test.py --replay` 从上述固定日志目录取样。删掉证据参数只能运行不依赖这些样本的用例；部分样本未随仓库提供。
+
+仅在有本机第三局归档的 PC 仓库中复现慢帧（沿用上面的 `$py` 和环境变量）：
+
+```powershell
+$s = (Resolve-Path 'logs/pc_emu_b_lobby_20261119_073422').Path
+$frames = @(66,68,69,70,71 | ForEach-Object { Join-Path $s ('battle-01/discard-{0:D4}.png' -f $_) })
+$frameArgs = @(foreach ($f in $frames) { '--frame'; $f })
+# 冷：每张图各起两个新进程，轮换新旧顺序；暖：先检查开场双帧，再测五帧三遍。
+$order = @('original','fast')
+foreach ($f in $frames) {
+    foreach ($v in $order) { & $py -B dev/emu_route_b_readonly.py --session-root $s --variant $v --profile --frame $f }
+    [array]::Reverse($order)
+}
+foreach ($v in 'fast','original') {
+    & $py -B dev/emu_route_b_readonly.py --session-root $s --variant $v --profile --entry-check --rounds 3 @frameArgs
+}
+& $py -B dev/emu_route_b_fast_vision_test.py --session-root $s -v
+```
+
+`observe_ms` 不含磁盘读图、PNG 解码、ADB 传输、前台复核或派发。归档固定绑定本机第三局及其空场参照，不是新对局的参照来源。普通 41 项测试现在将数字诊断图导出到临时目录，保留真实样本读取和计算；无需预装数字库。
+
+现场须另行确认授权、训练模式与唯一目标实例。设备采帧须显式指定 `--adb`、回环 `--serial` 与 `--package`；只有同时传 `--live --confirmed-training` 才允许发送。`--end-only` 关闭部署，`--max-actions` / `--seconds` 限制预算，`--stop-file` 支持协作停止。结束回合需要两帧明确「敌方」且我方按钮消失；部署需要手牌变化、原有单位留存且目标侧确实多出一个有兵种的单位。`adb_returned_zero` 不是成功；`effect_unconfirmed` 要停下复核原帧，不重发。原图和完整账本只保存在本地。参见[单实例训练报告](../docs/reports/pc/2026-11-19-emulator-single-training.md)。
+
 ## 离线回归
+
+- `emu_transport_test.py`：19 项模拟器发现与传输层回归，覆盖 MuMu/ADB 发现、去重、自定义提供方与传输工厂扩展口、MuMu IPC 像素翻转/缩放/缓冲区复用/异常释放、ADB 回退与前台包名解析；不操作真实模拟器。
+- `emu_worker_test.py`：30 项模拟器视觉与单实例工作进程回归，覆盖仓库内 `mobile-core` 只读加载（不写入 `mobile/`）、1.61.27589 菜单/登录奖励/换牌/敌方回合 OCR、真实存档帧战斗与部署规划、整局状态机、结算停机与协作停止；不操作真实模拟器。
+- `emu_manager_test.py`：11 项多开调度器回归，覆盖 `config/emu_options.json` 原子读写、错峰批量启动、并行协作停机、日志增量缓存与实例启停控制委托；不操作真实模拟器。
+- `gui_emu_test.py`：12 项面板模拟器多开集成回归，覆盖 `make_js_api` 反射隔离、5 个 `emu_*` 桥接接口、更新锁互斥、配置隔离（不碰 `gui_options.json`）及 Node 前端交互逻辑；不打开窗口或操作游戏。
+- `input_edges_test.py`：20项假输入边界检查，覆盖零费部署输入失败不后验/不换槽、安全停止信号和释放、结束确认前保留失败锁、换算来源失效、按下后失焦/遮挡/几何变化，以及物理拖拽末段失败；不操作游戏。
+- `message_input_test.py`：面板默认/保存/参数、窗口绑定、消息悬停/停车/点击/拖拽、无物理回退、遮挡/前台/尺寸/旧坐标拒绝、异常松开；15项假Win32检查，不操作游戏。
+- `attack_input_test.py`：攻击/上前线输入失败不做后验、不计成功/游戏拒绝、不封总部、回合内不重发及上层账本；16项假输入检查，不操作游戏。
+- `card_coverage_test.py`：1646个cardId无遗漏、当前规则一致、天气/重名分开、候选不放行、无实机冒认及生成确定性；不写文件、不操作游戏。
 
 - `orange_speed_test.py`：主牌裁框、嵌套首张截止、禁止过期追加OCR/重悬停、未知身份拒识与部署diff保留；另含天气抓点复核每次重读效果、费用/版本变化拒绝、共享截止恢复及传统入口；使用假帧，不调用OCR、不操作游戏。
 - `orange_identity_ab.py --baseline-ref <提交> [--manifest <样本清单>]`：旧/新分类器真实帧回放，记录卡名/费用/天气版本、OCR次数/面积与耗时；禁用输入和指纹写入。默认另有全帧宽diff压力样本，明确标为合成边界；实际扫描diff需由清单提供neutral或diff_box，不把静态计时视为实机回合速度。
@@ -123,6 +188,8 @@ $env:PYTHONPATH = (Join-Path $PWD 'src')
 | 采集 UI 模板 | `template_capture.py` |
 
 ## 规则与文档生成
+
+- `card_coverage.py`：默认只打印全卡能力统计；`--write`生成`docs/generated/card_coverage.json`及`.md`，`--check`只读核对。按cardId逐条记录现有规则、执行路径、信息缺口、策略/实机证据未登记状态，不修改出牌权限。
 
 - `order_plan.py`：维护指令卡规则并生成 `config/order_plays.json`；
 - `order_list_doc.py`：按当前 `orders.playable()` 生成可用及不能自动打出的两份指令卡清单；

@@ -6,22 +6,27 @@
 
 ```text
 KARDS AUTO.exe
-    └─ src/gui.py                 面板、参数收集、日志展示
-         └─ src/main_loop.py      单实例保护、截图、状态机、结算流程
-              ├─ src/ui_state.py  主菜单/选牌/排队/换牌/对局/结算识别
-              └─ src/turn_engine.py
-                   ├─ hand_scanner_v2.py  手牌识别
-                   ├─ hand_cost_filter.py 橙色费用候选、旋转字形
-                   ├─ card_match.py       卡名、费用、类型
-                   ├─ board.py             战场和总部
-                   ├─ deploy.py            部署拖拽
-                   ├─ order_choice.py      两牌/三牌选牌阶段与连续选牌
-                   └─ attack.py            上前线和攻击
+    └─ src/gui.py                 面板（PC 端游 + 模拟器多开双页签）、参数收集、日志展示
+         ├─ src/main_loop.py      PC 单实例保护、截图、状态机、结算流程
+         │    ├─ src/ui_state.py  主菜单/选牌/排队/换牌/对局/结算识别
+         │    └─ src/turn_engine.py
+         │         ├─ hand_scanner_v2.py  手牌识别
+         │         ├─ hand_cost_filter.py 橙色费用候选、旋转字形
+         │         ├─ card_match.py       卡名、费用、类型
+         │         ├─ board.py             战场和总部
+         │         ├─ deploy.py            部署拖拽
+         │         ├─ order_choice.py      两牌/三牌选牌阶段与连续选牌
+         │         └─ attack.py            上前线和攻击
+         └─ src/emu_manager.py    模拟器多开调度（多子进程、错峰启停、独立日志/配置）
+              ├─ src/emu_discovery.py  MuMuManager / 通用 ADB 发现 + 自定义提供方注册口
+              └─ src/emu_worker.py     单模拟器独立工作进程（全流程循环、协作停机）
+                   ├─ src/emu_transport.py  MuMu IPC 高速内存截屏/触控 + ADB 回退 + 扩展工厂
+                   └─ src/emu_vision.py     高速战斗模板/mobile-core 复用 + 菜单/弹窗 OCR
 ```
 
 面板 exe 只负责界面。发布包里的 `python\python.exe` 会重新读取发布包中的 `src\`、`config\`、`ui_templates\` 和 `card_db\`，所以修改引擎代码后不需要把代码编进 exe；修改 `src/gui.py` 后必须重打 exe。
 
-面板通过 `make_js_api` 仅向pywebview提供七个绑定方法。不得把包含window/proc等运行对象的Api实例直接作为js_api：pywebview会递归反射公开属性，原生窗口的AccessibilityObject属性可在初始化时造成整个窗口挂起。
+面板通过 `make_js_api` 仅向 pywebview 提供 `JS_API_METHODS` 中声明的绑定方法（原 7 个 PC 方法 + 5 个 `emu_*` 模拟器多开方法）。不得把包含 `window`、`proc`、`_emu_manager` 等运行对象的 Api 实例直接作为 `js_api`：pywebview 会递归反射公开属性，原生窗口的 `AccessibilityObject` 属性可在初始化时造成整个窗口挂起。模拟器多开配置单独持久化在 `config/emu_options.json`（不修改 PC 端的 `config/gui_options.json`，增量更新时受保护）；`make_release.py` 将模拟器多开依赖的精简只读视觉运行时打包至 `src/emu_runtime/`，不混入 `mobile/`。
 
 日志由 `log_io.py` 统一限量读取：最多128KiB/400行，显示单行最多2048字符，完整文本保留在文件。
 面板按文件标识/大小/mtime缓存一次读取及状态解析，未改变时不重复传输日志；前端只允许一个轮询请求执行。
@@ -30,6 +35,20 @@ KARDS AUTO.exe
 归档仅重命名、不删除历史；占用导致无法归档时记录原因并继续追加，面板读取仍有上限。
 
 ## 运行时输入
+
+面板提供 `--message-input` 对应的“不抢鼠标（实验）”开关，默认关闭，保存为
+`message_input`，停止后重新开始生效。Controller 启动时选择物理/窗口消息通道，
+发现 KARDS 后绑定 hwnd，连续截图失败清空绑定；不将屏幕坐标底下的其他窗口作为运行时目标。
+`actions` 的悬停、停车、点击和拖拽统一切换；消息模式不调用 SetCursorPos/mouse_event，
+不读系统光标判用户抢占，不在失败后回退物理输入。保留按下前悬停等待、按下回调和动作后验。
+消息入口核窗口有效、前台、可见、点位无遮挡、1280×720与客户区坐标；窗口移动时中止旧坐标拖拽，
+已尝试按下的异常路径尽力发松开。`win.client_to_screen` 返回兼容 int 的来源坐标，记录当时 hwnd/origin；
+消息入口在加抖动前核对来源，拒绝换算后或两端换算之间窗口移动的旧屏幕点，点击按下后也复核前台/几何。
+消息模式每次启动获得独立停止标记路径，经子进程环境传递；停止在输入等待/移动前检查并锁存，
+取消异常穿透普通 fail-soft 处理，经 finally 尽力释放同一 hwnd。6秒未退出则显示等待，不 terminate/kill，
+以免强杀跳过释放；物理模式保留原停止路径。真实Windows原生测试窗口已记录接收消息，冻结面板保存/启停通过；
+KARDS启动时的账号封禁提示阻塞游戏内接受验收，不能将原生接收当作游戏响应。不是遮挡/最小化后台运行；
+详见[分层实机报告](reports/pc/2026-11-11-message-input-live-validation.md)。
 
 面板“传统策略”对应`--classic-strategy`，默认关闭，保存在本机面板配置；停止后重新开始时，经Controller传给TurnEngine及其扫描器，本次引擎运行期间固定，不改全局环境变量。
 启用后不进入橙色候选、费用模板、身份缓存、首张扫描、费用组合和新增的同点重悬停重试；恢复手牌记忆、边缘/布局探针及必要的坐标表/全量回退。
@@ -107,6 +126,11 @@ PC 默认惰性路径先由 `hand_cost_filter` 在收起扇形的一帧中筛橙
 未扣费的拒绝归还预扣费用，结果未知则重读费用，读不出不擅自退款；通用失败不生成
 `learned cap`，连续两张未确认打出结束当前出牌阶段。指令不按空槽冲突再次拖拽。
 攻击/移动后刷新当前战场；可信当前单位数优先于累计部署数。单位攻击后验未知停止本段攻击。
+攻击/上前线只有底层明确返回 True 才进入动作后验；输入失败独立计数，不增加成功或游戏拒绝计数，
+不据此封总部，停止本段且该动作模块本回合不再派发。reset_turn 清回合失败锁，累计诊断保留。
+攻击 attempts 仍表示尝试次数（可含输入失败），不是已发送或命中次数。
+普通部署同样只接受明确 True：输入失败不做后验、不换槽、不冒记零费牌成功或游戏拒绝，独立计数并停止本回合拖牌；
+部分派发的费用结果未知，不擅自退款。物理拖拽精确落位/停留抖动失败也返回 False，并通过 finally 释放。
 `find_enemy_hq` 只在实际敌方支援区查找，不能拿第一个剩余行（可能是我方）代替敌方。
 
 默认橙色策略在已识别的对局画面、attack/move_front/play/end_turn阶段以0.15秒间隔调度下一步；
@@ -123,6 +147,9 @@ PC 默认惰性路径先由 `hand_cost_filter` 在收起扇形的一帧中筛橙
 
 回合引擎成功点击结束回合后把光标停到右侧空白处，避免下一回合按钮的橙色悬停
 样式干扰白色模板识别。输入失败保留 end_turn 阶段和原账本，不执行光标停放。
+输入明确投递后进入 end_turn_pending，只读新帧等待按钮消失；确认前不 reset_turn、
+不清攻击/移动失败锁、不重发结束点击或重新出牌，缺帧也不清账。未知页面的待确认引擎继续只读确认。
+如果游戏不接受消息，可能保持等待；不能把投递回执当回合已切换。
 
 空白画面判据先于页面动作。暗色领取奖励页可能平均亮度低于 10，因此仅在
 `dismiss` 已开启时，按客户区比例检查中央奖励图案和底部领取字区的亮像素；
