@@ -71,6 +71,7 @@ class ManagerTests(unittest.TestCase):
                                       sleep_fn=self.sleeps.append)
 
     def cleanup(self):
+        self.mgr.stop_all(timeout=0)
         # Remove only this test's resolved temporary root, children first.
         root = self.root.resolve()
         self.assertEqual(root.parent, Path(tempfile.gettempdir()).resolve())
@@ -191,6 +192,39 @@ class ManagerTests(unittest.TestCase):
         self.processes[0].returncode = 7
         self.assertFalse(self.mgr.has_running_workers())
         self.assertTrue(self.mgr.start_instance("mumu:7")["ok"])
+
+    def test_another_panel_cannot_launch_or_erase_live_worker_files(self):
+        other = manager.EmuManager(self.root / '.', popen_fn=self.popen, discover_fn=self.discover)
+        self.addCleanup(other.stop_all, 0)
+        self.assertTrue(self.mgr.start_instance('mumu:7')['ok'])
+        paths = self.mgr.worker_paths('mumu:7')
+        paths['stop_file'].write_text('owner stop')
+        paths['status_file'].write_text('owner status')
+        self.assertEqual(other.start_instance('mumu:7'),
+                         {'ok': False, 'msg': '该实例已在另一个面板窗口中运行'})
+        self.assertEqual(len(self.processes), 1)
+        self.assertEqual(paths['stop_file'].read_text(), 'owner stop')
+        self.assertEqual(paths['status_file'].read_text(), 'owner status')
+        self.assertTrue(other.has_running_workers())
+        argv = self.launches[0][1]
+        self.assertEqual(argv[argv.index('--project-root') + 1], str(self.root.resolve()))
+        self.processes[0].returncode = 0
+        self.assertFalse(self.mgr.has_running_workers())
+        self.assertTrue(other.start_instance('mumu:7')['ok'])
+
+    def test_live_cli_worker_and_update_guard_block_launch(self):
+        locks = manager.update_install
+        with locks.acquire_instance_lock('mumu:7', self.root):
+            self.assertFalse(self.mgr.start_instance('mumu:7')['ok'])
+            self.assertTrue(self.mgr.has_running_workers())
+        with locks.engine_guard(self.root):
+            self.assertFalse(self.mgr.start_instance('mumu:8')['ok'])
+        self.assertEqual(self.processes, [])
+        self.fail_ids.add('mumu:7')
+        self.assertFalse(self.mgr.start_instance('mumu:7')['ok'])
+        self.assertFalse(locks.any_emu_worker_running(self.root))
+        self.fail_ids.clear()
+        self.assertTrue(self.mgr.start_instance('mumu:7')['ok'])
 
     def test_start_failure_and_slug_collision(self):
         self.fail_ids.add("bad")

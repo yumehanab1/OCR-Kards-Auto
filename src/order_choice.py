@@ -250,6 +250,17 @@ class SelectionFlow:
         self.three_title_frames = 0
         self.three_title_started_at = None
 
+    def pause_offset(self, seconds: float) -> None:
+        """Exclude deliberate input-yield pauses from all selection clocks."""
+        if seconds <= 0:
+            return
+        for attr in ("started_at", "last_click_at", "candidate_since",
+                     "normal_since", "title_failure_since", "title_kind_since",
+                     "three_title_started_at"):
+            value = getattr(self, attr)
+            if value is not None:
+                setattr(self, attr, value + seconds)
+
     def tick(self, frame, *, normal_visible, click_client, can_act,
              read_three_titles=three_titles_match,
              now: float | None = None,
@@ -257,11 +268,13 @@ class SelectionFlow:
         now = time.monotonic() if now is None else now
         if not ENABLE_SELECTION_STAGE:
             return "blocked", "选牌阶段总开关已关闭,不点击"
-        if (self.steps and self.last_click_at is not None
-                and now - self.last_click_at >= SELECTION_STEP_TIMEOUT_S):
-            return "blocked", (f"第 {self.steps + 1} 组选牌等待超过 "
-                                f"{SELECTION_STEP_TIMEOUT_S:.0f}s,停手")
+        expired = (self.steps and self.last_click_at is not None
+                   and now - self.last_click_at >= SELECTION_STEP_TIMEOUT_S)
+        timeout_note = (f"第 {self.steps + 1} 组选牌等待超过 "
+                        f"{SELECTION_STEP_TIMEOUT_S:.0f}s,停手")
         if not can_act():
+            if expired:
+                return "blocked", timeout_note
             return "waiting", "游戏窗口暂不可操作"
         count, evidence = detect_count(frame)
         if count == -1:
@@ -298,10 +311,14 @@ class SelectionFlow:
             else:
                 self.normal_since = None
                 self.normal_frames = 0
+                if expired:
+                    return "blocked", timeout_note
             if self.steps == 0 and now - self.started_at >= OPEN_TIMEOUT_S:
                 return "blocked", "拖牌后未见已校准的选牌画面或稳定对局;" + evidence
             return "waiting", "等待下一组选牌或正常对局画面"
 
+        if expired:
+            return "blocked", timeout_note
         self.normal_since = None
         self.normal_frames = 0
         if count == 2 and not orders.is_choice(self.name):

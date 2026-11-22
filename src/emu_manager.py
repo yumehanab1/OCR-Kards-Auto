@@ -19,10 +19,11 @@ import time
 from urllib.parse import urlsplit
 
 if __package__:
-    from . import emu_discovery, log_io
+    from . import emu_discovery, log_io, update_install
 else:
     import emu_discovery
     import log_io
+    import update_install
 
 
 DEFAULT_EMU_OPTIONS = {
@@ -238,6 +239,7 @@ class EmuManager:
         eff = resolve_instance_options(opts, instance_id)
         paths = self.worker_paths(instance_id)
         argv = [self.python_exe, "-B", str(self.project_root / "src/emu_worker.py"),
+                "--project-root", str(self.project_root.resolve()),
                 "--instance", instance_id, "--mode", eff["mode"],
                 "--max-rounds", str(eff["max_rounds"])]
         for key in ("stop_file", "log_file", "status_file"):
@@ -276,6 +278,7 @@ class EmuManager:
             code = worker["proc"].poll()
             if code is not None and worker["exit_code"] is None:
                 worker["stop_file"].unlink(missing_ok=True)
+                worker["instance_lock"].close()
             worker["exit_code"] = code
         if not any(w["exit_code"] is None for w in self._workers.values()):
             self._stop_ocr_server()
@@ -316,12 +319,15 @@ class EmuManager:
             self._reap()
             if instance_id in self._workers and self._workers[instance_id]["exit_code"] is None:
                 return {"ok": False, "msg": "该实例已在运行中"}
+            reservation = None
             try:
+                reservation = update_install.acquire_instance_lock(instance_id, self.project_root, panel=True)
                 options = self._options(opts)
                 paths = self.worker_paths(instance_id)
                 # Sanitized IDs can collide; never share another live worker's stop file.
                 if any(w["exit_code"] is None and w["stop_file"] == paths["stop_file"]
                        for w in self._workers.values()):
+                    reservation.close()
                     return {"ok": False, "msg": "实例日志路径与运行中的实例冲突"}
                 argv = self.build_worker_argv(instance_id, options)
                 self.logs_dir.mkdir(parents=True, exist_ok=True)
@@ -341,11 +347,15 @@ class EmuManager:
                 proc = self.popen_fn(argv, cwd=str(self.project_root),
                                      creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
                                      **launch_options)
-            except (OSError, ValueError, subprocess.SubprocessError) as exc:
+            except (OSError, ValueError, subprocess.SubprocessError, update_install.LockBusyError) as exc:
+                if reservation is not None:
+                    reservation.close()
                 self._reap()
+                if isinstance(exc, update_install.LockBusyError):
+                    return {"ok": False, "msg": "该实例已在另一个面板窗口中运行"}
                 return {"ok": False, "instance_id": instance_id, "msg": str(exc)}
             self._workers[instance_id] = dict(proc=proc, **paths, started_at=time.time(),
-                                              opts=options, argv=argv, exit_code=None)
+                                              opts=options, argv=argv, exit_code=None, instance_lock=reservation)
             return {"ok": True, "instance_id": instance_id, "pid": proc.pid,
                     "argv": argv, "log_file": str(paths["log_file"])}
 
@@ -480,4 +490,5 @@ class EmuManager:
     def has_running_workers(self) -> bool:
         with self._lock:
             self._reap()
-            return any(w["exit_code"] is None for w in self._workers.values())
+            return (any(w["exit_code"] is None for w in self._workers.values())
+                    or update_install.any_emu_worker_running(self.project_root))

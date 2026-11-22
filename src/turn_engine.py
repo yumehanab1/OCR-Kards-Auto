@@ -890,30 +890,30 @@ class TurnEngine:
             return None
 
     def _judge_deploy(self, before, after, target, cost, is_order: bool = False):
-        """
-        这一次拖拽到底成没成。返回 (ok, note, refused_measured)。
+        """Return (ok, note, refused_measured) after a dispatched drag.
 
-        `refused_measured=True` 表示"**读到费用一点没动**"—— 这是**有证据**的拒绝
-        (牌回手),也只有这种情况才值得换个空槽位再试一次。别的失败都可能是
-        "钱不够/规则不允许",重试纯属白拖。
+        Positive-cost cards can be confirmed by the expected deduction.
+        Orders can also generate Kredits; reconcile that gain immediately.
+        Unchanged digits prove nothing for zero-cost cards: units need a
+        board-count increase (or panel fallback if unreadable), while orders
+        need a credit gain or a changed hand panel. Orders never use card
+        counts as deployment evidence.
 
-        ★★ 判据优先级(2026-09-11 下午按用户实机观察重排):
-          ① **费用读数 vs 我们自己的账本** —— 最硬的一条:
-             部署成功 -> 剩余费用**一定**少了这张卡的费(账本 `kredits_left`
-             在拖之前就已经扣过);被拒绝(牌回手)-> 费用**一点没动**,
-             正好等于 `kredits_left + cost`。
-             用户实测"砸在已有卡上 = 回手",所以这两条正好把成功/失败分开,
-             而且不依赖任何"画面有没有变"的模糊判据。
-             ★ 读到**别的值**时不下结论(可能是模板读错),交给 ②③,并把
-               读数是多少写进日志 —— 不许悄悄退化。
-          ② 战场卡数(老判据;已知会把粘连/地形数进去,只能当参考):
-             增 1 = 成功;不变 = 失败;减少或跳变 = 读不准(物理上不可能)。
-          ③ 面板对比(最后的退路)。**用了退路就必须在日志里写明**,
-             否则又回到"看起来有判据、其实没数据"的状态。
+        Only a confirmed unchanged positive-cost budget marks refusal and
+        permits the caller's bounded unit-slot retry.
         """
         if cost is not None:
+            budget_before = (self.kredits_left + cost
+                             if self.kredits_left is not None else None)
             now = self._kredits_now()
-            if now is None:
+            if (is_order and budget_before is not None and now is not None
+                    and now > budget_before):
+                self.kredits_left = now
+                self.afford.note_read(now)
+                return True, f"费用增加 {budget_before}->{now}(产费指令)", False
+            if cost == 0:
+                extra = f"零费牌不能凭费用读数 {now} 确认;"
+            elif now is None:
                 extra = "费用读不出;"
             elif now == self.kredits_left:
                 return True, (f"费用读数 {now} == 账本 {self.kredits_left}"
@@ -928,6 +928,10 @@ class TurnEngine:
                 #   那张牌会被记进 `failed_x`、记忆里也不删 -> 后面就"张数对不上"。
                 #   -> 判"牌回手"之前,**等一会儿再读一次**;数字自己掉下去了就是成功。
                 again = self._kredits_recheck()
+                if is_order and again is not None and again > budget_before:
+                    self.kredits_left = again
+                    self.afford.note_read(again)
+                    return True, f"费用增加 {budget_before}->{again}(产费指令)", False
                 if again is not None and again == self.kredits_left:
                     return True, (f"费用读数 {now} 是**旧值**,等 "
                                   f"{DEPLOY_KREDITS_RECHECK_S}s 后重读 = "
@@ -950,16 +954,16 @@ class TurnEngine:
         else:
             extra = "费用未知(这张牌没读出费用);"
 
-        if is_order:
+        if is_order and cost != 0:
             # ★★★ 2026-09-20(指令卡):**指令不占槽位** —— 打完盘面上不会多出卡,
             #   所以下面那条"战场卡数 +1 才算成功"对指令是**错的**(会把打成功的
             #   指令记成被拒绝,还会把它塞进 failed_x)。
-            #   指令只有一条硬判据:**费用对账**(打完一定扣掉这张卡的费);
+            #   付费指令在此仍须费用对账;零费指令继续检查手牌面板。
             #   读不准就如实写"结论不可信" —— 项目纪律:宁可不下结论,不许伪造结论。
             return False, (extra + "指令卡:费用读数没法对上 -> "
                                   "**结论不可信**(指令不占槽位,不能用战场卡数判)"), False
 
-        d_total, _d_support = self._field_delta(before, after)
+        d_total, _d_support = (None, None) if is_order else self._field_delta(before, after)
         if d_total == 1:
             return True, (extra + f"战场卡数 {before['total']}->{after['total']}"
                                   f"(支援线 {before['our_support'][0]}->"
@@ -967,7 +971,8 @@ class TurnEngine:
         if d_total == 0:
             return False, (extra + f"战场卡数没变({before['total']}->"
                                    f"{after['total']})"), False
-        panel_note = ("战场读不到" if d_total is None else
+        panel_note = ("零费指令须确认手牌面板变化" if is_order else
+                      "战场读不到" if d_total is None else
                       f"⚠️卡数异常 {before['total']}->{after['total']}(读数抖动)")
         base_panel = target.get("_before")
         after_panel = self._panel_at(target["x"])
@@ -1210,6 +1215,17 @@ class TurnEngine:
         limit = 3 if getattr(self, 'classic_strategy', False) else BIG_HAND_MAX_DEPLOYS
         return self.deployed_this_turn >= limit
 
+    def rebind_hwnd(self, hwnd):
+        """Rebind window-bound collaborators and discard old visual caches."""
+        self.hwnd = hwnd
+        for name in ("scanner", "attacker", "front_mover"):
+            collaborator = getattr(self, name, None)
+            if collaborator is not None and hasattr(collaborator, "hwnd"):
+                collaborator.hwnd = hwnd
+        self.field_now = None
+        self.cards = []
+        self._scanned_full_this_turn = False
+
     # --- one decision pass, returns a status string ---
     def think(self):
         frame = capture_client_bgr(self.hwnd)
@@ -1312,6 +1328,12 @@ class TurnEngine:
             self.memory.note_played(target.get("i"))
             self.selection_pending = None
             self.selection_flow = None
+            try:
+                snap = self._field(park=True)
+            except Exception:
+                snap = None
+            if snap is not None:
+                self.field_now = snap
             if self.lazy_scan:
                 self.cards = []
                 self._scanned_full_this_turn = False
@@ -1593,6 +1615,16 @@ class TurnEngine:
                     self._dump_frame("drag_error", name, subdir="choice")
                     return "selection_blocked"
                 if dragged is not True:
+                    if actions_mod.take_pre_dispatch_yield():
+                        self.selection_pending = None
+                        self.selection_flow = None
+                        self.failed_x.discard(target["x"])
+                        self.attempted_x.discard(target["x"])
+                        self.phase = "play"
+                        self.cards = []
+                        self._scanned_full_this_turn = False
+                        self.log("[selection] 拖牌前检测到人工动鼠让权，取消本次选牌计划并重新观察")
+                        return "user_yielded"
                     self.phase = "selection_blocked"
                     self.log("[choice] ⚠️ 拖牌输入失败 -> 停手")
                     self._dump_frame("drag_failed", name, subdir="choice")

@@ -141,10 +141,37 @@ class GuiEmuTests(unittest.TestCase):
                 self.api.proc = None
                 self.assertTrue(self.api.start({'play': True})['ok'])
                 self.assertNotIn('--yield-to-user', launch.call_args.args[0])
-                self.assertNotIn('KARDS_AUTO_STOP_FILE', launch.call_args.kwargs['env'])
+                self.assertEqual(launch.call_args.kwargs['env']['KARDS_AUTO_STOP_FILE'], self.api._stop_file)
+                self.assertFalse(Path(self.api._stop_file).exists())
             finally:
                 self.api._close_run_log()
                 (self.root / 'config/gui_options.json').unlink(missing_ok=True)
+
+    def test_all_pc_modes_request_release_before_any_forced_stop(self):
+        for message, yielding in ((False, False), (False, True), (True, False)):
+            for timeout in (False, True):
+                with self.subTest(message=message, yielding=yielding, timeout=timeout):
+                    proc = self.api.proc = Mock(returncode=0)
+                    proc.poll.return_value = None
+                    self.api.last_opts = {'message_input': message, 'yield_to_user': yielding}
+                    marker = self.root / 'pc.stop'
+                    marker.unlink(missing_ok=True)
+                    self.api._stop_file = str(marker)
+                    calls = []
+                    def wait(timeout):
+                        self.assertEqual(marker.read_text(), 'stop\n')
+                        calls.append(timeout)
+                        if len(calls) == 1 and fail_wait:
+                            raise subprocess.TimeoutExpired('engine', timeout)
+                        proc.poll.return_value = 0
+                    fail_wait = timeout
+                    proc.wait.side_effect = wait
+                    self.assertTrue(self.api.stop()['ok'])
+                    self.assertEqual(calls[0], 6 if message else 4)
+                    self.assertEqual(proc.terminate.call_count, int(timeout and not message))
+                    proc.kill.assert_not_called()
+                    if message and timeout:
+                        self.assertIsNone(proc.poll())
 
     def test_snapshot_marks_log_and_passes_revision(self):
         original = {"instances": [], "running_count": 0, "options": {},
@@ -304,6 +331,14 @@ toast=()=>{};
  for(const [provider,label] of [['mumu','MuMu'],['ldplayer','雷电'],['bluestacks','蓝叠'],['adb','ADB']]){
    emuRenderInstances([{...instance,provider}]); assert.ok(textTree(document.querySelector('#emuInstances')).includes(label));
  }
+ for(const [provider,launch,shutdown] of [['mumu',true,true],['ldplayer',true,true],['bluestacks',true,false],['adb',false,false]]){
+   for(const running of [false,true]){
+     emuRenderInstances([{...instance,provider,running,extra:{can_launch:launch,can_shutdown:shutdown}}]);
+     const buttons=descendants(document.querySelector('#emuInstances')).filter(e=>e.tagName==='button').map(e=>e.textContent);
+     assert.equal(buttons.includes('启动模拟器'),!running && launch);
+     assert.equal(buttons.includes('关闭模拟器'),running && shutdown);
+   }
+ }
  const edit=descendants(document.querySelector('#emuInstances')).find(e=>e.textContent==='独立配置'); edit.onclick();
  const editor=emuEditors.get('mumu:7'), panel=editor.panel;
  assert.equal(panel.hidden,false);
@@ -376,6 +411,21 @@ toast=()=>{};
  document.querySelector('#tabPc').onclick();
  assert.equal(document.querySelector('#emuView').style.display,'none');
  const before=calls.length; await emuPoll(); assert.equal(calls.length,before);
+ // A false -> true -> false toggle must invalidate an in-flight unchanged reply.
+ const pcSnapshot={switches:payload.switches,saved_options:payload.pcOptions,
+   running:false,exit_code:null,version:'test',log_rev:'same',log_lines:[['state','retained log']]};
+ window.pywebview.api.snapshot=async()=>pcSnapshot;
+ listeners[0](); await new Promise(setImmediate);
+ const pcLog=document.querySelector('#log'), oldHtml=pcLog.innerHTML;
+ assert.match(oldHtml,/retained log/);
+ let resolvePc;
+ window.pywebview.api.snapshot=()=>new Promise(r=>resolvePc=r);
+ const inFlight=poll();
+ document.querySelector('#btnKey').onclick(); document.querySelector('#btnKey').onclick();
+ resolvePc({...pcSnapshot,log_lines:[]}); await inFlight;
+ assert.equal(pcLog.innerHTML,oldHtml); assert.equal(lastRev,'');
+ window.pywebview.api.snapshot=async(filter,n,rev)=>{assert.equal(rev,'');return pcSnapshot;};
+ await poll(); assert.equal(pcLog.innerHTML,oldHtml); assert.equal(lastRev,'same');
  console.log('Frontend interactions, independent polling and stale-log guard passed');
 })().catch(e=>{console.error(e);process.exitCode=1;});
 """

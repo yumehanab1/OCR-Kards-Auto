@@ -22,9 +22,11 @@ import time
 import cv2
 
 if __package__:
+    from .update_install import acquire_instance_lock
     from .emu_transport import EmuTransportError
     from .emu_vision import EmuVision, frame_motion
 else:
+    from update_install import acquire_instance_lock
     from emu_transport import EmuTransportError
     from emu_vision import EmuVision, frame_motion
 
@@ -55,6 +57,8 @@ class WorkerConfig:
     daily_max_rounds: int = 0
     daily_max_minutes: float = 0.0
     daily_usage_file: str | None = None
+    acquire_lock: bool = False
+    project_root: str | None = None
 
     def __post_init__(self):
         if self.mode not in ("training", "casual", "ranked"):
@@ -306,7 +310,10 @@ class EmuWorker:
         self.log(f"watchdog: stalled {now - stalled_since:.0f}s in {state}; restarting KARDS "
                  f"({self._watchdog_restarts}/{self.cfg.watchdog_max_restarts})")
         try:
-            self.transport.force_stop_package("com.android1939.kards")
+            resolver = getattr(self.transport, "resolve_kards_package", None)
+            package = resolver() if resolver else "com.android1939.kards"
+            if package:
+                self.transport.force_stop_package(package)
         except EmuTransportError as exc:
             self.log(f"warning: watchdog force-stop: {exc}")
         self._sleep(2.0)
@@ -558,15 +565,15 @@ class EmuWorker:
                 after = self._capture()
                 if after is None:
                     break
-                if obs.reason == "ocr_end_turn":
-                    # A template miss was already expected on this turn.
-                    # Local button changes can hide in the whole-frame cache.
+                result = self.vision.classify_battle(after)
+                if result is None:
+                    # A glow/color transition can lose the template while OCR
+                    # still sees our turn. Refresh locally changed button pixels.
                     if frame_motion(frame, after, (980, 420, 1275, 620)) >= .02:
                         self.vision.invalidate_ocr_cache()
                     ended = self._observe(after).state != "own_turn"
                 else:
-                    result = self.vision.classify_battle(after)
-                    ended = result is None or result.state != "own_turn"
+                    ended = result.state in ("opponent_turn", "victory", "defeat")
                 if ended:
                     # The own-turn button disappeared after our end-turn tap.
                     self._mark_progress()
@@ -699,6 +706,22 @@ class EmuWorker:
             self._write_status()
 
     def run(self):
+        lock = None
+        try:
+            if self.cfg.acquire_lock:
+                try:
+                    lock = acquire_instance_lock(self.cfg.instance_id,
+                        self.cfg.project_root or Path(__file__).resolve().parents[1])
+                except (OSError, RuntimeError) as exc:
+                    # Do not overwrite the live owner's status/log on rejection.
+                    self.status["last_error"] = str(exc)
+                    return dict(self.status)
+            return self._run_locked()
+        finally:
+            if lock is not None:
+                lock.close()
+
+    def _run_locked(self):
         try:
             while self.step():
                 pass
@@ -752,10 +775,11 @@ def main(argv=None):
     parser.add_argument("--daily-max-rounds", type=int, default=0)
     parser.add_argument("--daily-max-minutes", type=float, default=0.0)
     parser.add_argument("--daily-usage-file", default=None)
+    parser.add_argument("--project-root", default=None)
     args = vars(parser.parse_args(argv))
     args["instance_id"], args["deck_name"] = args.pop("instance"), args.pop("deck")
     try:
-        config = WorkerConfig(**args)
+        config = WorkerConfig(**args, acquire_lock=True)
     except ValueError as exc:
         parser.error(str(exc))
     worker = EmuWorker(config)

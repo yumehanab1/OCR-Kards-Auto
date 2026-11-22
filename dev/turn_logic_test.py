@@ -779,7 +779,7 @@ assert ok_o is True and ref_o is False, \
 #    同一对前后帧(卡数没变),单位判"被拒绝",指令必须判"**结论不可信**"
 #    (拿卡数去判指令,会把打成功的指令记成失败,还塞进 failed_x)。
 eng.kredits_left = 3                     # 账本 3
-state["kredits_left"] = 9                # 画面读到 9(既不是 3,也不是 3+1)
+state["kredits_left"] = 2                # 额外下降而非产费:既不是 3,也不是 3+1
 ok_o2, note_o2, ref_o2 = eng._judge_deploy(
     _flat_before, _flat_after, {"name": _direct, "type": "order"}, 1, is_order=True)
 ok_u, note_u, _ = eng._judge_deploy(
@@ -1601,11 +1601,12 @@ r3 = tr.read_turn_start(None)
 print(f"    6 -> 9(涨幅大于 1,但完全可能)-> {r3['value']} ({r3['source']})")
 assert r3["value"] == 9, f"不能因为'每回合只 +1'这个错假设而拒绝合法读数: {r3}"
 
-# 读低了(9 -> 3 不可能:回合开始时的费用绝不会下降)-> 拒,用下限 上次值+1
+# 单次较低读数未获确认 -> 保留原有拒绝和估计路径
 tr.start_turn()
-tr.read_one = lambda f: 3
+low_samples = iter([3, None, None, None])
+tr.read_one = lambda f: next(low_samples, None)
 r4 = tr.read_turn_start(None)
-print(f"    读低 9 -> 3(不可能)-> {r4['value']} ({r4['source']})")
+print(f"    单次低读数 9 -> 3(未确认)-> {r4['value']} ({r4['source']})")
 assert r4["value"] == 10, r4
 assert "不采信" in r4["source"], r4
 
@@ -1667,7 +1668,8 @@ r_a = tr4.read_turn_start(None)
 print(f"    下一回合读到 11 -> {r_a['value']} ({r_a['source']})")
 assert r_a["value"] == 11, r_a
 # 再下一回合误读成 3(真值 12)-> 拒,用 上次值+1 = 12,正好
-tr4.read_one = lambda f: 3
+low_samples = iter([3, None])
+tr4.read_one = lambda f: next(low_samples, None)
 tr4.start_turn()
 r_b = tr4.read_turn_start(None)
 print(f"    再下一回合误读成 3 -> {r_b['value']} ({r_b['source']})")
@@ -2332,15 +2334,14 @@ print(f"    老合并规则 -> {_q_old}(就是历史上的错值);"
 assert _q_old == 1, f"老行为必须能复现(否则这条用例没钉在 bug 上): {_q_old}"
 assert _q_guard is None, f"护栏应当'不猜'而不是给出错值: {_q_guard}"
 
-# ② 纯截断形态:settle 之后读数就是 1(不是滚动中间值),账本 10
+# ② 稳定重复低值优先于历史首位数字猜测;真实字形截断仍由上面的高度护栏拒识
 tr, _c = _rolling_tracker([1, 1, 1, 1, 1, 1, 1, 1])
 tr.last_value = 10
 r = tr.read_turn_start(None)
 print(f"    账本 10、读数稳定为 1 -> {r['value']} ({r['source']})")
 print(f"      说明:{r['note']}")
-assert r["value"] == 11, f"必须用下限 10+1=11,而不是采信那个 1: {r}"
-assert "首位数字" in r["note"] and "截断" in r["note"], \
-    f"日志必须说清是'截断误读'(§7:判错和判对要长得不一样): {r['note']}"
+assert r["value"] == 1 and r["measured"] is True, r
+assert "重复确认费用下降" in r["note"], r
 
 # ③ 实机那条形状:一路滚上去、最后卡在 1(最大值才 5)
 tr, _c = _rolling_tracker([1, 3, 5, 1, 1, 1, 1, 1, 1, 1, 1])
@@ -2741,6 +2742,208 @@ ctl.current_state, glowing.phase = 'in_game', 'end_turn'
 for flag in ('classic_strategy', 'dry'):
     with patch.object(ctl, flag, True):
         assert ctl._tick_delay() == .8
+
+print("CASE: Wave B input cancellation, selection, scanner and Kredit regressions")
+from unittest.mock import Mock
+import inspect
+import order_choice
+import actions
+
+# A clean pre-press cancellation can replan; an uncertain drag must stay blocked.
+for yielded in (True, False):
+    choice = new_engine(hand(('海战', 'order', 1, 500)), kredits=5)
+    choice.phase, choice.kredits_left = 'play', 5
+    choice.cards = list(choice.scanner.cards)
+    choice._scanned_full_this_turn = True
+    with patch.object(choice, '_orange_enabled', return_value=False), \
+         patch.object(choice, '_dump_frame'), \
+         patch.object(turn_engine, 'drag_deploy', return_value=False), \
+         patch.object(actions, '_pre_dispatch_yield', yielded):
+        result = choice.think()
+        assert result == ('user_yielded' if yielded else 'selection_blocked'), result
+        if yielded:
+            assert choice.phase == 'play' and choice.selection_pending is None
+            assert choice.selection_flow is None and choice.cards == []
+            assert not choice._scanned_full_this_turn
+            assert 500 not in choice.failed_x and 500 not in choice.attempted_x
+            assert choice.kredits_left == 5 and choice.deployed_this_turn == 0
+            assert not actions.take_pre_dispatch_yield()
+
+normal = np.full_like(FRAME, 60)
+def selection_tick(flow, at, normal_seen=True):
+    with patch.object(order_choice, 'detect_count', return_value=(None, 'test')), \
+         patch.object(order_choice, 'unknown_center_modal', return_value=False):
+        return flow.tick(normal, now=at, normal_visible=lambda f: normal_seen,
+                         click_client=Mock(side_effect=AssertionError('unexpected click')),
+                         can_act=lambda: True, log=lambda m: None)[0]
+
+# A late observation still needs stable board evidence, not another click.
+flow = order_choice.SelectionFlow('海战', now=0.)
+flow.steps, flow.last_click_at = 1, 1.
+assert selection_tick(flow, 20.) == 'waiting'
+assert selection_tick(flow, 23.) == 'complete'
+flow = order_choice.SelectionFlow('海战', now=0.)
+flow.steps, flow.last_click_at = 1, 1.
+assert selection_tick(flow, 2.) == 'waiting'
+assert selection_tick(flow, 20.) == 'complete'
+flow = order_choice.SelectionFlow('海战', now=0.)
+flow.steps, flow.last_click_at = 1, 1.
+flow.candidate_since = flow.normal_since = flow.title_failure_since = 2.
+flow.title_kind_since = flow.three_title_started_at = 3.
+flow.pause_offset(20.)
+assert (flow.started_at, flow.last_click_at, flow.candidate_since, flow.normal_since,
+        flow.title_failure_since, flow.title_kind_since, flow.three_title_started_at) == (
+            20., 21., 22., 22., 22., 23., 23.)
+assert selection_tick(flow, 25., normal_seen=False) == 'waiting'
+assert selection_tick(flow, 33., normal_seen=False) == 'blocked'
+opening = order_choice.SelectionFlow('海战', now=0.)
+opening.pause_offset(20.)
+assert selection_tick(opening, 25., normal_seen=False) == 'waiting'
+assert selection_tick(opening, 26., normal_seen=False) == 'blocked'
+
+# Controller consumes the pause once, before the next frame/selection tick.
+ctl = unknown_controller(SimpleNamespace(selection_flow=Mock()))
+ctl.yield_to_user = True
+with patch.object(actions, 'wait_if_user_active', return_value=True), \
+     patch.object(actions, 'take_yield_duration', return_value=7.5) as duration, \
+     patch.object(ctl, 'grab_frame', side_effect=RuntimeError('stop after pause')):
+    try:
+        ctl.run()
+    except RuntimeError as error:
+        assert str(error) == 'stop after pause'
+    else:
+        raise AssertionError('capture was not reached')
+duration.assert_called_once()
+ctl.turn_engine.selection_flow.pause_offset.assert_called_once_with(7.5)
+
+# Resolving a board-changing choice immediately frees support slots.
+for refresh in ('success', 'missing', 'error'):
+    choice = new_engine([], kredits=5)
+    choice.phase, choice.kredits_left = 'selection_pending', 5
+    choice.selection_pending = {'name': '海战', 'target': {'i': 0},
+                                'cost': 1, 'kredits_before': 5}
+    choice.selection_flow = SimpleNamespace(tick=lambda *a, **k: ('complete', 'test'))
+    old = {'our_support_units': (4, {})}
+    fresh = {'our_support_units': (1, {})}
+    choice.field_now = old
+    assert choice._support_line_full()
+    with patch.object(choice, '_kredits_now', return_value=4), \
+         patch.object(choice, '_field', return_value=fresh if refresh == 'success' else None,
+                      side_effect=RuntimeError('unreadable') if refresh == 'error' else None) as field:
+        assert choice.think() == 'selection_resolved'
+    field.assert_called_once_with(park=True)
+    assert choice.field_now is (fresh if refresh == 'success' else old)
+    assert choice._support_line_full() is (refresh != 'success')
+    if refresh == 'success':
+        choice.cards = hand(('步兵', 'infantry', 1, 600))
+        with patch.object(choice, '_orange_enabled', return_value=False), \
+             patch.object(choice, '_kredits_now', return_value=3), \
+             patch.object(turn_engine.time, 'sleep'):
+            assert choice.think() == 'deployed'
+        assert drags == [600]
+
+# Batch location leaves the cursor on the last card. Failed recognition must
+# re-hover the origin of each saved panel, including the earlier card.
+scanner = hand_scanner_v2.HandScannerV2.__new__(hand_scanner_v2.HandScannerV2)
+scanner.hwnd, scanner.y, scanner.hold, scanner.safe = 101, 700, 0., (1270, 360)
+scanner._last_client = None
+scanner.user_took_over = Mock(return_value=False)
+scanner._same_card = Mock(return_value=False)
+scanner._move = lambda x, y: setattr(scanner, '_last_client', (x, y))
+scanner._baseline = Mock(return_value=normal)
+rehovers = []
+def rehover(px):
+    rehovers.append(px)
+    scanner._last_client = (px, scanner.y)
+    return normal
+scanner._hover_frame = rehover
+def identify_panel(*a, **k):
+    if identify_panel.retry:
+        identify_panel.retry = False
+        return {'name': str(rehovers[-1]), 'cost': 1, 'type': 'infantry'}
+    identify_panel.retry = True
+    return {'name': None, 'cost': None}
+identify_panel.retry = False
+scanner._classify_name = identify_panel
+with patch.object(hand_scanner_v2, 'capture_client_bgr', return_value=normal), \
+     patch.object(hand_scanner_v2, 'diff_bbox', return_value=(0, 0, 20, 20)), \
+     patch.object(hand_scanner_v2.time, 'sleep'):
+    cards, hits, aborted = scanner._probe_layout({'probes': [400, 700]})
+assert not aborted and hits == 2 and rehovers == [400, 700]
+assert [(c['x'], c['name']) for c in cards] == [(400, '400'), (700, '700')]
+
+unit = {'x': 500, 'name': '步兵', '_before': 'before'}
+before = {'total': 4, 'our_support': (2, {})}
+after = {'total': 5, 'our_support': (3, {})}
+eng = new_engine([], kredits=0)
+eng.kredits_left = 0
+with patch.object(eng, '_kredits_now', return_value=0), \
+     patch.object(eng, '_kredits_recheck', side_effect=AssertionError('zero cost equality')), \
+     patch.object(eng, '_panel_at', return_value='after'), \
+     patch.object(eng, '_panel_looks_same', return_value=False):
+    assert eng._judge_deploy(before, before, unit, 0)[0] is False
+    assert eng._judge_deploy(before, after, unit, 0)[0] is True
+    assert eng._judge_deploy(None, None, unit, 0)[0] is True
+    assert eng._judge_deploy(before, before, unit, 0, is_order=True)[0] is True
+    with patch.object(eng, '_panel_looks_same', return_value=True):
+        assert eng._judge_deploy(before, after, unit, 0, is_order=True)[0] is False
+    assert eng._judge_deploy(None, None, {'x': 500}, 0, is_order=True)[0] is False
+for cost, budget, measured in ((0, 0, 1), (2, 5, 6)):
+    eng.kredits_left = budget - cost
+    eng.afford.note_read(budget)
+    with patch.object(eng, '_kredits_now', return_value=measured):
+        ok, note, refused = eng._judge_deploy(before, before, unit, cost, is_order=True)
+    assert ok and not refused and '产费指令' in note
+    assert eng.kredits_left == measured and eng._budget(measured)
+
+# Production's gained Kredit survives the whole think() accounting path.
+production = new_engine(hand(('生产', 'order', 0, 500)), kredits=0)
+production.phase, production.kredits_left = 'play', 0
+production.afford.note_read(0)
+production.cards = list(production.scanner.cards)
+with patch.object(production, '_orange_enabled', return_value=False), \
+     patch.object(production, '_kredits_now', return_value=1), \
+     patch.object(turn_engine.time, 'sleep'):
+    assert production.think() == 'deployed'
+assert production.kredits_left == 1 and production.deployed_this_turn == 1
+assert production._budget(1)
+
+for readings, expected, measured in (([4, 4], 4, True), ([4, None], 6, False),
+                                    ([4, 3], 6, False), ([0, 0], 0, True)):
+    values = iter(readings)
+    tracker = _kr.KreditsTracker(capture=lambda: 'frame',
+                                read_one=lambda f: next(values, None), attempts=2,
+                                turn_start_settle=0, sleep=lambda s: None)
+    tracker.last_value = 5
+    result = tracker.read_turn_start()
+    assert result['value'] == expected and result['measured'] is measured, result
+    assert tracker.last_value == expected
+assert inspect.signature(_kr.read_kredits).parameters['_sample_counter'].default is None
+# Explicit counters remain caller-owned and usable across recordings.
+counter = [7]
+with patch.object(_kr, 'isolate_numeral', return_value=(normal[:20, :20], normal[:20, :20, 0], (0, 0, 20, 20))), \
+     patch.object(_kr.os, 'makedirs'), patch.object(_kr.cv2, 'imwrite') as write:
+    _kr.read_kredits(normal, record_samples=True, _sample_counter=counter)
+    assert counter == [8]
+    assert 'numeral_00007.png' in write.call_args_list[0].args[0]
+
+rebound = new_engine([], kredits=5)
+rebound.hwnd = rebound.scanner.hwnd = rebound.attacker.hwnd = rebound.front_mover.hwnd = 101
+rebound.field_now, rebound.cards = before, [unit]
+rebound.rebind_hwnd(202)
+assert [rebound.hwnd, rebound.scanner.hwnd, rebound.attacker.hwnd, rebound.front_mover.hwnd] == [202] * 4
+assert rebound.field_now is None and rebound.cards == [] and not rebound._scanned_full_this_turn
+ctl = unknown_controller(rebound)
+ctl.hwnd = 303
+with patch.object(rebound, 'think', return_value='waiting'), \
+     patch.object(rebound, 'rebind_hwnd', wraps=rebound.rebind_hwnd) as rebind, \
+     patch.object(main_loop, 'log'):
+    ctl.handle_in_game()
+    rebound.cards = [unit]
+    ctl.handle_in_game()
+rebind.assert_called_once_with(303)
+assert rebound.scanner.hwnd == rebound.attacker.hwnd == rebound.front_mover.hwnd == 303
+assert rebound.cards == [unit]
 
 print("ALL CASES PASSED")
 print("=" * 78)

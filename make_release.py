@@ -77,12 +77,13 @@ def iter_emu_runtime_files(root: str):
 
 
 def read_version() -> str:
-    try:
-        with open(os.path.join(ROOT, "config", "app_version.json"),
-                  encoding="utf-8") as f:
-            return str(json.load(f).get("version", "0.0.0"))
-    except Exception:
-        return "0.0.0"
+    with open(os.path.join(ROOT, "config", "app_version.json"),
+              encoding="utf-8-sig") as f:
+        data = json.load(f)
+    version = data.get("version") if isinstance(data, dict) else None
+    if not isinstance(version, str) or not version.strip():
+        raise ValueError("config/app_version.json: version must be a non-empty string")
+    return version.strip()
 
 
 def file_sha256(path: str) -> str:

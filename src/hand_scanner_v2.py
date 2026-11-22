@@ -579,20 +579,23 @@ class HandScannerV2:
         size_ratio = min(area_a, area_b) / max(area_a, area_b)
         return iou >= PANEL_IOU_SAME and size_ratio >= 0.6
 
-    def _classify(self, region, y0=0, box=None, frame=None, debug=False):
+    def _classify(self, region, y0=0, box=None, frame=None, debug=False,
+                  probe_x=None):
         self._check_scan_deadline()
         import weather_cards
         info = self._classify_name(region, y0=y0, box=box, frame=frame, debug=debug)
         last_client = getattr(self, '_last_client', None)
+        if probe_x is None and last_client and last_client[1] == self.y:
+            probe_x = last_client[0]
         if (not getattr(self, 'classic_strategy', False)
                 and not getattr(self, '_orange_identity_active', False)
                 and not info.get('name') and info.get('cost') is None
-                and frame is not None and last_client
-                and last_client[1] == self.y and not self.user_took_over()):
+                and frame is not None and probe_x is not None
+                and not self.user_took_over()):
             # Animation/tooltip may swallow the first hover. Reset once at
             # the same probe before walking more coordinates through the board.
             neutral = self._baseline()
-            retried = self._hover_frame(last_client[0])
+            retried = self._hover_frame(probe_x)
             retry_box = diff_bbox(neutral, retried)
             if retry_box is not None:
                 rx, ry, rw, rh = retry_box
@@ -1909,7 +1912,8 @@ class HandScannerV2:
             bx, by, bw, bh = p["box"]
             t0 = time.time()
             info = self._classify(p["frame"][by:by + bh, bx:bx + bw], y0=by,
-                                  box=p["box"], frame=p["frame"], debug=debug)
+                                  box=p["box"], frame=p["frame"], debug=debug,
+                                  probe_x=p["px"])
             t_ocr += time.time() - t0
             record(p["px"], info)
             if debug:

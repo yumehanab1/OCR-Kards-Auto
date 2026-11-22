@@ -484,9 +484,10 @@ def auto_update_once(window=None) -> dict:
       所以"没提示"只意味着"没有新版本",不意味着"我们不知道"。
       但**必须留痕**(见 `log_update`),否则静默就等于"什么都可能发生"。
     """
-    local = str(read_version().get("version") or "0.0.0")
+    ver = read_version()
+    local = str(ver.get("version") or "0.0.0")
     try:
-        r = update_check.check(local)
+        r = update_check.check(local, url=ver.get("update_url"))
     except Exception as e:                     # 自动这条路绝不许影响面板
         log_update(f"[自动] 出错({type(e).__name__}: {e})")
         return {}
@@ -758,7 +759,7 @@ class Api:
             return {"ok": False, "msg": "已经在跑了"}
         self._close_run_log()
         # The rendered GUI always sends every switch. Legacy bridge callers that
-        # omit the new opt-in keep their original physical input/stop contract.
+        # omit the new opt-in keep physical input without user-yield detection.
         start_options = opts or {}
         if isinstance(start_options, dict):
             start_options = {"yield_to_user": False, **start_options}
@@ -794,13 +795,10 @@ class Api:
             self._fh.write(f"\n=== {time.strftime('%Y-%m-%d %H:%M:%S')} "
                            f"{' '.join(cmd)} ===\n".encode("utf-8"))
             env = os.environ.copy()
-            env.pop('KARDS_AUTO_STOP_FILE', None)
-            self._stop_file = None
-            if opts.get('message_input') or opts.get('yield_to_user'):
-                controls = os.path.join(PROJECT_ROOT, 'logs', 'controls')
-                os.makedirs(controls, exist_ok=True)
-                self._stop_file = os.path.join(controls, uuid.uuid4().hex + '.stop')
-                env['KARDS_AUTO_STOP_FILE'] = self._stop_file
+            controls = os.path.join(PROJECT_ROOT, 'logs', 'controls')
+            os.makedirs(controls, exist_ok=True)
+            self._stop_file = os.path.join(controls, uuid.uuid4().hex + '.stop')
+            env['KARDS_AUTO_STOP_FILE'] = self._stop_file
             self.proc = subprocess.Popen(
                 cmd, cwd=PROJECT_ROOT, stdout=self._fh,
                 stderr=subprocess.STDOUT, creationflags=flags, env=env)
@@ -835,16 +833,19 @@ class Api:
         if self.proc is None or self.proc.poll() is not None:
             return {"ok": False, "msg": "没在跑"}
         try:
-            if self.last_opts.get('message_input') or self.last_opts.get('yield_to_user'):
-                if not self._stop_file:
-                    return {"ok": False, "msg": "缺少安全停止通道，未强杀输入进程"}
+            no_force = self.last_opts.get('message_input')
+            if not self._stop_file and no_force:
+                return {"ok": False, "msg": "缺少安全停止通道，未强杀输入进程"}
+            if self._stop_file:
                 with open(self._stop_file, 'w', encoding='utf-8') as marker:
                     marker.write('stop\n')
                 try:
-                    self.proc.wait(timeout=6)
+                    self.proc.wait(timeout=6 if no_force else 4)
                 except subprocess.TimeoutExpired:
-                    return {"ok": True, "msg": "停止已请求，等待识别结束并安全释放；未强杀进程"}
-                return {"ok": True, "msg": f"已安全停止(退出码 {self.proc.returncode})"}
+                    if no_force:
+                        return {"ok": True, "msg": "停止已请求，等待识别结束并安全释放；未强杀进程"}
+                else:
+                    return {"ok": True, "msg": f"已安全停止(退出码 {self.proc.returncode})"}
             self.proc.terminate()
             try:
                 self.proc.wait(timeout=6)
@@ -922,6 +923,8 @@ class Api:
         return dict(r, version=local)
 
     def install_update(self) -> dict:
+        if update_install.any_emu_worker_running(PROJECT_ROOT):
+            return {"ok": False, "msg": "请先停止自动对局，再应用更新"}
         if self._emu_manager is not None and self._emu_manager.has_running_workers():
             return {"ok": False, "msg": "请先停止自动对局，再应用更新"}
         if self.proc is not None and self.proc.poll() is None:
@@ -941,7 +944,7 @@ class Api:
 
         def worker():
             try:
-                with update_install.engine_guard():
+                with update_install.engine_guard(PROJECT_ROOT):
                     py = engine_python()
                     if not py: raise RuntimeError('找不到可运行的 Python')
                     if recovery:
@@ -1099,7 +1102,7 @@ main {flex:1; min-height:0; padding:16px 22px; display:grid; grid-template-colum
 </main>
 <div id="toast" class="toast" role="status"></div>
 <script>
-let onlyKey = false, autoscroll = true, lastRev = '', polling = false;
+let onlyKey = false, autoscroll = true, lastRev = '', polling = false, filterGen = 0;
 let updUrl = '', lastUpdateMessage = '', checkingUpdate=false;   // 查到新版本后存发布页地址,按钮第二次点就是打开它
 const $ = s => document.querySelector(s);
 function toast(msg, ms=3200){ const t=$('#toast'); t.textContent=msg; t.classList.add('show');
@@ -1186,9 +1189,10 @@ async function poll(){
   if(polling) return;
   polling = true;
   const filter = onlyKey;
+  const gen = filterGen;
   try{
     const s = await window.pywebview.api.snapshot(filter, 400, lastRev);
-    if(filter !== onlyKey){ lastRev=''; return; }
+    if(gen !== filterGen){ lastRev=''; return; }
     renderSwitches(s.switches, s.saved_options); render(s);
     $('#logtag').textContent = 'main_loop.log';
     $('#logtag').style.color = '';
@@ -1278,7 +1282,7 @@ window.addEventListener('pywebviewready', async ()=>{
   $('#btnApplyUpdate').onclick = async ()=>{
     const r=await window.pywebview.api.install_update(); toast(r.msg,11000); poll();
   };
-  $('#btnKey').onclick = ()=>{ onlyKey=!onlyKey; lastRev='';
+  $('#btnKey').onclick = ()=>{ onlyKey=!onlyKey; filterGen++; lastRev='';
     $('#btnKey').setAttribute('aria-pressed', String(onlyKey));
     $('#btnKey').textContent = onlyKey?'看全部':'只看关键行'; poll(); };
   $('#btnBottom').onclick = ()=>{ autoscroll=true; $('#log').scrollTop=$('#log').scrollHeight; };
@@ -1456,8 +1460,9 @@ function emuRenderInstances(instances){
     if(i.last_error){const err=document.createElement('div'); err.className='hint-text'; err.style.color='var(--bad)'; err.textContent=i.last_error; info.append(err);}
     const buttons=document.createElement('div'); buttons.className='buttons';
     function button(text,fn){const b=document.createElement('button'); b.textContent=text; b.disabled=emuBusy; b.onclick=fn; buttons.append(b); return b;}
-    if(i.provider==='mumu' || i.extra?.controllable){
-      button(i.running?'关机':'开机',()=>emuAction(async()=>{
+    if((!i.running && (i.provider==='mumu' || i.extra?.can_launch)) ||
+       (i.running && (i.provider==='mumu' || i.extra?.can_shutdown))){
+      button(i.running?'关闭模拟器':'启动模拟器',()=>emuAction(async()=>{
         if(i.running && i.worker_running){const r=await window.pywebview.api.emu_stop([i.instance_id]); if(!r.ok) return r;}
         return window.pywebview.api.emu_control(i.instance_id,i.running?'shutdown':'launch');
       }));
@@ -1540,7 +1545,7 @@ def main() -> int:
     args = ap.parse_args()
 
     if args.root:
-        global PROJECT_ROOT, SRC, MAIN_LOOP, LOG_DIR, LOG, GUI_RUN_LOG, VERSION_FILE
+        global PROJECT_ROOT, SRC, MAIN_LOOP, LOG_DIR, LOG, GUI_RUN_LOG, VERSION_FILE, WIN_STATE, UPDATE_LOG
         PROJECT_ROOT = os.path.abspath(args.root)
         SRC = os.path.join(PROJECT_ROOT, "src")
         MAIN_LOOP = os.path.join(SRC, "main_loop.py")
@@ -1548,6 +1553,8 @@ def main() -> int:
         LOG = os.path.join(LOG_DIR, "main_loop.log")
         GUI_RUN_LOG = os.path.join(LOG_DIR, "gui_run.log")
         VERSION_FILE = os.path.join(PROJECT_ROOT, "config", "app_version.json")
+        WIN_STATE = os.path.join(PROJECT_ROOT, "config", "gui_window.json")
+        UPDATE_LOG = os.path.join(LOG_DIR, "update_check.log")
 
     if args.selftest:
         # ★ 打包成 exe 之后没有控制台,`print` 看不见 —— 所以把结论**写文件**,

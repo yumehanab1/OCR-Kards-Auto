@@ -286,6 +286,8 @@ class EmuVision:
         if training and battle_tab:
             start = find("开始", lambda p: p[0] >= 900 and p[1] >= 480)
             state = "deck_detail" if start else "deck_list"
+            if start and deck_name and not find(deck_name):
+                return obs(state, point(find("返回"), (55, 55)), "wrong_deck_selected")
             desired, other = (training, battle_tab) if target_mode == "training" else (battle_tab, training)
             desired_orange, other_orange = (_orange_pixel_count(frame, e[0]) for e in (desired, other))
             # Ambiguous battle selection must not accidentally start ranked.
@@ -306,6 +308,8 @@ class EmuVision:
             if named:
                 x, y = named[2]
                 return obs(state, (x, max(160, y-80)), "select_named_deck")
+            if deck_name:
+                return obs(state, None, "deck_not_found")
             decks = [e for e in entries if e not in (training, battle_tab) and e[2][0] >= 500 and 320 <= e[2][1] <= 500]
             chosen = min(decks, key=lambda e: e[2][0]) if decks else None
             return obs(state, (chosen[2][0], max(160, chosen[2][1]-106)) if chosen else (625, 290), "select_default_deck")

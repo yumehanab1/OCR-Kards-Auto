@@ -106,7 +106,8 @@ class LongLog(unittest.TestCase):
         self.assertIn('if(polling) return;',gui.HTML)
         self.assertIn('polling = true;',gui.HTML)
         self.assertIn('polling = false;',gui.HTML)
-        self.assertIn('if(filter !== onlyKey)',gui.HTML)
+        self.assertIn('if(gen !== filterGen)',gui.HTML)
+        self.assertIn('filterGen++',gui.HTML)
         self.assertIn('snapshot(filter, 400, lastRev)',gui.HTML)
 
 

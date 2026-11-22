@@ -18,6 +18,13 @@ import inspect
 import os
 import sys
 import tempfile
+import contextlib
+import shutil
+import uuid
+import json
+from pathlib import Path
+import unittest
+from unittest.mock import patch
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 if hasattr(sys.stdout, "reconfigure"):
@@ -26,6 +33,64 @@ if hasattr(sys.stdout, "reconfigure"):
 import gui  # noqa: E402
 
 FAILS = []
+
+
+@contextlib.contextmanager
+def test_directory():
+    # Inherit the parent's ACL; Python 3.14's private temp ACL excludes the
+    # restricted Windows test token. Never change ACLs on existing directories.
+    parent = Path(tempfile.gettempdir()).resolve()
+    path = parent / ('kards-gui-test-' + uuid.uuid4().hex)
+    path.mkdir()
+    try:
+        yield str(path)
+    finally:
+        assert path.resolve().parent == parent
+        shutil.rmtree(path)
+
+
+class WaveATests(unittest.TestCase):
+    def test_auto_update_uses_configured_url(self):
+        for url in ('https://example.com/custom-release', ''):
+            with patch.object(gui, 'read_version', return_value={'version': '0.3.0', 'update_url': url}), \
+                    patch.object(gui.update_check, 'check', return_value={}) as query, \
+                    patch.object(gui, 'log_update'):
+                gui.auto_update_once(None)
+                query.assert_called_once_with('0.3.0', url=url)
+
+    def test_root_rebinds_window_state_and_update_log(self):
+        names = ('PROJECT_ROOT', 'SRC', 'MAIN_LOOP', 'LOG_DIR', 'LOG', 'GUI_RUN_LOG',
+                 'VERSION_FILE', 'WIN_STATE', 'UPDATE_LOG')
+        with test_directory() as tmp, \
+                patch.multiple(gui, **{name: getattr(gui, name) for name in names}), \
+                patch.object(sys, 'argv', ['gui.py', '--root', tmp, '--selftest']), \
+                patch.object(gui, 'engine_python', return_value=sys.executable):
+            self.assertEqual(gui.main(), 0)
+            self.assertEqual(gui.WIN_STATE, os.path.join(tmp, 'config', 'gui_window.json'))
+            self.assertEqual(gui.UPDATE_LOG, os.path.join(tmp, 'logs', 'update_check.log'))
+            gui.save_win_state(1234, 780)
+            gui.log_update('root regression')
+            self.assertTrue(Path(gui.WIN_STATE).is_file())
+            self.assertIn('root regression', Path(gui.UPDATE_LOG).read_text(encoding='utf-8'))
+
+    def test_release_version_accepts_bom_and_rejects_missing_or_invalid(self):
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+        import make_release
+        with test_directory() as tmp, patch.object(make_release, 'ROOT', tmp):
+            config = Path(tmp) / 'config/app_version.json'
+            config.parent.mkdir()
+            with self.assertRaises(FileNotFoundError):
+                make_release.read_version()
+            for encoding in ('utf-8', 'utf-8-sig'):
+                config.write_text('{"version":"0.3.0"}', encoding=encoding)
+                self.assertEqual(make_release.read_version(), '0.3.0')
+            for data in ({}, [], {'version': None}, {'version': 3}, {'version': ''}, {'version': '  '}):
+                config.write_text(json.dumps(data), encoding='utf-8-sig')
+                with self.assertRaises(ValueError):
+                    make_release.read_version()
+            config.write_text('{bad', encoding='utf-8-sig')
+            with self.assertRaises(ValueError):
+                make_release.read_version()
 
 
 def check(ok: bool, msg: str) -> None:
@@ -83,7 +148,7 @@ def main() -> int:
     check(gui.normalize_options({})["classic_strategy"] is False
           and "classic_strategy" not in gui.DEFAULT_ON,
           "传统策略默认关闭，旧配置缺少该字段时也保持关闭")
-    with tempfile.TemporaryDirectory() as d:
+    with test_directory() as d:
         keep = gui.PROJECT_ROOT
         gui.PROJECT_ROOT = d
         try:
@@ -134,7 +199,7 @@ def main() -> int:
           "正常跑的时候不许误报『在等窗口』")
 
     print("\n③ tail_lines / mark_line:日志尾巴与配色语义")
-    with tempfile.TemporaryDirectory() as d:
+    with test_directory() as d:
         p = os.path.join(d, "t.log")
         with open(p, "wb") as f:
             f.write("第一行中文占位\n".encode("utf-8") * 200)
@@ -190,7 +255,7 @@ def main() -> int:
     #   实测踩到:PowerShell 的 `Set-Content -Encoding UTF8` 会写 BOM,
     #   而 `encoding="utf-8"` 读它会抛异常 -> 被 except 吞掉 -> 版本静默变 0.0.0。
     #   以前只是显示难看,现在版本号要拿去比大小了,静默变 0.0.0 = "永远提示有新版本"。
-    with tempfile.TemporaryDirectory() as d:
+    with test_directory() as d:
         keep = gui.VERSION_FILE
         p = os.path.join(d, "app_version.json")
         with open(p, "wb") as f:                      # 手写 BOM,复现真实场景
@@ -210,7 +275,7 @@ def main() -> int:
           "有『打开发布页』这个入口(查到新版后按钮第二次点用它)")
 
     print("\n⑥ 窗口几何记忆(用户手动拖过窗口,不要每次重拖)")
-    with tempfile.TemporaryDirectory() as d:
+    with test_directory() as d:
         keep = gui.WIN_STATE
         gui.WIN_STATE = os.path.join(d, "win.json")
         try:
@@ -235,7 +300,7 @@ def main() -> int:
     check((x2, y2) == (100, 80), f"正常位置不许动:实得 {(x2, y2)}")
 
     print("\n⑦ 开机自动查一次(静默,但**必须留痕**)")
-    with tempfile.TemporaryDirectory() as d:
+    with test_directory() as d:
         keep_dir, keep_log = gui.LOG_DIR, gui.UPDATE_LOG
         keep_check = gui.update_check.check
         gui.LOG_DIR = d
@@ -271,7 +336,7 @@ def main() -> int:
     # 根因:面板尾部只取 400 行,日志一旦超过 400 行,**行数永远是 400**,
     #       而前端原来拿"行数变了没有"当重画判据 -> 从此恒为假 -> 永久冻结。
     # 这一节用**真实文件**把那个判据钉死:长度(会饱和,坏判据)vs log_rev(好判据)。
-    with tempfile.TemporaryDirectory() as d:
+    with test_directory() as d:
         p = os.path.join(d, "grow.log")
         with open(p, "wb") as f:
             for i in range(1000):                # 远超尾部窗口的 400 行
@@ -308,4 +373,7 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    result = unittest.TextTestRunner(verbosity=2).run(unittest.defaultTestLoader.loadTestsFromTestCase(WaveATests))
+    if not result.wasSuccessful():
+        sys.exit(1)
     sys.exit(main())

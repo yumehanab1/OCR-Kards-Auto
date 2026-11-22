@@ -39,6 +39,8 @@ class Fixture:
                     'config/emu_options.json': b'remote emulator settings',
                     'config/card_hashes.json': b'remote learned data',
                     'mobile/source.txt': b'mobile'}
+        self.files.update({f'src/emu_runtime/assets/mobile-core/shots/kredits/samples_r1/{n}.png':
+                           b'digit-template-' + str(n).encode() for n in range(10)})
         self.manifest={'schema':1,'version':'0.3.0','files':{k:meta(v) for k,v in self.files.items()}}
         buf=io.BytesIO()
         with zipfile.ZipFile(buf,'w',zipfile.ZIP_DEFLATED) as z:
@@ -98,6 +100,77 @@ class Updates(unittest.TestCase):
         self.assertNotIn('config/emu_options.json',paths)
         self.assertIn(runtime,paths)
         self.unchanged(f)
+
+    def test_all_runtime_digits_install_but_user_trees_stay_protected(self):
+        f = Fixture(self.root)
+        digits = [p for p in f.files if p.endswith('.png')]
+        self.assertEqual(len(digits), 10)
+        job = f.stage()
+        self.assertTrue(ui.apply_job(job)['ok'])
+        for path in digits:
+            self.assertEqual((self.root/path).read_bytes(), f.files[path])
+        for path in ('shots/a.png', 'src/shots/a.png', 'mobile/a.py', '.git/index',
+                     'src/emu_runtime/.git/index', 'src/emu_runtime/mobile/a.py',
+                     'src/emu_runtime/logs/a.log', 'src/emu_runtime/__pycache__/a.pyc'):
+            self.assertTrue(ui.protected(path), path)
+        self.unchanged(f)
+
+    def test_restart_environment_is_fresh_without_mutating_parent(self):
+        inherited = dict(_PYI_ARCHIVE_FILE='old.exe', _PYI_APPLICATION_HOME_DIR='deleted',
+                         _MEIPASS2='deleted', PYINSTALLER_RESET_ENVIRONMENT='0', KEEP='yes')
+        f = Fixture(self.root)
+        job = f.stage()
+        shutil.copy2(Path(ui.__file__), self.root/'src/update_install.py')
+        restart = {'argv': ['updated.exe'], 'cwd': str(self.root)}
+        with patch.dict(os.environ, inherited), patch.object(ui.subprocess, 'Popen') as launch:
+            ui.launch_helper(job, sys.executable, 123, restart)
+            env = launch.call_args.kwargs['env']
+            self.assertEqual(env['PYINSTALLER_RESET_ENVIRONMENT'], '1')
+            self.assertEqual(env['KEEP'], 'yes')
+            for key in ('_PYI_ARCHIVE_FILE', '_PYI_APPLICATION_HOME_DIR', '_MEIPASS2'):
+                self.assertNotIn(key, env)
+                self.assertEqual(os.environ[key], inherited[key])
+            with patch.object(sys, 'argv', ['helper.py', '--job', str(job), '--parent', '123']), \
+                    patch.object(ui, 'wait_parent'):
+                self.assertEqual(ui.main(), 0)
+            self.assertEqual(launch.call_args.args[0], restart['argv'])
+            self.assertEqual(launch.call_args.kwargs['env'], env)
+
+    def test_cross_process_instance_locks_and_update_exclusion(self):
+        code = '''import sys
+from update_install import acquire_instance_lock
+lock = acquire_instance_lock('mumu:7', sys.argv[1])
+print('locked', flush=True)
+sys.stdin.read()
+'''
+        env = {**os.environ, 'PYTHONPATH': str(Path(ui.__file__).parent), 'PYTHONDONTWRITEBYTECODE': '1'}
+        child = subprocess.Popen([sys.executable, '-B', '-c', code, str(self.root)],
+                                 stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                 text=True, env=env)
+        try:
+            self.assertEqual(child.stdout.readline().strip(), 'locked')
+            self.assertTrue(ui.any_emu_worker_running(self.root))
+            with self.assertRaises(ui.LockBusyError):
+                ui.acquire_instance_lock('mumu:7', self.root / '.')
+            with ui.acquire_instance_lock('mumu:8', self.root):
+                pass
+            with ui.acquire_instance_lock('mumu:7', self.root/'other'):
+                pass
+            with self.assertRaises(RuntimeError):
+                with ui.engine_guard(self.root):
+                    self.fail('update entered with a live worker')
+            with patch.object(gui, 'PROJECT_ROOT', str(self.root)):
+                api = gui.Api()  # No manager in this GUI window.
+                self.assertFalse(api.install_update()['ok'])
+        finally:
+            child.terminate()  # Simulate a crash: OS ownership must disappear.
+            child.communicate(timeout=5)
+        self.assertFalse(ui.any_emu_worker_running(self.root))
+        with ui.engine_guard(self.root):
+            with self.assertRaises(ui.LockBusyError):
+                ui.acquire_instance_lock('mumu:7', self.root)
+        with ui.acquire_instance_lock('mumu:7', self.root):
+            pass
 
     def test_023_to_030_installs_runtime_preserves_emulator_options(self):
         f=Fixture(self.root)
@@ -173,9 +246,9 @@ class Updates(unittest.TestCase):
         with self.assertRaises(ValueError):f.stage()
     @unittest.skipUnless(os.name=='nt','Windows mutex')
     def test_engine_mutex_and_parent_wait(self):
-        with ui.engine_guard():
+        with ui.engine_guard(self.root):
             with self.assertRaises(RuntimeError):
-                with ui.engine_guard():pass
+                with ui.engine_guard(self.root):pass
             code = '''import ctypes
 k=ctypes.WinDLL('kernel32',use_last_error=True)
 k.CreateMutexW.restype=ctypes.c_void_p

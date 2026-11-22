@@ -516,7 +516,8 @@ class Controller:
                     f"策略={'传统' if self.classic_strategy else '橙色'})")
             if self.hwnd is None:
                 return
-            self.turn_engine.hwnd = self.hwnd
+            if self.turn_engine.hwnd != self.hwnd:
+                self.turn_engine.rebind_hwnd(self.hwnd)
             # ★ 诊断(PROJECT_STATE §8 待办 9 后半 / 待办 14 的入口):
             #   曾经出现"很暗的过渡画面(实测 mean=25.2、state=None)被当成对局
             #   交给回合引擎,于是扫描空转"。要判断这一点,得把**交棒那一刻
@@ -1053,6 +1054,12 @@ class Controller:
                 break
             if getattr(self, 'yield_to_user', False):
                 actions_mod.wait_if_user_active()
+                # Also drain pauses inside the previous action: a subsequent
+                # idle check must not lose or double-count that elapsed time.
+                paused = actions_mod.take_yield_duration()
+                if (self.turn_engine is not None
+                        and self.turn_engine.selection_flow is not None):
+                    self.turn_engine.selection_flow.pause_offset(paused)
             frame = self.grab_frame()
             if frame is None:
                 log("KARDS window not found - waiting")

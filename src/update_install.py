@@ -55,7 +55,9 @@ def relative(raw):
 
 def protected(rel):
     low = rel.lower()
-    return (low in PROTECTED_FILES or any(p in PROTECTED_DIRS for p in low.split('/'))
+    # Bundled digit templates live in shots/, not in a user's screenshot tree.
+    dirs = PROTECTED_DIRS - {'shots'} if low.startswith('src/emu_runtime/') else PROTECTED_DIRS
+    return (low in PROTECTED_FILES or any(p in dirs for p in low.split('/'))
             or low.startswith('docs/reports/') or low.endswith(('.pyc', '.pyo')))
 
 
@@ -376,8 +378,104 @@ def apply_job(job):
     return result
 
 
+class LockBusyError(RuntimeError):
+    pass
+
+
+class ProcessLock:
+    """OS-owned lock; persistent markers are safe to probe after a crash.
+
+    Windows uses a named mutex's handle lifetime (not thread ownership), so a
+    manager may reap a child from a different GUI thread. Unix uses flock.
+    """
+    def __init__(self, path):
+        path = Path(path).resolve()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        self.handle = self.stream = None
+        if os.name == 'nt':
+            path.touch(exist_ok=True)
+            self.kernel = ctypes.WinDLL('kernel32', use_last_error=True)
+            self.kernel.CreateMutexW.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_wchar_p]
+            self.kernel.CreateMutexW.restype = ctypes.c_void_p
+            self.kernel.CloseHandle.argtypes = [ctypes.c_void_p]
+            name = 'Local\\KardsAutoEmu_' + uuid.uuid5(
+                uuid.NAMESPACE_URL, os.path.normcase(str(path))).hex
+            handle = self.kernel.CreateMutexW(None, False, name)
+            already = ctypes.get_last_error() == 183
+            if not handle:
+                raise ctypes.WinError(ctypes.get_last_error())
+            if already:
+                self.kernel.CloseHandle(handle)
+                raise LockBusyError('模拟器实例或更新正在运行')
+            self.handle = handle
+        else:
+            import fcntl
+            stream = path.open('a+b')
+            try:
+                fcntl.flock(stream.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError as exc:
+                stream.close()
+                raise LockBusyError('模拟器实例或更新正在运行') from exc
+            except BaseException:
+                stream.close()
+                raise
+            self.stream = stream
+
+    def close(self):
+        if self.handle is not None:
+            self.kernel.CloseHandle(self.handle)
+            self.handle = None
+        if self.stream is not None:
+            self.stream.close()
+            self.stream = None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        self.close()
+
+
+def _emu_lock_dir(root):
+    return Path(root).resolve() / 'logs/emu_locks'
+
+
+def _lock_held(path):
+    try:
+        with ProcessLock(path):
+            return False
+    except LockBusyError:
+        return True
+
+
+def any_emu_worker_running(root):
+    return any(_lock_held(p) for p in _emu_lock_dir(root).glob('*.lock'))
+
+
+def acquire_instance_lock(instance_id, project_root, *, panel=False):
+    # Match the log/stop-file namespace too: IDs with the same slug cannot run
+    # together and accidentally erase one another's stop/status files.
+    slug = re.sub(r'[^a-zA-Z0-9]+', '_', instance_id).strip('_') or 'instance'
+    folder = _emu_lock_dir(project_root)
+    with ProcessLock(folder.parent / 'emu_update.lock'):
+        if panel and _lock_held(folder / (slug + '.worker.lock')):
+            raise LockBusyError('该实例已在另一个面板窗口中运行')
+        return ProcessLock(folder / (slug + ('.panel.lock' if panel else '.worker.lock')))
+
+
 @contextlib.contextmanager
-def engine_guard():
+def engine_guard(project_root=None):
+    root = Path(project_root) if project_root is not None else Path(__file__).resolve().parents[1]
+    # Serialize worker registration with scanning and the entire update.
+    with ProcessLock(_emu_lock_dir(root).parent / 'emu_update.lock'):
+        if any_emu_worker_running(root):
+            raise RuntimeError('请先停止正在运行的模拟器自动对局，再应用更新')
+        with _pc_engine_guard():
+            yield
+
+
+@contextlib.contextmanager
+def _pc_engine_guard():
     """Block updating while any production engine owns its named mutex."""
     if os.name != 'nt':
         yield; return
@@ -417,9 +515,18 @@ def launch_helper(job, python, parent_pid, restart, recover=False):
         if recover: argv.append('--recover')
         return subprocess.Popen(argv,
             cwd=job, stdout=log, stderr=subprocess.STDOUT,
+            env=restart_environment(),
             creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
     finally:
         log.close()
+
+
+def restart_environment():
+    env = os.environ.copy()
+    env['PYINSTALLER_RESET_ENVIRONMENT'] = '1'
+    for key in ('_PYI_ARCHIVE_FILE', '_PYI_APPLICATION_HOME_DIR', '_MEIPASS2'):
+        env.pop(key, None)
+    return env
 
 
 def panel_exit_pid():
@@ -471,7 +578,8 @@ def main():
     try:
         wait_parent(args.parent)
         parent_exited = True
-        with engine_guard(): result = recover_job(job) if args.recover else apply_job(job)
+        plan = json.loads((job/'plan.json').read_text(encoding='utf-8'))
+        with engine_guard(plan['root']): result = recover_job(job) if args.recover else apply_job(job)
     except Exception as error:
         result = {'ok': False, 'status': 'rollback_failed' if args.recover else 'blocked', 'msg': str(error)}
         atomic_json(job/'result.json', result)
@@ -480,6 +588,7 @@ def main():
     if parent_exited and result['status'] not in ('rollback_failed',):
         restart = json.loads((job/'restart.json').read_text(encoding='utf-8'))
         subprocess.Popen(restart['argv'], cwd=restart['cwd'],
+                         env=restart_environment(),
                          creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
     return 0 if result['ok'] else 1
 

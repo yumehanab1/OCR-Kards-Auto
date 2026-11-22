@@ -8,7 +8,7 @@ Windows 64 位 KARDS 画面自动化工具：只读屏幕、模拟鼠标，不�
 
 ## 直接使用
 
-当前PC正式版：[0.3.0](https://github.com/yumehanab1/OCR-Kards-Auto/releases/tag/v0.3.0)，新增「模拟器多开」（MuMu IPC 高速后台截屏/触控 + 通用 ADB，不抢宿主鼠标），升级 PP-OCRv6 并补齐英文卡名匹配与输入/执行可靠性修复。后续更新从[稳定版下载页](https://github.com/yumehanab1/OCR-Kards-Auto/releases/latest)获取。
+当前PC正式版：[0.3.1](https://github.com/yumehanab1/OCR-Kards-Auto/releases/tag/v0.3.1)，模拟器多开新增雷电/蓝叠自动发现、共享本地 OCR 服务、无人值守看门狗与按实例独立配置/每日限额；PC 端游新增「动鼠标自动让权」，并修复 5 处不点结束回合 Bug 与 24 项全仓巡检问题（含增量更新 EXE 重启与模板保护）。后续更新从[稳定版下载页](https://github.com/yumehanab1/OCR-Kards-Auto/releases/latest)获取。
 
 从 [Releases](https://github.com/yumehanab1/OCR-Kards-Auto/releases) 下载 `kards-auto_vX.Y.Z_x86_64.zip`，解压到空目录后：
 
@@ -93,7 +93,7 @@ install.cmd
 
 ## 手机端 / Android
 
-当前手机版：[Android 0.2.4 下载与安装](mobile/README.md) · [v0.2.4 Release](https://github.com/yumehanab1/OCR-Kards-Auto/releases/tag/v0.2.4) · [此版本源码](https://github.com/yumehanab1/OCR-Kards-Auto/tree/v0.2.4/mobile/source/android-app)。本次 `v0.3.0` 仅更新 PC 客户端（含模拟器多开），手机版请继续下载 Android `0.2.4`（versionCode 191）。
+当前手机版：[Android 0.2.4 下载与安装](mobile/README.md) · [v0.2.4 Release](https://github.com/yumehanab1/OCR-Kards-Auto/releases/tag/v0.2.4) · [此版本源码](https://github.com/yumehanab1/OCR-Kards-Auto/tree/v0.2.4/mobile/source/android-app)。本次 `v0.3.1` 仅更新 PC 客户端（含模拟器多开），手机版请继续下载 Android `0.2.4`（versionCode 191）。
 
 ### 历史：Android 0.2.2
 

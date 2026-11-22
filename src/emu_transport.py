@@ -139,6 +139,15 @@ class EmuTransport(ABC):
     def launch_kards(self, package: str | None = None) -> bool:
         return self.adb.launch_kards(package) if getattr(self, "adb", None) else False
 
+    def resolve_kards_package(self) -> str | None:
+        if getattr(self, "adb", None):
+            return self.adb.resolve_kards_package()
+        foreground = self.get_foreground_package()
+        if foreground in KARDS_PACKAGES:
+            return foreground
+        installed = self.list_packages()
+        return next((p for p in KARDS_PACKAGES if p in installed), None)
+
     def force_stop_package(self, package: str) -> bool:
         return self.adb.force_stop_package(package) if getattr(self, "adb", None) else False
 
@@ -219,16 +228,31 @@ class AdbTransport(EmuTransport):
                 commands = ["set -e", "trap 'input motionevent UP %d %d' EXIT" % native[-1]]
                 for i, (x, y, delay) in enumerate(path):
                     commands.append(f"input motionevent {'DOWN' if i == 0 else 'MOVE'} {x} {y}")
+                    if i == 0:
+                        commands.append("echo KARDS_MOTION_DOWN_DISPATCHED")
+                        commands.append("echo KARDS_MOTION_DOWN_DISPATCHED >&2")
                     if delay:
                         commands.append(f"sleep {delay:.6f}")
                 try:
-                    output = self._run(["shell", "; ".join(commands)], timeout=timeout)
-                    if re.search(r"unknown command|error:|exception|not found", output, re.I):
+                    output = self._run(["shell", "; ".join(commands)], timeout=timeout,
+                                       _retry_connect=False)
+                    if re.search(r"unknown command|usage:|invalid|unsupported|error:|exception|not found", output, re.I):
                         raise EmuTransportError(output)
                     return
-                except EmuTransportError:
-                    # Older Android input implementations lack motionevent.
-                    pass
+                except EmuTransportError as exc:
+                    message = str(exc).lower()
+                    unsupported = (exc.__cause__ is None
+                        and not re.search(r"timed? out|timeout|offline|connection|device .*not found|"
+                                          r"kards_motion_down_dispatched", message)
+                        and re.search(r"unknown command|usage:|invalid|unsupported|not found", message))
+                    if not unsupported:
+                        # Outcome unknown: release, never replay a second gesture.
+                        try:
+                            self._run(["shell", f"input motionevent UP {native[-1][0]} {native[-1][1]}"],
+                                      _retry_connect=False)
+                        except EmuTransportError:
+                            pass
+                        raise
             self._shell("input", "swipe", *native[0], *native[-1], duration_ms, timeout=timeout)
 
     def list_packages(self, filter_str: str = "") -> list[str]:

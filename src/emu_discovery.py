@@ -124,7 +124,7 @@ class MuMuProvider(EmulatorProvider):
                 mumu_root=self.mumu_root, mumu_index=index,
                 android_version=str(version) if version is not None else None,
                 ipc_dll_path=self.ipc_dll_path, ipc_available=bool(self.ipc_dll_path),
-                extra=dict(item)))
+                extra=dict(item, controllable=True, can_launch=True, can_shutdown=True)))
         return instances
 
     def _control(self, instance, action):
@@ -189,6 +189,7 @@ class LDPlayerProvider(EmulatorProvider):
                 adb_serial=f"127.0.0.1:{5555 + index * 2}", adb_path=self.adb_path,
                 running=running, process_started=running or pid > 0, ipc_available=False,
                 extra={"ld_index": index, "ld_root": self.ld_root,
+                       "controllable": True, "can_launch": True, "can_shutdown": True,
                        "alt_serial": f"emulator-{5554 + index * 2}", "pid": pid}))
         return instances
 
@@ -261,6 +262,8 @@ class BlueStacksProvider(EmulatorProvider):
                 adb_serial=serial, adb_path=self.adb_path, running=running,
                 process_started=running, ipc_available=False,
                 extra={"bs_instance": inst, "player_path": self.player_path,
+                       "controllable": bool(self.player_path), "can_launch": bool(self.player_path),
+                       "can_shutdown": False,
                        "conf_path": self.conf_path}))
         return instances
 
@@ -331,8 +334,10 @@ def discover_all(extra_serials: Sequence[str] = (), adb_path: str | None = None,
             if not default_providers:
                 raise  # Preserve explicit callers' error reporting contract.
     # Dedicated identities win regardless of provider order, including LD aliases.
+    live_adb = {i.adb_serial for i in found if i.provider == "adb" and i.running}
     dedicated_serials = {serial for i in found if i.provider != "adb"
-                         for serial in (i.adb_serial, i.extra.get("alt_serial")) if serial}
+                         for serial in (i.adb_serial, i.extra.get("alt_serial")) if serial
+                         and (i.running or i.process_started or serial not in live_adb)}
     seen = set()
     result = []
     for instance in found:
@@ -340,7 +345,7 @@ def discover_all(extra_serials: Sequence[str] = (), adb_path: str | None = None,
         if instance.provider == "adb" and serial and (serial in seen or serial in dedicated_serials):
             continue
         result.append(instance)
-        if serial:
+        if serial and instance.provider == "adb":
             seen.add(serial)
     return sorted(result, key=lambda i: (not i.running, i.provider != "mumu", i.provider,
                                         i.mumu_index if i.mumu_index is not None else -1,

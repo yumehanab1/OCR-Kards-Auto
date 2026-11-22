@@ -288,7 +288,9 @@ class StopEdges(unittest.TestCase):
             child.poll.return_value = 0
             self.assertNotEqual(first, second)
             self.assertTrue(api.start({'play': True, 'message_input': False})['ok'])
-            self.assertNotIn('KARDS_AUTO_STOP_FILE', launch.call_args.kwargs['env'])
+            third = launch.call_args.kwargs['env']['KARDS_AUTO_STOP_FILE']
+            self.assertTrue(Path(third).is_relative_to(root / 'logs/controls'))
+            self.assertNotIn(third, (first, second))
             self.assertNotIn('--message-input', launch.call_args.args[0])
             api._close_run_log()
 

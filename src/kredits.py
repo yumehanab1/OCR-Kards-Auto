@@ -208,7 +208,7 @@ def isolate_numeral(frame, box=OURS_BOX, merge_mode=None):
             (x1 + mx1, y1 + my1, cw, ch))
 
 
-def read_kredits(frame, box=OURS_BOX, record_samples=False, _sample_counter=[0],
+def read_kredits(frame, box=OURS_BOX, record_samples=False, _sample_counter=None,
                  merge_mode=None, height_guard=None):
     """
     Current Kredits as an int, or None when not confidently readable.
@@ -224,6 +224,8 @@ def read_kredits(frame, box=OURS_BOX, record_samples=False, _sample_counter=[0],
     """
     global LAST_REJECT
     LAST_REJECT = None
+    if _sample_counter is None:
+        _sample_counter = [0]
     if height_guard is None:
         height_guard = HEIGHT_GUARD
     numeral, mask, bbox = isolate_numeral(frame, box, merge_mode=merge_mode)
@@ -283,67 +285,12 @@ def read_kredits(frame, box=OURS_BOX, record_samples=False, _sample_counter=[0],
 
 
 class KreditsTracker:
-    """
-    把"读一帧数字"变成"一个不会抖、也不会被一次误读带偏的回合预算"。
+    """Debounce turn-start Kredits without assuming they can only increase.
 
-    ★ 为什么必须去抖(PROJECT_STATE §8 待办 10,实测):
-      同一秒内 `read_kredits` 会在 unknown 和 5 之间来回跳
-      (日志 02:21:46 / 02:21:47)。后果不是"偶尔少读一个数",而是一条
-      把整个回合毁掉的连锁:
-
-          费用 unknown
-            -> 惰性扫描不知道"现在出得起什么"(budget=None)
-            -> 退回全量扫描(14 秒,而且实测常常扫回 0 张牌)
-            -> 整回合不出牌
-
-      也就是说:读数抖动直接吃掉了惰性扫描的 3 倍提速,还顺带把回合打空。
-
-    ============ 规则只有两条,每条都对应一条能确认的游戏规则 ============
-
-      R1 **连续采样,两帧读到同一个值才采信。**
-         抖动正是"读到 / 读不到"交替,两帧一致就能过滤掉;代价 0.1-0.4 秒,
-         比退回全量扫描(14 秒)便宜两个数量级。
-
-      R2 **回合开始时的剩余费用 = 本回合上限,而上限只会涨、不会跌。**
-         所以"读到的值 < 上一次采用的值"是**物理上不可能**的,只能是读错了:
-         这种读数不采信,改用 `上次采用值 + 1`(上限至少涨了 1,这是下限,
-         不会高估),并且**锚点不被这次误读改动** —— 下一回合读到真值立刻追上。
-
-    ============ 为什么【不做】上界检查(做过两版,都被实机打脸) ============
-
-      第一版把"上限每回合只 +1"当上界,越界就压回区间。两个问题:
-        ① 假设**本身是错的**:特殊卡可以额外增加上限,一回合涨 2 以上是合法的;
-        ② 它会**把误差永久固化**:一次误读被压到 `prev` 后锚点就落后 1,
-           下一回合真实值 `prev+2` 又被压成 `prev+1`…… 从此**每个回合都少
-           1 费、少出一个单位**。实测日志:
-             12:05:47 读出 1(真值 11)-> 被压回 10
-             12:06:25 读出 12(真值 12)-> 又被压成 11
-      第二版为了修①又引入"**第 N 回合上限就是 N**"来给出上界 —— 同样是错的
-      假设(特殊卡能加上限),而且进程重启 / 中途接管一局时回合数根本对不上:
-        实测重启后日志 `第 3 回合 | kredits read: 12`。
-
-      → **结论:只拒绝物理上不可能的读数,其余一律相信读数本身。**
-        唯一的硬上界是游戏的 24。这样一次误读的代价被限制成"这一回合少 1 费",
-        下一回合读到真值自动追上,**不会累积**。
-
-      ★ 顺带说清一件事:**这个类不需要知道"现在是第几回合"**。
-        `turns_seen` 只是诊断计数器(本进程看到第几个我方回合),不参与决策。
-
-    ============ 剩余风险(明确记下来,不装作没有) ============
-      两帧一致但**读得偏高**的误读不会被拦住(没有可靠上界可用)。代价有界:
-      本回合多拖几次(每次约 2 秒,被拒绝的牌留在手上),而且
-      `Affordability.note_deploy_failed` 会立刻把可负担上限压下来。
-      实测至今**没出现过**偏高误读(出现的是把 11 读成 1)。
-      日志里会把涨幅写出来(`较上次 +2`),真出现了一眼能看见。
-
-    方向:只有"读低了"会被拒绝,所以系统在怀疑时**永远偏低**,不会偏高 ——
-    高估才会让引擎去拖一张出不起的牌(白拖,正是用户看到的"乱拖")。
-
-    用法(只在**回合开始**用;回合中费用会因为出牌下降,R2 不适用):
-
-        t = KreditsTracker(capture=lambda: capture_client_bgr(hwnd))
-        t.start_turn()                      # 每进入一个我方回合调一次(诊断计数)
-        info = t.read_turn_start(frame)     # {'value','source','measured',...}
+    Repeated agreement accepts valid decreases (for example 禁止通商).
+    A lone lower reading still uses the existing prev+1 estimate; it does
+    not constitute a measured budget. Rolling animation sampling and the
+    hard maximum of 24 remain unchanged. turns_seen is diagnostic only.
     """
 
     #: source 取值 -> 这个值有多可信
@@ -351,7 +298,7 @@ class KreditsTracker:
     #:   single            只读出一帧(measured=True,但没被第二帧确认)
     #:   settled           等到费用数字**停止滚动**之后的读数(回合开始用,最可信)
     #:   settled-timeout   等超时了 -> 用滚动过程中见过的最大值(可能有偏小)
-    #:   读低了不采信       读数低于上次采用值(不可能)-> 用 上次值+1
+    #:   读低了不采信       未确认的较低读数 -> 用 上次值+1 估计
     #:   prev+1            一帧都没读到 -> 用 上次采用值+1(下限)
     #:   estimate          连历史都没有 -> 用 1(KARDS 第一回合就是 1 费)
     MEASURED_SOURCES = ("agree", "majority", "single", "settled",
@@ -569,23 +516,7 @@ class KreditsTracker:
         return self._plausible(top, label, samples)
 
     def _plausible(self, value, source, samples):
-        """
-        ★★ 只拒绝**物理上不可能**的读数,其余一律相信读数本身。
-
-        可以确认的游戏规则只有两条(用它们当判据,不引入任何额外假设):
-          - 回合开始时的剩余费用 = 本回合上限;
-          - 上限**只会涨、不会跌**,而且每回合**至少** +1。
-
-        所以唯一"不可能"的情况是:**读到的值 < 上一次采用的值**。
-        这种读数一定是错的(实测:第 11 回合把 11 读成了 1),
-        这时用 `上次采用值 + 1`(上限至少涨了 1),并且**不更新锚点**
-        —— 于是下一回合读到真值就能立刻追上,误差不会累积。
-
-        ★ 这里**故意不做上界检查**(例如"每回合只 +1"):
-          那是错的假设(特殊卡可以额外增加上限),而且会把一次误读的误差
-          **永久固化**成"每个回合都少 1 费"(见类文档里的实机日志)。
-          唯一的硬上界是游戏的 24。
-        """
+        """Accept corroborated changes; reject unconfirmed drops and invalid values."""
         prev = self.last_value
         if prev is None:
             if not (1 <= value <= self.MAX_KREDITS):
@@ -593,29 +524,19 @@ class KreditsTracker:
                     extra=f"读到的 {value} 不在 1..{self.MAX_KREDITS} 之内")
             return value, source, f"{source} {samples}(首次读数,直接采信)"
 
-        # ★★★ 2026-09-13 晚:**两位数"截断误读"的护栏,从回合中途搬到回合开始。**
-        #   回合中途那条在 `turn_engine._resync_kredits_after_actions`(§7 第 93 条,
-        #   判据完全一样:读数正好是账本的首位数字 -> 判为截断)。这里补上回合开始
-        #   这条路 —— 实机证据(19:27:48):
-        #     `kredits read: 11 [settled-timeout->不采信] 采样 [1,3,5,1,1,1,1,1,…]`
-        #   真值 11,读取一路给出 1,靠 R2 的"上次 +1 = 11"才补回来(**那次是运气**:
-        #   正好每回合涨 1)。
-        #   ★ 说清楚它买到的是什么:取值上和下面的 R2 **结论相同**(都用 prev+1,
-        #     因为回合开始的费用只会涨,prev+1 是不会高估的下限),
-        #     它买到的是**日志里说得清说不清** —— 同一行 `不采信`,现在能一眼看出
-        #     是"读到了两位数的首位数字",而不是"读数抖动"。
-        #   ★ 判据成立的前提(可确认的游戏规则):回合开始时 值 >= prev+1 >= 11,
-        #     所以读到 prev 的首位数字**不可能是真值**。
+        if 0 <= value < prev and samples.count(value) >= 2:
+            return (value, source,
+                    f"{source} {samples}(重复确认费用下降 {prev}->{value})-> 采信")
+        # A lone leading digit may be a truncated two-digit reading.
         if self.trunc_guard and prev >= 10 and value == prev // 10:
             return self._reject(prev, source, samples,
                                 f"读数 {value} 正好是上次采用值 {prev} 的"
                                 f"**首位数字** -> 判为两位数的截断误读"
                                 f"(两位数只圈到一个字形;见 kredits.MERGE_MODE)")
         if value < prev:
-            # 唯一能确认的"读错了":回合开始时的费用绝不会下降
             return self._reject(prev, source, samples,
                                 f"低于上一次采用值 {prev}"
-                                f"(回合开始时费用只会涨不会跌)")
+                                f"且未获得重复读数确认")
         if value > self.MAX_KREDITS:
             return self._reject(prev, source, samples,
                                 f"超过游戏上限 {self.MAX_KREDITS}")
@@ -625,33 +546,24 @@ class KreditsTracker:
                 f"{source} {samples}(上次采用值 {prev}{tail})-> 采信")
 
     def _reject(self, prev, source, samples, why: str):
-        """
-        读数不可信 -> 用**下限** `上次采用值 + 1`。
-
-        为什么是 +1 而不是沿用上次的值:上限每回合**至少**涨 1,所以
-        `prev + 1` 是不会高估的下限;而沿用 `prev` 会让锚点停在原地,
-        把"落后"一路带下去(那正是 §7 第 54 条那个永久滞后的坑)。
-        锚点跟着推进到下限,下一回合只要读到真值(必然 ≥ 下限)就原样采信,
-        误差**不会累积**。
-        """
+        """Keep the existing unmeasured prev+1 estimate for rejected samples."""
         used = min(prev + 1, self.MAX_KREDITS)
         return (used, f"{source}->不采信",
                 f"{source} {samples} {why} -> 这次不采信,"
-                f"用下限 {used}(上次采用值 {prev} +1,取小不会高估)")
+                f"用估计 {used}(上次采用值 {prev} +1)")
 
     def _fallback(self, extra: str = ""):
         """
         一帧都没读出来。
 
-        有历史:用 `上次采用值 + 1`(上限至少涨了 1,这是个**下限**,
-                所以不会高估)。
+        有历史:保留 `上次采用值 + 1` 的估计路径,不标为实测。
         没历史:用 1(KARDS 第一回合就是 1 费,这是唯一不需要假设的值)。
         """
         if self.last_value is not None:
             used = min(self.last_value + 1, self.MAX_KREDITS)
             return (used, "prev+1",
-                    f"一帧都没读到 -> 用下限 {used}(上次采用值 "
-                    f"{self.last_value} +1;上限至少涨 1,取小不会高估)"
+                    f"一帧都没读到 -> 用估计 {used}(上次采用值 "
+                    f"{self.last_value} +1)"
                     + (f" [{extra}]" if extra else ""))
         return (1, "estimate",
                 "一帧都没读到且没有历史 -> 取 1"

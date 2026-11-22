@@ -294,6 +294,9 @@ class UserYieldTests(unittest.TestCase):
                 self.mouse.pos = (140 + int(self.now * 40), 100)
         self.assertTrue(self.wait(move_then_idle))
         self.assertEqual(self.now, 1.5)
+        self.assertEqual(actions.last_yield_duration(), 1.5)
+        self.assertEqual(actions.take_yield_duration(), 1.5)
+        self.assertEqual(actions.take_yield_duration(), 0.0)
         self.assertEqual(actions._last_bot_cursor, self.mouse.pos)
         self.assertFalse(self.wait())
         self.assertEqual(len(self.logs), 2)
@@ -323,6 +326,55 @@ class UserYieldTests(unittest.TestCase):
         self.assertEqual(len(self.logs), 1)
         self.assertEqual(self.mouse.buttons, [])
 
+    def test_pre_dispatch_yield_cancels_old_coordinates(self):
+        for action in (lambda: actions.click(400, 400),
+                       lambda: actions.move_drag(100, 100, 400, 400)):
+            with self.subTest(action=action):
+                self.grab()
+                started = self.now
+                # Keep the real idle loop, with an injected virtual clock.
+                with patch.object(actions.time, 'monotonic', side_effect=lambda: self.now):
+                    self.sleep.side_effect = self.advance
+                    self.assertFalse(action())
+                self.assertTrue(actions.take_pre_dispatch_yield())
+                self.assertFalse(actions.take_pre_dispatch_yield())
+                self.assertEqual(self.mouse.buttons, [])
+                self.assertAlmostEqual(actions.take_yield_duration(), self.now - started)
+                self.assertGreaterEqual(self.now - started, 1.0)
+                self.assertIn('取消旧动作', actions.take_input_error())
+                # An unrelated input failure must clear the old cancellation.
+                actions._pre_dispatch_yield = True
+                self.mouse.fail_move = True
+                self.assertFalse(action())
+                self.assertFalse(actions.take_pre_dispatch_yield())
+                self.mouse.fail_move = False
+
+    def test_stop_in_every_held_drag_wait_releases(self):
+        for enabled in (False, True):
+            for stage in ('press', 'step', 'dwell'):
+                with self.subTest(enabled=enabled, stage=stage):
+                    actions.configure_stop()
+                    actions.configure_user_yield(enabled)
+                    self.mouse.buttons.clear()
+                    stopped = False
+                    def stop_in_wait(_):
+                        nonlocal stopped
+                        if not self.mouse.buttons:
+                            return
+                        x = self.mouse.pos[0]
+                        if (stage == 'press' or (stage == 'step' and 110 < x < 390)
+                                or (stage == 'dwell' and x == 400)):
+                            stopped = True
+                    self.sleep.side_effect = stop_in_wait
+                    actions.configure_stop(lambda: stopped)
+                    with patch.object(actions, 'wait_if_user_active', return_value=False), \
+                         patch.object(actions.random, 'randint', return_value=0), \
+                         self.assertRaises(actions.InputStopped):
+                        actions.move_drag(100, 100, 400, 400, jiggle=0)
+                    self.assertEqual(self.mouse.buttons, [actions.win32con.MOUSEEVENTF_LEFTDOWN,
+                                                          actions.win32con.MOUSEEVENTF_LEFTUP])
+                    self.assertFalse(actions.take_pre_dispatch_yield())
+
     def test_message_mode_never_reads_cursor_or_waits(self):
         self.grab()
         actions.configure_input('message')
@@ -340,7 +392,7 @@ class UserYieldTests(unittest.TestCase):
         self.assertEqual(self.mouse.buttons, [])
 
     def test_click_does_not_press_after_last_step_grab(self):
-        with patch.object(actions, 'wait_if_user_active') as wait:
+        with patch.object(actions, 'wait_if_user_active', return_value=False) as wait:
             def steal_after_last_step(_):
                 if self.mouse.moves == 2:
                     self.mouse.pos = (999, 999)
@@ -349,6 +401,7 @@ class UserYieldTests(unittest.TestCase):
             wait.assert_called_once()
         self.assertEqual(self.mouse.moves, 2)
         self.assertEqual(self.mouse.buttons, [])
+        self.assertTrue(actions.take_pre_dispatch_yield())
 
     def test_failed_cursor_reads_cannot_count_as_idle(self):
         self.grab()
@@ -368,15 +421,16 @@ class UserYieldTests(unittest.TestCase):
                             phase == 'dwell' and self.mouse.pos[0] >= 398):
                         self.mouse.pos = (999, 999)
                 self.sleep.side_effect = steal
-                with patch.object(actions, 'wait_if_user_active') as wait:
+                with patch.object(actions, 'wait_if_user_active', return_value=False) as wait:
                     self.assertFalse(actions.move_drag(100, 100, 400, 400))
                     wait.assert_called_once()
                 self.assertEqual(self.mouse.buttons, [] if phase == 'settle' else [
                     actions.win32con.MOUSEEVENTF_LEFTDOWN, actions.win32con.MOUSEEVENTF_LEFTUP])
+                self.assertEqual(actions.take_pre_dispatch_yield(), phase == 'settle')
 
     def test_stop_during_held_drag_releases(self):
         actions.configure_stop(lambda: bool(self.mouse.buttons))
-        with patch.object(actions, 'wait_if_user_active'), self.assertRaises(actions.InputStopped):
+        with patch.object(actions, 'wait_if_user_active', return_value=False), self.assertRaises(actions.InputStopped):
             actions.move_drag(100, 100, 400, 400)
         self.assertEqual(self.mouse.buttons, [actions.win32con.MOUSEEVENTF_LEFTDOWN,
                                             actions.win32con.MOUSEEVENTF_LEFTUP])

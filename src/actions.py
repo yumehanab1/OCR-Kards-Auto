@@ -25,6 +25,37 @@ _yield_idle_seconds = 5.0
 _yield_tol = 25
 _yield_log_fn = None
 _last_bot_cursor = None
+_pre_dispatch_yield = False
+_last_yield_duration = 0.0
+_pending_yield_duration = 0.0
+
+
+def clear_pre_dispatch_yield() -> None:
+    global _pre_dispatch_yield
+    _pre_dispatch_yield = False
+
+
+def take_pre_dispatch_yield() -> bool:
+    global _pre_dispatch_yield
+    yielded, _pre_dispatch_yield = _pre_dispatch_yield, False
+    return yielded
+
+
+def _cancel_before_press(what: str) -> bool:
+    global _pre_dispatch_yield
+    _pre_dispatch_yield = True
+    _input_failed(what, "检测到人工移动鼠标，已让权并取消旧动作")
+    return False
+
+
+def last_yield_duration() -> float:
+    return _last_yield_duration
+
+
+def take_yield_duration() -> float:
+    global _pending_yield_duration
+    paused, _pending_yield_duration = _pending_yield_duration, 0.0
+    return paused
 
 
 class UserYielded(Exception):
@@ -35,11 +66,14 @@ def configure_user_yield(enabled: bool = False, idle_seconds: float = 5.0,
                          tol: int = 25, log_fn=None) -> None:
     """Opt in per controller session; legacy callers remain unchanged."""
     global _yield_enabled, _yield_idle_seconds, _yield_tol, _yield_log_fn, _last_bot_cursor
+    global _last_yield_duration, _pending_yield_duration
     if not math.isfinite(idle_seconds) or idle_seconds < 0 or tol < 0:
         raise ValueError("User yield requires finite, nonnegative idle seconds and tolerance")
     _yield_enabled = bool(enabled)
     _yield_idle_seconds, _yield_tol, _yield_log_fn = float(idle_seconds), int(tol), log_fn
     _last_bot_cursor = None
+    _last_yield_duration = _pending_yield_duration = 0.0
+    clear_pre_dispatch_yield()
 
 
 def user_took_cursor(tol: int | None = None) -> bool:
@@ -56,7 +90,7 @@ def user_took_cursor(tol: int | None = None) -> bool:
 
 def wait_if_user_active(poll_interval: float = 0.25, sleep_fn=None, clock_fn=None) -> bool:
     """Wait for continuous idle without moving the cursor; Stop always propagates."""
-    global _last_bot_cursor
+    global _last_bot_cursor, _last_yield_duration, _pending_yield_duration
     if not _yield_enabled or INPUT_MODE == "message":
         return False
     if not math.isfinite(poll_interval) or poll_interval <= 0:
@@ -67,7 +101,8 @@ def wait_if_user_active(poll_interval: float = 0.25, sleep_fn=None, clock_fn=Non
     sleep, clock = sleep_fn or time.sleep, clock_fn or time.monotonic
     if _yield_log_fn:
         _yield_log_fn(f"[yield] 检测到人工移动鼠标，暂停接管，鼠标静止 {_yield_idle_seconds:.0f} 秒后自动恢复")
-    anchor, idle_since = None, clock()
+    started = clock()
+    anchor, idle_since = None, started
     while True:
         _check_input_stop()
         now = clock()
@@ -81,6 +116,8 @@ def wait_if_user_active(poll_interval: float = 0.25, sleep_fn=None, clock_fn=Non
                 anchor, idle_since = cur, now
             if now - idle_since >= _yield_idle_seconds:
                 _last_bot_cursor = cur
+                _last_yield_duration = max(0.0, now - started)
+                _pending_yield_duration += _last_yield_duration
                 if _yield_log_fn:
                     _yield_log_fn("[yield] 鼠标已空闲，恢复自动操作")
                 return True
@@ -229,7 +266,8 @@ def _input_failed(what: str, err) -> None:
     global LAST_INPUT_ERROR, _input_fails
     _input_fails += 1
     LAST_INPUT_ERROR = f"{what} 失败({type(err).__name__}: {err})"
-    if _input_fails >= INPUT_FAIL_HINT_AT and err != "检测到人工移动鼠标，已让权":
+    if (_input_fails >= INPUT_FAIL_HINT_AT
+            and not str(err).startswith("检测到人工移动鼠标，已让权")):
         hint = ("窗口消息输入未成功；确认 KARDS 前台可见且客户区为1280×720。"
                 "游戏可能不响应消息输入；停止后关闭『不抢鼠标』可切回物理模式，不自动回退。"
                 if INPUT_MODE == "message" else _INPUT_HINT)
@@ -365,7 +403,8 @@ def move_stepped(x0: int, y0: int, x1: int, y1: int,
         cy = int(y0 + dy * t + jy)
         if not set_cursor(cx, cy):
             return False
-        time.sleep(random.uniform(0.006, 0.022))
+        if not _pause_physical(random.uniform(0.006, 0.022)):
+            return False
     return True
 
 
@@ -381,10 +420,11 @@ def click(x: int, y: int, jitter: int = 5) -> bool:
     ★ 2026-09-20:`INPUT_MODE == "message"` 时走**窗口消息**那条路(不碰真实光标),
       见文件末尾那一大段;能不能用要先靠 `dev\\click_probe.py` 实测。
     """
+    clear_pre_dispatch_yield()
     if INPUT_MODE == "message":
         return click_message(x, y, jitter=jitter)
-    if _yield_enabled:
-        wait_if_user_active()
+    if _yield_enabled and wait_if_user_active():
+        return _cancel_before_press("物理点击")
     jx = x + random.randint(-jitter, jitter)
     jy = y + random.randint(-jitter, jitter)
     try:
@@ -392,11 +432,12 @@ def click(x: int, y: int, jitter: int = 5) -> bool:
     except Exception:
         cur = (jx, jy)                 # 读不到当前位置就直接过去(不再是"从(0,0)划过去")
     if not move_stepped(cur[0], cur[1], jx, jy):
-        if not user_took_cursor():
-            _input_failed(f"点到 ({jx},{jy})", "光标没挪到位")
+        if user_took_cursor():
+            return _cancel_before_press("物理点击")
+        _input_failed(f"点到 ({jx},{jy})", "光标没挪到位")
         return False
     if _user_yield_abort():
-        return False
+        return _cancel_before_press("物理点击")
     down = False
     try:
         down = True
@@ -463,6 +504,7 @@ def move_drag(sx: int, sy: int, ex: int, ey: int,
          停顿期间做几次 1-2px 的小幅移动,是为了让游戏**持续收到鼠标移动事件**
          —— 光标一动不动有可能被当成"没在拖"。
     """
+    clear_pre_dispatch_yield()
     if press_delay is None:
         press_delay = PRESS_DELAY
     if dwell is None:
@@ -474,19 +516,20 @@ def move_drag(sx: int, sy: int, ex: int, ey: int,
     if INPUT_MODE == "message":
         return drag_message(sx, sy, ex, ey, hold=dwell, press_delay=press_delay,
                             settle=settle, on_pressed=on_pressed)
-    if _yield_enabled:
-        wait_if_user_active()
+    if _yield_enabled and wait_if_user_active():
+        return _cancel_before_press("物理拖拽")
 
     # ★ 2026-09-19:按下之前先确认"光标真能挪到起点" —— 挪不过去就**不要按**,
     #   否则按下/松开落在光标当时所在的地方(屏幕上别的位置),那比不拖更糟。
     if not set_cursor(sx, sy):
-        if not user_took_cursor():
-            _input_failed(f"拖拽起点 ({sx},{sy})", "光标没挪到位")
+        if user_took_cursor():
+            return _cancel_before_press("物理拖拽")
+        _input_failed(f"拖拽起点 ({sx},{sy})", "光标没挪到位")
         return False
     down = False
     try:
         if not _pause_physical(settle):
-            return False
+            return _cancel_before_press("物理拖拽")
         down = True  # even an uncertain DOWN must be followed by a release attempt
         win32api.mouse_event(win32con.MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0)
         if not _pause_physical(press_delay):

@@ -219,6 +219,19 @@ class MenuTests(unittest.TestCase):
         self.assertEqual(self.classify(entries, "casual", orange=("对战模式",)).target, (930, 510))
         self.assertIsNone(self.classify(entries[:3], "casual", orange=("对战模式",)).target)
 
+    def test_configured_deck_never_falls_back_or_starts_wrong_detail(self):
+        for entries in (self.tabs(), self.tabs() + [text('德国初始', 840, 416)]):
+            obs = self.classify(entries, deck='日本初始', orange=('训练模式',))
+            self.assertEqual((obs.state, obs.target, obs.reason), ('deck_list', None, 'deck_not_found'))
+        for back in ([], [text('返回', 80, 50)]):
+            entries = self.tabs(True) + [text('德国初始', 840, 416)] + back
+            obs = self.classify(entries, deck='日本初始', orange=('训练模式',))
+            self.assertEqual((obs.state, obs.reason), ('deck_detail', 'wrong_deck_selected'))
+            self.assertEqual(obs.target, (80, 50) if back else (55, 55))
+            entries.append(text('日本初始', 840, 150))
+            obs = self.classify(entries, deck='日本初始', orange=('训练模式',))
+            self.assertEqual((obs.target, obs.reason), ((1080, 610), 'start_selected_mode'))
+
     def test_live_reward_card_and_popup(self):
         result = self.classify([text("每日登录奖励", 640, 100), text("已领取", 400, 389),
                                 text("领取", 650, 389)])
@@ -708,6 +721,49 @@ class WorkerTests(unittest.TestCase):
         worker = EmuWorker(cfg, transport, vision, clock.sleep, clock)
         return worker, transport, vision, clock
 
+    def test_worker_locks_before_status_or_input_and_releases_on_error(self):
+        from update_install import acquire_instance_lock, any_emu_worker_running
+        with test_directory() as tmp, contextlib.redirect_stdout(io.StringIO()):
+            worker, transport, _, _ = self.make(tmp, acquire_lock=True, project_root=tmp)
+            status = Path(worker.cfg.status_file)
+            status.write_text('owner status', encoding='utf-8')
+            with acquire_instance_lock('mumu:7', tmp):
+                result = worker.run()
+                self.assertTrue(result['last_error'])
+                self.assertEqual(status.read_text(encoding='utf-8'), 'owner status')
+                self.assertEqual(transport.inputs, [])
+                self.assertEqual(transport.packages, [])
+            for dry in (False, True):
+                worker, _, _, _ = self.make(tmp, acquire_lock=True, project_root=tmp, dry_run=dry)
+                def fail_step():
+                    self.assertTrue(any_emu_worker_running(tmp))
+                    raise ValueError('startup failure')
+                worker.step = fail_step
+                self.assertIn('startup failure', worker.run()['last_error'])
+                self.assertFalse(any_emu_worker_running(tmp))
+            worker, _, _, _ = self.make(tmp, acquire_lock=True, project_root=tmp)
+            worker._run_locked = Mock(side_effect=RuntimeError('cleanup failure'))
+            with self.assertRaises(RuntimeError):
+                worker.run()
+            self.assertFalse(any_emu_worker_running(tmp))
+
+    def test_cli_enables_project_scoped_lock_even_for_dry_run(self):
+        with patch.object(emu_worker, 'EmuWorker') as factory, patch.object(emu_worker.signal, 'signal'):
+            factory.return_value.run.return_value = {'last_error': ''}
+            self.assertEqual(emu_worker.main(['--instance', 'mumu:7', '--project-root', 'test-root', '--dry-run']), 0)
+            cfg = factory.call_args.args[0]
+            self.assertTrue(cfg.acquire_lock and cfg.dry_run)
+            self.assertEqual(cfg.project_root, 'test-root')
+
+    def test_watchdog_stops_resolved_package(self):
+        with test_directory() as tmp, contextlib.redirect_stdout(io.StringIO()):
+            worker, transport, _, clock = self.make(tmp, watchdog_seconds=10)
+            transport.resolve_kards_package = Mock(return_value='com.android1939.kardsapk')
+            clock.now = 20
+            self.assertTrue(worker._check_watchdog('unknown'))
+            self.assertEqual(transport.packages, ['com.android1939.kardsapk'])
+            transport.resolve_kards_package.assert_called_once_with()
+
     def test_observe_gates_fast_opponent_until_first_match_turn(self):
         with test_directory() as tmp, contextlib.redirect_stdout(io.StringIO()):
             worker, transport, _, _ = self.make(tmp, deck_name="日本初始")
@@ -988,6 +1044,33 @@ class WorkerTests(unittest.TestCase):
                 worker.cfg.allow_end_turn = False
                 worker.step()
                 self.assertEqual(worker.status["turns"], 2)
+
+    def test_template_miss_checks_ocr_but_confirmed_end_skips_it(self):
+        with test_directory() as tmp, contextlib.redirect_stdout(io.StringIO()):
+            worker, transport, _, clock = self.make(tmp, allow_attack=False, allow_deploy=False)
+            self.seed_turn(worker)
+            before = np.full((720, 1280, 3), 35, np.uint8)
+            after = before.copy()
+            after[440:470, 1000:1100] = 135
+            ocr = Mock(return_value=[text('结束回合', 1100, 500)])
+            vision = worker.vision = EmuVision(load_core=False, ocr_fn=ocr,
+                                               ocr_cache_ttl=100, clock_fn=clock)
+            transport.tap = Mock()
+            transport.capture_bgr = Mock(return_value=after)
+            with patch.object(vision, 'classify_battle', return_value=None):
+                worker._observe(before)  # Cached OCR must not mask the local glow change.
+                obs = ScreenObservation('own_turn', 'end_turn_btn', (1100, 500))
+                worker._own_turn(before, obs)
+                self.assertTrue(worker._in_own_turn)
+                self.assertEqual(worker.end_retries, 1)
+                self.assertGreater(ocr.call_count, 1)
+                self.assertEqual(worker._actor_attempts, {('support', 20, 20): 2})
+            for state in ('opponent_turn', 'victory', 'defeat'):
+                self.seed_turn(worker)
+                with patch.object(vision, 'classify_battle', return_value=ScreenObservation(state, 'test')), \
+                        patch.object(worker, '_observe', side_effect=AssertionError('unneeded OCR')):
+                    worker._own_turn(before, obs)
+                    self.assert_turn_cleared(worker)
 
     def test_ocr_end_turn_confirmation_refreshes_local_button_changes(self):
         for changed_but_still_own in (False, True):

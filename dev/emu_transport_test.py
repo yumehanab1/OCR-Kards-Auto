@@ -50,6 +50,7 @@ class DiscoveryTests(unittest.TestCase):
                 self.assertTrue(item.running and item.process_started and item.ipc_available)
                 self.assertEqual(item.android_version, "15")
                 self.assertEqual(item.to_dict()["mumu_index"], 7)
+                self.assertTrue(item.extra['can_launch'] and item.extra['can_shutdown'])
                 self.assertEqual(runner.call_args.args[0][1:], ["info", "-v", "all"])
                 self.assertEqual(runner.call_args.kwargs["creationflags"],
                                  subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0)
@@ -121,6 +122,7 @@ class DiscoveryTests(unittest.TestCase):
         self.assertEqual(items[1].name, "LDPlayer 2")
         self.assertEqual(items[1].adb_serial, "127.0.0.1:5559")
         self.assertEqual(items[1].extra, {"ld_index": 2, "ld_root": "ld-root",
+                                        "controllable": True, "can_launch": True, "can_shutdown": True,
                                         "alt_serial": "emulator-5558", "pid": 789})
         self.assertEqual([i.running for i in items], [True, False, False])
         self.assertEqual([i.process_started for i in items], [True, True, False])
@@ -173,6 +175,7 @@ class DiscoveryTests(unittest.TestCase):
         self.assertEqual([i.running for i in items], [True, False])
         self.assertEqual([i.process_started for i in items], [True, False])
         self.assertEqual(items[0].extra, {"bs_instance": "Nougat32", "player_path": provider.player_path,
+                                         "controllable": True, "can_launch": True, "can_shutdown": False,
                                          "conf_path": "test.conf"})
         runner.assert_called_once()
         self.assertEqual(runner.call_args.args[0], [provider.adb_path, "devices"])
@@ -191,7 +194,9 @@ class DiscoveryTests(unittest.TestCase):
                 provider.adb_path = "adb.exe"
                 runner.side_effect = unavailable
             with patch.object(Path, "read_text", return_value=conf):
-                self.assertTrue(all(not i.running for i in provider.discover()))
+                stopped = provider.discover()
+                self.assertTrue(all(not i.running for i in stopped))
+                self.assertTrue(all(not i.extra['can_launch'] and not i.extra['can_shutdown'] for i in stopped))
             if unavailable is None:
                 runner.assert_not_called()
 
@@ -199,13 +204,28 @@ class DiscoveryTests(unittest.TestCase):
         with patch.object(Path, "is_file", return_value=True):
             ld = discovery.LDPlayerProvider("ld", Mock(return_value=result("0,LD,0,0,1,1,1")))
         bs, _, bs_items, _ = self.bluestacks()
-        dedicated = [*ld.discover(), bs_items[1]]
+        dedicated = [*ld.discover(), replace(bs_items[1], running=True, process_started=True)]
         generic = discovery.GenericAdbProvider("adb.exe", runner=Mock(return_value=result(
             "127.0.0.1:5555 device\nemulator-5554 device\n127.0.0.1:5565 device\nusb device\n")))
         for providers in ([Mock(discover=lambda: dedicated), generic],
                           [generic, Mock(discover=lambda: dedicated)]):
             items = discovery.discover_all(providers=providers)
             self.assertEqual({i.instance_id for i in items}, {"ldplayer:0", "bluestacks:Pie64", "adb:usb"})
+
+    def test_stopped_dedicated_instance_never_hides_live_adb(self):
+        for provider in ('mumu', 'ldplayer', 'bluestacks'):
+            for alias in (False, True):
+                for running, started in ((False, False), (True, False), (False, True)):
+                    dedicated = EmulatorInstance(provider, provider + ':0', 'VM',
+                        adb_serial='host:5555', running=running, process_started=started,
+                        extra={'alt_serial': 'emulator-5554'})
+                    serial = 'emulator-5554' if alias else 'host:5555'
+                    generic = EmulatorInstance('adb', 'adb:' + serial, 'Generic',
+                                               adb_serial=serial, running=True)
+                    for order in ([dedicated, generic], [generic, dedicated]):
+                        with self.subTest(provider=provider, alias=alias, running=running, started=started):
+                            items = discovery.discover_all(providers=[Mock(discover=lambda: order)])
+                            self.assertEqual(generic in items, not (running or started))
 
     def test_default_discovery_isolates_failures_explicit_callers_still_raise(self):
         good = EmulatorInstance("custom", "custom:1", "Custom")
@@ -350,6 +370,9 @@ class IpcTests(unittest.TestCase):
         adb.launch_kards.assert_called_once_with(None)
         self.ipc.force_stop_package("pkg")
         adb.force_stop_package.assert_called_once_with("pkg")
+        adb.resolve_kards_package.return_value = transport.KARDS_PACKAGES[1]
+        self.assertEqual(self.ipc.resolve_kards_package(), transport.KARDS_PACKAGES[1])
+        adb.resolve_kards_package.assert_called_once_with()
 
 
 class AdbTests(unittest.TestCase):
@@ -435,6 +458,39 @@ class AdbTests(unittest.TestCase):
             self.runner.side_effect = [failure, result()]
             self.adb.drag([(0, 0), (10, 10), (1279, 719)], 90)
             self.assertEqual(self.runner.call_args.args[0][-1], "input swipe 0 0 1919 1079 90")
+
+    def test_drag_unknown_outcome_releases_without_replay_or_reconnect(self):
+        failures = [subprocess.TimeoutExpired('adb', 1),
+                    OSError('adb executable not found'),
+                    result(code=1, stderr='timed out'),
+                    result(code=1, stderr='device offline'),
+                    result(code=1, stderr="device 'host:5555' not found"),
+                    result(code=1, stderr='connection lost'),
+                    result(code=1, stderr='KARDS_MOTION_DOWN_DISPATCHED\ninvalid MOVE'),
+                    result('KARDS_MOTION_DOWN_DISPATCHED\nUnknown command: motionevent'),
+                    result('Error: injection failed')]
+        for failure in failures:
+            for release_fails in (False, True):
+                with self.subTest(failure=failure, release_fails=release_fails):
+                    self.runner.reset_mock()
+                    self.runner.side_effect = [failure,
+                        result(code=1, stderr='device offline') if release_fails else result()]
+                    with self.assertRaises(EmuTransportError):
+                        self.adb.drag([(0, 0), (20, 20), (30, 40)], 90)
+                    self.assertEqual(self.runner.call_count, 2)
+                    commands = [c.args[0][-1] for c in self.runner.call_args_list]
+                    self.assertEqual(commands[-1], 'input motionevent UP 30 40')
+                    self.assertFalse(any('input swipe' in c for c in commands))
+
+    def test_resolve_installed_and_active_kards_package(self):
+        for foreground, installed, expected in (
+                (transport.KARDS_PACKAGES[1], list(transport.KARDS_PACKAGES), transport.KARDS_PACKAGES[1]),
+                ('com.other', [transport.KARDS_PACKAGES[1]], transport.KARDS_PACKAGES[1]),
+                (None, [transport.KARDS_PACKAGES[0]], transport.KARDS_PACKAGES[0]),
+                (None, [], None)):
+            with patch.object(self.adb, 'get_foreground_package', return_value=foreground), \
+                    patch.object(self.adb, 'list_packages', return_value=installed):
+                self.assertEqual(self.adb.resolve_kards_package(), expected)
 
     def test_foreground_variants(self):
         package = transport.KARDS_PACKAGES[0]
