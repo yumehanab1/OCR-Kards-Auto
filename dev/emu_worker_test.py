@@ -5,10 +5,12 @@ import contextlib
 import importlib
 import io
 import json
+import os
 from pathlib import Path
 import shutil
 import sys
 import tempfile
+import threading
 import unittest
 import uuid
 from unittest.mock import Mock, patch
@@ -30,6 +32,7 @@ def mobile_inventory():
 BEFORE_IMPORT = mobile_inventory()
 import make_release
 import emu_vision
+import emu_worker
 from emu_vision import EmuVision, ActionPlan, ScreenObservation, frame_motion, load_mobile_modules
 from emu_worker import EmuWorker, WorkerConfig
 
@@ -231,6 +234,26 @@ class MenuTests(unittest.TestCase):
         for x, y in ((999, 500), (1100, 439), (1100, 591), (400, 200)):
             self.assertEqual(self.classify([text("敌方", x, y)]).state, "unknown")
 
+    def test_ocr_end_turn_roi_case_and_priority(self):
+        for label in ('结束回合', 'End Turn', 'END TURN', 'end turn'):
+            for x, y in ((1100, 500), (980, 420), (980, 620)):
+                with self.subTest(label=label, point=(x, y)), \
+                        patch.object(self.vision, 'classify_battle', return_value=None):
+                    button = text(label, x, y)
+                    enemy = text('敌方', 1150, 510)
+                    result = self.classify([button, enemy])
+                    self.assertEqual((result.state, result.reason, result.target),
+                                     ('own_turn', 'ocr_end_turn', (x, y)))
+                    for mulligan in (text('确认', 640, 648), text('选择要替换的卡牌', 640, 100)):
+                        self.assertEqual(self.classify([button, enemy, mulligan]).state, 'mulligan')
+
+    def test_ocr_end_turn_outside_roi_never_starts_turn(self):
+        for label in ('结束回合', 'End Turn'):
+            for x, y in ((979, 500), (1100, 419), (1100, 621), (640, 350)):
+                with self.subTest(label=label, point=(x, y)), \
+                        patch.object(self.vision, 'classify_battle', return_value=None):
+                    self.assertNotEqual(self.classify([text(label, x, y)]).state, 'own_turn')
+
     def test_fast_path_never_ocr(self):
         self.vision.ocr_fn = lambda f: self.fail("Unexpected OCR")
         self.assertEqual(self.vision.classify_screen(None).reason, "invalid_frame")
@@ -335,6 +358,18 @@ class CoreTests(unittest.TestCase):
         next_plan = self.vision.plan_deploy_action(frame, {deploy.key})
         self.assertTrue(next_plan is None or next_plan.key != deploy.key)
         self.assertEqual(BEFORE_IMPORT, mobile_inventory())
+
+    def test_real_saved_end_turn_ocr_fallback(self):
+        path = ROOT / 'logs/pc_emu_b_lobby_20261119_073422/status-readonly-081156/now-1.png'
+        if not path.exists():
+            self.skipTest('Saved 1.61.27589 frame not available')
+        frame = cv2.imdecode(np.frombuffer(path.read_bytes(), np.uint8), cv2.IMREAD_COLOR)
+        self.vision.invalidate_ocr_cache()
+        with patch.object(self.vision, 'classify_battle', return_value=None):
+            result = self.vision.classify_screen(frame)
+        self.assertEqual((result.state, result.reason), ('own_turn', 'ocr_end_turn'))
+        self.assertGreaterEqual(result.target[0], 980)
+        self.assertTrue(420 <= result.target[1] <= 620)
 
     def test_going_second_mulligan_can_skip_fast_opponent(self):
         frame = np.full((720, 1280, 3), 35, np.uint8)
@@ -926,6 +961,7 @@ class WorkerTests(unittest.TestCase):
 
     def assert_turn_cleared(self, worker):
         self.assertFalse(worker._in_own_turn)
+        self.assertEqual(worker._actor_attempts, {})
         self.assertEqual(worker.skip_actors, set())
         self.assertEqual(worker.skip_grabs, set())
         self.assertEqual((worker.deploys_this_turn, worker.attacks_this_turn, worker.end_retries), (0, 0, 0))
@@ -934,6 +970,7 @@ class WorkerTests(unittest.TestCase):
         worker._in_own_turn = True
         worker.status["turns"] = 1
         worker.skip_actors.add(("support", 20, 20))
+        worker._actor_attempts[("support", 20, 20)] = 2
         worker.skip_grabs.add((30, 27))
         worker.deploys_this_turn = worker.attacks_this_turn = 2
 
@@ -951,6 +988,80 @@ class WorkerTests(unittest.TestCase):
                 worker.cfg.allow_end_turn = False
                 worker.step()
                 self.assertEqual(worker.status["turns"], 2)
+
+    def test_ocr_end_turn_confirmation_refreshes_local_button_changes(self):
+        for changed_but_still_own in (False, True):
+            with self.subTest(changed_but_still_own=changed_but_still_own), \
+                    test_directory() as tmp, contextlib.redirect_stdout(io.StringIO()):
+                worker, transport, _, clock = self.make(tmp, allow_attack=False, allow_deploy=False)
+                self.seed_turn(worker)
+                before = np.full((720, 1280, 3), 35, np.uint8)
+                glowing = before.copy()
+                glowing[440:470, 1000:1100] = 135
+                gone = before.copy()
+                gone[440:470, 1000:1100] = 235
+                after = glowing if changed_but_still_own else before
+                self.assertLess(frame_motion(before, gone), .005)
+                self.assertGreaterEqual(frame_motion(before, glowing, (980, 420, 1275, 620)), .02)
+                ocr = Mock(side_effect=lambda f: [text('敌方', 1100, 500)]
+                           if f[450, 1050, 0] == 235 else [text('End Turn', 1100, 500)])
+                vision = worker.vision = EmuVision(load_core=False, ocr_fn=ocr,
+                                                   ocr_cache_ttl=100, clock_fn=clock)
+                transport.tap = Mock()  # A dropped tap must not clear turn state.
+                transport.capture_bgr = Mock(return_value=after)
+                with patch.object(vision, 'classify_battle', return_value=None):
+                    obs = worker._observe(before)  # Prime a long-lived own-turn cache.
+                    self.assertEqual(obs.reason, 'ocr_end_turn')
+                    worker._own_turn(before, obs)
+                    self.assertTrue(worker._in_own_turn)
+                    self.assertEqual(worker.end_retries, 1)
+                    self.assertEqual(worker._actor_attempts, {('support', 20, 20): 2})
+                    self.assertEqual(worker.skip_grabs, {(30, 27)})
+                    if changed_but_still_own:
+                        self.assertGreater(ocr.call_count, 1)
+                        self.assertIs(ocr.call_args.args[0], after)
+                    else:
+                        self.assertEqual(ocr.call_count, 1)
+                    reads = ocr.call_count
+                    transport.capture_bgr.return_value = gone
+                    worker._own_turn(after, obs)
+                    self.assertEqual(ocr.call_count, reads + 1)
+                    self.assertIs(ocr.call_args.args[0], gone)
+                    self.assert_turn_cleared(worker)
+                    self.assertEqual(worker.status['turns'], 1)
+                    self.assertEqual(transport.tap.call_count, 2)
+
+    def test_combat_actor_quarantined_after_two_attempts_despite_motion(self):
+        for kind in ('attack_hq', 'move_front'):
+            with self.subTest(kind=kind), test_directory() as tmp, contextlib.redirect_stdout(io.StringIO()):
+                worker, transport, vision, clock = self.make(tmp, allow_deploy=False)
+                worker._in_own_turn = True
+                transport.index = 5
+                key = ('support', 20, 20)
+                plan = ActionPlan(kind, (500, 500), (640, 180), key=key)
+                vision.plan_combat_action = Mock(side_effect=lambda frame, skip: None if key in skip else plan)
+                frame = np.zeros((720, 1280, 3), np.uint8)
+                after = np.full_like(frame, 100)
+                self.assertGreaterEqual(frame_motion(frame, after), .004)
+                transport.capture_bgr = Mock(return_value=after)
+                obs = ScreenObservation('own_turn', 'end_turn_btn', (1100, 500))
+                for count in (1, 2):
+                    worker._own_turn(frame, obs)
+                    self.assertEqual(worker._actor_attempts[key], count)
+                    self.assertEqual(key in worker.skip_actors, count == 2)
+                self.assertEqual(len(transport.inputs), 2)
+                worker._own_turn(after, obs)
+                self.assertEqual([entry[0] for entry in transport.inputs], ['drag', 'drag', 'tap'])
+                self.assert_turn_cleared(worker)
+                self.assertLess(clock(), 4.)
+
+    def test_unsent_combat_does_not_consume_actor_attempt(self):
+        with test_directory() as tmp, contextlib.redirect_stdout(io.StringIO()):
+            worker, transport, _, _ = self.make(tmp, dry_run=True)
+            worker._in_own_turn = True
+            worker._own_turn(transport.capture_bgr(), ScreenObservation('own_turn', 'test'))
+            self.assertEqual(worker._actor_attempts, {})
+            self.assertEqual(worker.skip_actors, set())
 
     def test_three_unknown_frames_reset_and_known_frame_breaks_streak(self):
         with test_directory() as tmp, contextlib.redirect_stdout(io.StringIO()):
@@ -1142,6 +1253,521 @@ class WorkerTests(unittest.TestCase):
                 worker.step()
                 self.assertEqual(log.call_args.args[0], "unknown OCR: " + "x" * 140)
             self.assertEqual(transport.inputs, [])
+
+
+class Wave2Tests(unittest.TestCase):
+    def setUp(self):
+        self.root = Path(self.enterContext(test_directory()))
+        self.enterContext(contextlib.redirect_stdout(io.StringIO()))
+        self.day = "2026-11-20"
+        self.usage = self.root / "emu_daily_usage.json"
+
+    def make(self, **options):
+        self.clock = FakeClock()
+        self.transport = FakeTransport(self.clock)
+        self.vision = FakeVision(self.transport)
+        self.worker = EmuWorker(WorkerConfig("mumu:7", **options), self.transport,
+                                self.vision, self.clock.sleep, self.clock,
+                                today_fn=lambda: self.day)
+        return self.worker
+
+    def observe(self, state, target=None):
+        self.vision.classify_screen = Mock(return_value=ScreenObservation(state, "test", target))
+
+    def save_usage(self, rounds=0, minutes=0):
+        self.usage.write_text(json.dumps({self.day: {"mumu:7": {
+            "rounds": rounds, "minutes": minutes}}}), encoding="utf-8")
+
+    def counts(self, day=None, instance="mumu:7"):
+        return emu_worker.load_daily_usage(self.usage, day or self.day, instance)
+
+    def test_watchdog_unknown_blank_and_unchanged_known_state(self):
+        for state in ("unknown", "blank", "queueing", "opponent_turn", "home"):
+            with self.subTest(state=state):
+                worker = self.make(watchdog_seconds=10, stop_mobile_helper=False)
+                self.observe(state)
+                worker.step()
+                self.clock.now = 9.9
+                worker.step()
+                self.assertEqual(self.transport.packages, [])
+                self.clock.now = 10
+                worker.step()
+                self.assertEqual(self.transport.packages, ["com.android1939.kards"])
+                self.assertEqual(self.transport.launches, 1)
+                self.assertEqual(worker.status["restarts"], 1)
+                self.assertEqual(self.transport.inputs, [])
+
+    def test_watchdog_no_frame_and_no_foreground(self):
+        for missing in ("capture", "foreground"):
+            with self.subTest(missing=missing):
+                worker = self.make(watchdog_seconds=10, stop_mobile_helper=False)
+                if missing == "capture":
+                    self.transport.capture_bgr = Mock(return_value=None)
+                else:
+                    self.transport.foreground = False
+                self.clock.now = 10
+                worker.step()
+                self.assertEqual(self.transport.packages, ["com.android1939.kards"])
+                launches = self.transport.launches
+                worker.step()
+                self.assertEqual(self.transport.launches, launches)
+
+    def test_watchdog_cooldown_both_branches(self):
+        for threshold in (10, 200):
+            with self.subTest(threshold=threshold):
+                worker = self.make(watchdog_seconds=threshold)
+                self.clock.now = threshold
+                self.assertTrue(worker._check_watchdog("unknown"))
+                cooldown = max(60.0, threshold * .5)
+                # Isolate the cooldown from the separate stall-time gate.
+                worker._last_progress_at = -1000
+                self.clock.now = threshold + cooldown - .001
+                self.assertFalse(worker._check_watchdog("unknown"))
+                self.clock.now = threshold + cooldown
+                self.assertTrue(worker._check_watchdog("unknown"))
+                self.assertEqual(self.transport.launches, 2)
+
+    def test_watchdog_budget_stops_cleanly_and_closes(self):
+        for budget in (0, 2):
+            with self.subTest(budget=budget):
+                worker = self.make(watchdog_seconds=1, watchdog_max_restarts=budget,
+                                   stop_mobile_helper=False, max_seconds=200)
+                self.observe("unknown")
+                result = worker.run()
+                self.assertEqual(result["restarts"], budget)
+                self.assertEqual(self.transport.packages, ["com.android1939.kards"] * budget)
+                self.assertEqual(self.transport.launches, budget)
+                self.assertIn("max restarts", result["last_error"])
+                self.assertFalse(result["running"])
+                self.assertTrue(self.transport.closed)
+                self.assertTrue(worker.should_stop())
+
+    def test_watchdog_disabled_and_cancelled(self):
+        for options in ({"dry_run": True}, {"auto_launch_kards": False},
+                        {"watchdog_seconds": 0}):
+            with self.subTest(options=options):
+                worker = self.make(**{"watchdog_seconds": 1, "stop_mobile_helper": False, **options})
+                self.observe("unknown")
+                self.transport.foreground = "watchdog_seconds" in options
+                self.clock.now = 1000
+                worker.step()
+                self.assertEqual(self.transport.packages, [])
+                self.assertEqual(self.transport.launches, 0)
+                self.assertEqual(worker.status["last_error"], "")
+        worker = self.make(watchdog_seconds=1)
+        self.clock.now = 10
+        worker.stop()
+        self.assertFalse(worker._check_watchdog("unknown"))
+        self.assertEqual(self.transport.packages, [])
+
+    def test_watchdog_stop_during_restart_wait_never_launches(self):
+        worker = self.make(watchdog_seconds=1)
+        self.clock.now = 10
+        worker.sleep_fn = lambda seconds: worker.stop()
+        self.assertTrue(worker._check_watchdog("blank"))
+        self.assertEqual(self.transport.packages, ["com.android1939.kards"])
+        self.assertEqual(self.transport.launches, 0)
+
+    def test_watchdog_transport_failures_are_bounded_and_reset_turn(self):
+        worker = self.make(watchdog_seconds=1)
+        self.transport.force_stop_package = Mock(side_effect=emu_worker.EmuTransportError("stop failed"))
+        self.transport.launch_kards = Mock(side_effect=emu_worker.EmuTransportError("launch failed"))
+        worker._in_own_turn = worker._settling = True
+        worker._match_turns = worker._settle_clicks = 5
+        worker.skip_actors.add((1, 2))
+        self.clock.now = 10
+        self.assertTrue(worker._check_watchdog("unknown"))
+        self.assertFalse(worker._in_own_turn or worker._settling)
+        self.assertEqual((worker._match_turns, worker._settle_clicks), (0, 0))
+        self.assertEqual(worker.skip_actors, set())
+        self.assertEqual(worker.status["last_error"], "")
+
+    def test_watchdog_state_progress_only_for_known_transitions(self):
+        worker = self.make(watchdog_seconds=100)
+        for state, now, expected in (("blank", 20, 0), ("unknown", 30, 0),
+                                     ("queueing", 40, 40), ("queueing", 50, 40),
+                                     ("opponent_turn", 60, 60)):
+            self.observe(state)
+            self.clock.now = now
+            worker.step()
+            self.assertEqual(worker._last_progress_at, expected)
+        self.assertEqual(self.transport.launches, 0)
+
+    def test_watchdog_actions_reset_only_after_progress(self):
+        for action in ("attack_hq", "move_front", "deploy", "end_turn"):
+            for changed in (False, True):
+                with self.subTest(action=action, changed=changed):
+                    worker = self.make(watchdog_seconds=100, allow_attack=False,
+                                       allow_deploy=False, allow_end_turn=False)
+                    worker._in_own_turn = True
+                    self.clock.now = 30
+                    frame = np.zeros((720, 1280, 3), np.uint8)
+                    after = np.full_like(frame, 100) if changed else frame
+                    self.transport.capture_bgr = Mock(return_value=after)
+                    plan = ActionPlan(action, (500, 500), (640, 180),
+                                      [(500, 500), (500, 450), (640, 180)], (1, 2))
+                    if action in ("attack_hq", "move_front"):
+                        worker.cfg.allow_attack = True
+                        self.vision.plan_combat_action = Mock(return_value=plan)
+                    elif action == "deploy":
+                        worker.cfg.allow_deploy = True
+                        self.vision.plan_deploy_action = Mock(return_value=plan)
+                    else:
+                        worker.cfg.allow_end_turn = True
+                        self.vision.classify_battle = Mock(return_value=ScreenObservation(
+                            "opponent_turn" if changed else "own_turn", "test"))
+                    worker._own_turn(frame, ScreenObservation("own_turn", "test", (1100, 500)))
+                    self.assertEqual(len(self.transport.inputs), 1)
+                    if changed:
+                        self.assertEqual(worker._last_progress_at, self.clock())
+                    else:
+                        self.assertEqual(worker._last_progress_at, 0)
+
+    def test_rejected_deploy_and_dry_run_are_not_watchdog_progress(self):
+        for dry in (False, True):
+            worker = self.make(allow_attack=False, allow_end_turn=False, dry_run=dry)
+            worker._in_own_turn = True
+            self.clock.now = 30
+            frame = np.zeros((720, 1280, 3), np.uint8)
+            self.transport.capture_bgr = Mock(return_value=np.full_like(frame, 100))
+            self.vision.detect_insufficient_kredits = Mock(return_value=True)
+            worker._own_turn(frame, ScreenObservation("own_turn", "test"))
+            self.assertEqual(worker._last_progress_at, 0)
+
+    def test_round_finish_progress_and_usage_only_once(self):
+        worker = self.make(daily_usage_file=str(self.usage))
+        self.observe("victory")
+        self.clock.now = 60
+        worker.step()
+        self.assertEqual(worker._last_progress_at, 60)
+        self.assertEqual(self.counts(), (1, 1.0))
+        worker.step()
+        self.assertEqual(worker._last_progress_at, 60)
+        self.assertEqual(worker.status["daily_rounds"], 1)
+        self.observe("queueing")
+        worker.step()
+        self.observe("defeat")
+        worker.step()
+        self.assertEqual(self.counts()[0], 2)
+
+    def test_sleep_jitter_bounds_minimum_and_zero_exact(self):
+        for ratio, seconds, factor, expected in ((.2, 2, .8, 1.6), (.2, 2, 1.2, 2.4),
+                                                  (.5, .01, .5, .05), (0, .01, 1, .01),
+                                                  (0, 2, 1, 2), (.2, 0, 1, 0)):
+            with self.subTest(ratio=ratio, seconds=seconds, factor=factor):
+                worker = self.make(jitter_ratio=ratio)
+                worker._rng = Mock()
+                worker._rng.uniform.return_value = factor
+                worker._sleep(seconds)
+                self.assertAlmostEqual(self.clock(), expected)
+                if ratio and seconds:
+                    worker._rng.uniform.assert_called_once_with(1-ratio, 1+ratio)
+                else:
+                    worker._rng.uniform.assert_not_called()
+
+    def test_tap_jitter_all_offsets_and_clamping_drag_unchanged(self):
+        worker = self.make(jitter_ratio=.15)
+        worker._rng = Mock()
+        for target in ((640, 360), (1, 1), (1278, 718)):
+            for dx in range(-3, 4):
+                for dy in range(-3, 4):
+                    worker._rng.randint.side_effect = [dx, dy]
+                    worker._input("test", target)
+                    self.assertEqual(self.transport.inputs[-1], ("tap", (
+                        max(1, min(1278, target[0]+dx)), max(1, min(718, target[1]+dy)))))
+        self.assertTrue(all(call.args == (-3, 3) for call in worker._rng.randint.call_args_list))
+        worker._rng.reset_mock()
+        path = [(0, 0), (500, 400), (1279, 719)]
+        worker._input("deploy", path=path, duration_ms=900)
+        self.assertEqual(self.transport.inputs[-1], ("drag", path, 900))
+        self.assertIs(self.transport.inputs[-1][1], path)
+        worker._rng.randint.assert_not_called()
+        worker.cfg.jitter_ratio = 0
+        worker._input("test", (0, 719))
+        self.assertEqual(self.transport.inputs[-1], ("tap", (0, 719)))
+        worker._rng.randint.assert_not_called()
+
+    def test_daily_startup_limits_do_not_connect_or_input(self):
+        for rounds, minutes, limits in ((3, 0, {"daily_max_rounds": 3}),
+                                        (4, 0, {"daily_max_rounds": 3}),
+                                        (0, 60, {"daily_max_minutes": 60}),
+                                        (0, 61, {"daily_max_minutes": 60})):
+            with self.subTest(rounds=rounds, minutes=minutes):
+                self.save_usage(rounds, minutes)
+                worker = self.make(daily_usage_file=str(self.usage), **limits)
+                with patch.object(worker, "_startup") as startup:
+                    result = worker.run()
+                startup.assert_not_called()
+                self.assertEqual(result["state"], "daily_limit")
+                self.assertEqual(result["last_error"], "")
+                self.assertFalse(result["running"])
+                self.assertEqual(self.transport.inputs + self.transport.packages, [])
+                self.assertEqual(self.transport.launches, 0)
+                self.assertEqual(self.counts(), (rounds, minutes))
+
+    def test_daily_limits_wait_for_every_lobby_after_active_match(self):
+        for lobby in ("home", "deck_list", "deck_detail"):
+            for limit in ("rounds", "minutes"):
+                with self.subTest(lobby=lobby, limit=limit):
+                    worker = self.make(**{"daily_max_" + limit: 1})
+                    self.observe("queueing")
+                    worker.step()
+                    if limit == "rounds":
+                        worker._daily_session_rounds = 1
+                    else:
+                        self.clock.now = 60
+                    for state in ("mulligan", "own_turn", "opponent_turn", "in_game", "unknown", "victory"):
+                        self.observe(state)
+                        # Exercise routing without the battle fake moving screens.
+                        with patch.object(worker, "_own_turn"):
+                            self.assertTrue(worker.step())
+                        self.assertFalse(worker.should_stop())
+                    self.observe(lobby, (100, 100))
+                    before = list(self.transport.inputs)
+                    self.assertFalse(worker.step())
+                    self.assertEqual(worker.status["state"], "daily_limit")
+                    self.assertEqual(self.transport.inputs, before)
+                    self.assertEqual(worker.status["last_error"], "")
+
+    def test_daily_zero_limits_unlimited_and_fractional_minutes_not_rounded_for_quota(self):
+        worker = self.make()
+        worker._daily_session_rounds = 10000
+        self.clock.now = 1000000
+        self.assertFalse(worker._daily_limit_hit())
+        worker = self.make(daily_max_minutes=1)
+        self.clock.now = 59.9
+        self.assertEqual(worker._update_daily_usage()[0], 0)
+        self.assertEqual(worker.status["daily_minutes"], 1.0)
+        self.assertFalse(worker._daily_limit_hit())
+        self.clock.now = 60
+        self.assertTrue(worker._daily_limit_hit())
+
+    def test_daily_elapsed_time_delta_persistence_and_restart(self):
+        self.save_usage(2, 10)
+        worker = self.make(daily_usage_file=str(self.usage))
+        self.clock.now = 60
+        worker._daily_session_rounds = 1
+        worker._persist_daily_usage()
+        worker._persist_daily_usage()
+        self.assertEqual(self.counts(), (3, 11))
+        self.clock.now = 90
+        worker.stop()
+        result = worker.run()
+        self.assertEqual(self.counts(), (3, 11.5))
+        self.assertEqual((result["daily_rounds"], result["daily_minutes"]), (3, 11.5))
+        restarted = self.make(daily_usage_file=str(self.usage), daily_max_rounds=3)
+        self.assertEqual(restarted.run()["state"], "daily_limit")
+
+    def test_daily_new_date_reloads_quota_and_preserves_old_day(self):
+        self.save_usage(2, 10)
+        worker = self.make(daily_usage_file=str(self.usage), daily_max_rounds=3)
+        worker._daily_session_rounds = 1
+        self.clock.now = 60
+        self.assertTrue(worker._daily_limit_hit())
+        self.day = "2026-11-21"
+        self.assertFalse(worker._daily_limit_hit())
+        self.assertEqual(worker._update_daily_usage(), (0, 0))
+        self.assertEqual(self.counts("2026-11-20"), (3, 11))
+        self.clock.now = 90
+        worker._daily_session_rounds = 1
+        worker._persist_daily_usage()
+        self.assertEqual(self.counts(), (1, .5))
+        self.assertEqual(self.counts("2026-11-20"), (3, 11))
+
+    def test_daily_locked_rollover_keeps_pending_delta_until_retry(self):
+        worker = self.make(daily_usage_file=str(self.usage))
+        self.clock.now = 60
+        worker._daily_session_rounds = 2
+        self.day = "2026-11-21"
+        with patch.object(emu_worker.os, "replace", side_effect=PermissionError("locked")), \
+                self.assertLogs("emu_worker", level="WARNING"):
+            worker._update_daily_usage()
+        self.assertEqual(worker.status["daily_rounds"], 0)
+        self.assertFalse(worker.should_stop())
+        self.clock.now = 90
+        worker._daily_session_rounds = 1
+        worker._persist_daily_usage()
+        worker._persist_daily_usage()
+        self.assertEqual(self.counts("2026-11-20"), (2, 1))
+        self.assertEqual(self.counts(), (1, .5))
+        self.assertEqual(worker._pending_daily_usage, {})
+
+    def test_daily_rollover_loads_existing_new_day_quota(self):
+        self.usage.write_text(json.dumps({"2026-11-21": {"mumu:7": {
+            "rounds": 5, "minutes": 20}}}), encoding="utf-8")
+        worker = self.make(daily_usage_file=str(self.usage), daily_max_rounds=5)
+        self.observe("opponent_turn")
+        self.assertTrue(worker.step())
+        self.clock.now = 60
+        self.day = "2026-11-21"
+        self.assertTrue(worker.step())  # The new day's quota still waits for the lobby.
+        self.assertEqual(worker.status["daily_rounds"], 5)
+        self.assertEqual(self.counts("2026-11-20"), (0, 1))
+        self.observe("home", (100, 100))
+        self.assertFalse(worker.step())
+        self.assertEqual(worker.status["state"], "daily_limit")
+        self.assertEqual(self.transport.inputs, [])
+
+    def test_daily_transient_read_lock_does_not_bypass_startup_quota(self):
+        self.save_usage(3, 10)
+        original = Path.read_text
+        attempts = []
+        def read(path, *args, **kwargs):
+            attempts.append(path)
+            if len(attempts) < 3:
+                raise PermissionError("writer holds usage")
+            return original(path, *args, **kwargs)
+        with patch.object(Path, "read_text", read):
+            worker = self.make(daily_usage_file=str(self.usage), daily_max_rounds=3)
+        self.assertEqual(len(attempts), 3)
+        self.assertAlmostEqual(self.clock(), .06)
+        self.assertEqual(worker.run()["state"], "daily_limit")
+        self.assertEqual(self.transport.inputs + self.transport.packages, [])
+
+    def test_daily_dry_run_never_writes_usage(self):
+        worker = self.make(dry_run=True, daily_usage_file=str(self.usage), max_seconds=2)
+        self.observe("victory")
+        worker.run()
+        self.assertFalse(self.usage.exists())
+        self.assertFalse(self.usage.with_suffix(".json.lock").exists())
+
+    def test_daily_atomic_replace_retries_permission_error_without_double_count(self):
+        self.save_usage(2, 10)
+        original = os.replace
+        attempts, sleeps = [], []
+        def replace(source, target):
+            attempts.append(source)
+            self.assertEqual(Path(source).parent, self.usage.parent)
+            self.assertEqual(Path(target), self.usage)
+            self.assertEqual(self.counts(), (2, 10))
+            payload = json.loads(Path(source).read_text(encoding="utf-8"))
+            self.assertEqual(payload[self.day]["mumu:7"], {"rounds": 3, "minutes": 12.5})
+            if len(attempts) < 3:
+                raise PermissionError("reader holds destination")
+            original(source, target)
+        with patch.object(emu_worker.os, "replace", side_effect=replace):
+            self.assertTrue(emu_worker.record_daily_usage(self.usage, self.day, "mumu:7", 1, 2.5, sleeps.append))
+        self.assertEqual(len(attempts), 3)
+        self.assertEqual(sleeps, [.02, .04])
+        self.assertEqual(self.counts(), (3, 12.5))
+        self.assertEqual(list(self.root.glob("*.tmp")), [])
+
+    def test_daily_write_lock_exhaustion_nonfatal_retries_unrecorded_delta(self):
+        self.save_usage(2, 10)
+        worker = self.make(daily_usage_file=str(self.usage))
+        worker._daily_session_rounds = 1
+        self.clock.now = 60
+        with patch.object(emu_worker.os, "replace", side_effect=PermissionError("locked")) as replace, \
+                self.assertLogs("emu_worker", level="WARNING"):
+            worker._persist_daily_usage()
+        self.assertEqual(replace.call_count, 6)
+        self.assertEqual(self.counts(), (2, 10))
+        self.assertFalse(worker.should_stop())
+        self.assertEqual(worker.status["last_error"], "")
+        self.assertEqual(list(self.root.glob("*.tmp")), [])
+        worker._persist_daily_usage()
+        self.assertEqual(self.counts()[0], 3)
+        self.assertAlmostEqual(self.counts()[1], 10 + self.clock()/60)
+
+    def test_daily_sidecar_lock_contention_is_nonfatal(self):
+        self.save_usage(1, 2)
+        lock = self.usage.with_suffix(".json.lock").open("a+b")
+        try:
+            if os.name == "nt":
+                import msvcrt
+                msvcrt.locking(lock.fileno(), msvcrt.LK_NBLCK, 1)
+            else:
+                import fcntl
+                fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            with self.assertLogs("emu_worker", level="WARNING"):
+                self.assertFalse(emu_worker.record_daily_usage(self.usage, self.day, "mumu:7", 1, 1, lambda _: None))
+            self.assertEqual(self.counts(), (1, 2))
+        finally:
+            lock.close()
+        self.assertTrue(emu_worker.record_daily_usage(self.usage, self.day, "mumu:7", 1, 1, lambda _: None))
+        self.assertEqual(self.counts(), (2, 3))
+
+    def test_daily_concurrent_writers_preserve_instances_and_dates(self):
+        self.save_usage(3, 4)
+        barrier = threading.Barrier(3)
+        results = []
+        def write(iid):
+            barrier.wait(timeout=5)
+            for _ in range(8):
+                results.append(emu_worker.record_daily_usage(self.usage, "2026-11-21", iid,
+                                                              1, .25, emu_worker.time.sleep))
+        threads = [threading.Thread(target=write, args=(iid,)) for iid in ("mumu:7", "mumu:8")]
+        for thread in threads:
+            thread.start()
+        barrier.wait(timeout=5)
+        for thread in threads:
+            thread.join(timeout=10)
+            self.assertFalse(thread.is_alive())
+        self.assertEqual(results, [True] * 16)
+        self.assertEqual(self.counts(), (3, 4))
+        for iid in ("mumu:7", "mumu:8"):
+            self.assertEqual(self.counts("2026-11-21", iid), (8, 2))
+
+    def test_daily_missing_locked_and_malformed_reads_are_nonfatal(self):
+        self.assertEqual(self.counts(), (0, 0))
+        with patch.object(Path, "read_text", side_effect=PermissionError("locked")), \
+                self.assertLogs("emu_worker", level="WARNING"):
+            self.assertEqual(self.counts(), (0, 0))
+        for payload in ("{", "[]", json.dumps({self.day: []}),
+                        json.dumps({self.day: {"mumu:7": []}}),
+                        *[json.dumps({self.day: {"mumu:7": {key: value}}})
+                          for key, value in (("rounds", -1), ("rounds", True),
+                                             ("minutes", -1), ("minutes", float("nan"))) ]):
+            with self.subTest(payload=payload):
+                self.usage.write_text(payload, encoding="utf-8")
+                with self.assertLogs("emu_worker", level="WARNING"):
+                    self.assertEqual(self.counts(), (0, 0))
+                    self.assertFalse(emu_worker.record_daily_usage(
+                        self.usage, self.day, "mumu:7", 1, 1, lambda _: None))
+                self.assertEqual(self.usage.read_text(encoding="utf-8"), payload)
+
+    def test_cli_wave2_flags_defaults_and_errors(self):
+        import ctypes
+        with patch.object(ctypes, "windll", Mock(), create=True), \
+                patch.object(emu_worker.cv2, "setNumThreads"), \
+                patch.object(emu_worker.signal, "signal"), \
+                patch.object(emu_worker, "EmuWorker") as factory:
+            factory.return_value.run.return_value = {"last_error": ""}
+            self.assertEqual(emu_worker.main(["--instance", "mumu:7"]), 0)
+            cfg = factory.call_args.args[0]
+            self.assertEqual((cfg.watchdog_seconds, cfg.watchdog_max_restarts, cfg.jitter_ratio,
+                              cfg.daily_max_rounds, cfg.daily_max_minutes, cfg.daily_usage_file),
+                             (0, 4, 0, 0, 0, None))
+            flags = ["--watchdog-seconds", "120.5", "--watchdog-max-restarts", "2", "--jitter", ".25",
+                     "--daily-max-rounds", "12", "--daily-max-minutes", "90.5",
+                     "--daily-usage-file", str(self.usage), "--dry-run", "--no-auto-launch"]
+            self.assertEqual(emu_worker.main(["--instance", "mumu:7", *flags]), 0)
+            cfg = factory.call_args.args[0]
+            self.assertEqual((cfg.watchdog_seconds, cfg.watchdog_max_restarts, cfg.jitter_ratio,
+                              cfg.daily_max_rounds, cfg.daily_max_minutes, cfg.daily_usage_file),
+                             (120.5, 2, .25, 12, 90.5, str(self.usage)))
+            self.assertTrue(cfg.dry_run)
+            self.assertFalse(cfg.auto_launch_kards)
+            factory.return_value.run.return_value = {"last_error": "Watchdog: stalled after max restarts"}
+            self.assertEqual(emu_worker.main(["--instance", "mumu:7"]), 1)
+            for flag, value in (("--watchdog-seconds", "nan"), ("--watchdog-seconds", "-1"),
+                                ("--watchdog-max-restarts", "-1"), ("--watchdog-max-restarts", "1.5"),
+                                ("--jitter", ".51"), ("--jitter", "inf"),
+                                ("--daily-max-rounds", "-1"), ("--daily-max-rounds", "1.5"),
+                                ("--daily-max-minutes", "-1"), ("--daily-max-minutes", "nan")):
+                with self.subTest(flag=flag, value=value), contextlib.redirect_stderr(io.StringIO()):
+                    factory.reset_mock()
+                    with self.assertRaises(SystemExit) as error:
+                        emu_worker.main(["--instance", "mumu:7", flag, value])
+                    self.assertEqual(error.exception.code, 2)
+                    factory.assert_not_called()
+
+    def test_worker_wave2_config_rejects_bad_types(self):
+        for key in ("watchdog_seconds", "watchdog_max_restarts", "jitter_ratio",
+                    "daily_max_rounds", "daily_max_minutes"):
+            for value in (True, "1", None, -1, float("nan"), float("inf")):
+                with self.subTest(key=key, value=value), self.assertRaises(ValueError):
+                    WorkerConfig("mumu:7", **{key: value})
 
 
 def tearDownModule():

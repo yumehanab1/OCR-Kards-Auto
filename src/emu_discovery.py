@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import csv
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from dataclasses import asdict, dataclass, field
@@ -9,6 +10,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import re
 import subprocess
 from typing import Any
 
@@ -145,6 +147,135 @@ class MuMuProvider(EmulatorProvider):
         return self._control(instance, "shutdown")
 
 
+class LDPlayerProvider(EmulatorProvider):
+    name = "ldplayer"
+    CONSOLES = ("ldconsole.exe", "dnconsole.exe")
+
+    def __init__(self, ld_root: str | None = None, runner=None):
+        self.runner = runner or subprocess.run
+        candidates = [ld_root, os.environ.get("LDPLAYER_ROOT"),
+                      r"C:\LDPlayer\LDPlayer9", r"D:\LDPlayer\LDPlayer9",
+                      r"C:\leidian\LDPlayer9", r"D:\leidian\LDPlayer9",
+                      r"C:\LDPlayer\LDPlayer4.0", r"D:\LDPlayer\LDPlayer4.0",
+                      r"C:\ChangZhi\dnplayer2"]
+        self.ld_root = next((r for r in candidates if _find(r, self.CONSOLES)), None)
+        self.console_path = _find(self.ld_root, self.CONSOLES)
+        self.adb_path = _find(self.ld_root, ("adb.exe",))
+
+    def discover(self) -> list[EmulatorInstance]:
+        if not self.console_path:
+            return []
+        try:
+            result = _run(self.runner, [self.console_path, "list2"])
+        except (OSError, subprocess.SubprocessError):
+            return []
+        if result.returncode:
+            return []
+        instances = []
+        for parts in csv.reader(result.stdout.lstrip("\ufeff").splitlines()):
+            if len(parts) < 7:
+                continue
+            try:
+                index = int(parts[0])
+            except ValueError:
+                continue
+            if index < 0:
+                continue
+            title = parts[1].strip() or f"LDPlayer {index}"
+            running = parts[4].strip() == "1"
+            pid = int(parts[5]) if parts[5].isdigit() else 0
+            instances.append(EmulatorInstance(
+                provider=self.name, instance_id=f"ldplayer:{index}", name=title,
+                adb_serial=f"127.0.0.1:{5555 + index * 2}", adb_path=self.adb_path,
+                running=running, process_started=running or pid > 0, ipc_available=False,
+                extra={"ld_index": index, "ld_root": self.ld_root,
+                       "alt_serial": f"emulator-{5554 + index * 2}", "pid": pid}))
+        return instances
+
+    def _control(self, instance, action):
+        index = instance.extra.get("ld_index")
+        if not self.console_path or instance.provider != self.name or index is None:
+            return False
+        try:
+            return _run(self.runner, [self.console_path, action, "--index", str(index)]).returncode == 0
+        except (OSError, subprocess.SubprocessError):
+            return False
+
+    def launch(self, instance: EmulatorInstance) -> bool:
+        return self._control(instance, "launch")
+
+    def shutdown(self, instance: EmulatorInstance) -> bool:
+        return self._control(instance, "quit")
+
+
+class BlueStacksProvider(EmulatorProvider):
+    name = "bluestacks"
+
+    def __init__(self, conf_path: str | None = None, runner=None):
+        self.runner = runner or subprocess.run
+        candidates = [conf_path, os.environ.get("BLUESTACKS_CONF"),
+                      r"C:\ProgramData\BlueStacks_nxt\bluestacks.conf",
+                      r"C:\ProgramData\BlueStacks_bgp64\bluestacks.conf",
+                      r"C:\ProgramData\BlueStacks\bluestacks.conf"]
+        self.conf_path = next((str(p) for p in candidates if p and Path(p).is_file()), None)
+        roots = [r"C:\Program Files\BlueStacks_nxt", r"D:\Program Files\BlueStacks_nxt",
+                 r"C:\Program Files\BlueStacks"]
+        self.player_path = next((p for r in roots if (p := _find(r, ("HD-Player.exe",)))), None)
+        self.adb_path = next((p for r in roots if (p := _find(r, ("HD-Adb.exe", "adb.exe")))), None)
+
+    def discover(self) -> list[EmulatorInstance]:
+        if not self.conf_path:
+            return []
+        try:
+            lines = Path(self.conf_path).read_text(encoding="utf-8-sig").splitlines()
+        except (OSError, UnicodeError):
+            return []
+        entries = {}
+        for line in lines:
+            match = re.fullmatch(r'\s*bst\.instance\.([^.]+)\.(display_name|status\.adb_port)\s*=\s*(.*?)\s*', line)
+            if match:
+                inst, key, value = match.groups()
+                entries.setdefault(inst, {})[key] = value.strip('"')
+        online = set()
+        if self.adb_path:
+            try:
+                result = _run(self.runner, [self.adb_path, "devices"])
+                if result.returncode == 0:
+                    online = {p[0] for line in result.stdout.splitlines()
+                              if len(p := line.split()) >= 2 and p[1] == "device"}
+            except (OSError, subprocess.SubprocessError):
+                pass
+        instances = []
+        for inst, values in entries.items():
+            try:
+                port = int(values.get("status.adb_port", ""))
+            except ValueError:
+                continue
+            if port <= 0:
+                continue
+            serial = f"127.0.0.1:{port}"
+            running = serial in online
+            instances.append(EmulatorInstance(
+                provider=self.name, instance_id=f"bluestacks:{inst}",
+                name=values.get("display_name") or f"BlueStacks {inst}",
+                adb_serial=serial, adb_path=self.adb_path, running=running,
+                process_started=running, ipc_available=False,
+                extra={"bs_instance": inst, "player_path": self.player_path,
+                       "conf_path": self.conf_path}))
+        return instances
+
+    def launch(self, instance: EmulatorInstance) -> bool:
+        inst = instance.extra.get("bs_instance")
+        if not self.player_path or not Path(self.player_path).is_file() or instance.provider != self.name or not inst:
+            return False
+        try:
+            subprocess.Popen([self.player_path, "--instance", inst],
+                             creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0)
+            return True
+        except OSError:
+            return False
+
+
 class GenericAdbProvider(EmulatorProvider):
     name = "adb"
 
@@ -184,19 +315,29 @@ class GenericAdbProvider(EmulatorProvider):
 def discover_all(extra_serials: Sequence[str] = (), adb_path: str | None = None,
                  mumu_root: str | None = None,
                  providers: Sequence[EmulatorProvider] | None = None) -> list[EmulatorInstance]:
-    if providers is None:
+    default_providers = providers is None
+    if default_providers:
         mumu = MuMuProvider(mumu_root=mumu_root)
-        providers = [mumu, GenericAdbProvider(adb_path=adb_path or mumu.adb_path,
+        ldplayer, bluestacks = LDPlayerProvider(), BlueStacksProvider()
+        providers = [mumu, ldplayer, bluestacks,
+                     GenericAdbProvider(adb_path=adb_path or mumu.adb_path or ldplayer.adb_path or bluestacks.adb_path,
                                              extra_serials=tuple(extra_serials)),
                      *get_registered_providers()]
-    found = [instance for provider in providers for instance in provider.discover()]
-    # MuMu identity wins even when a caller supplies providers in reverse order.
-    mumu_serials = {i.adb_serial for i in found if i.provider == "mumu" and i.adb_serial}
+    found = []
+    for provider in providers:
+        try:
+            found.extend(provider.discover())
+        except Exception:
+            if not default_providers:
+                raise  # Preserve explicit callers' error reporting contract.
+    # Dedicated identities win regardless of provider order, including LD aliases.
+    dedicated_serials = {serial for i in found if i.provider != "adb"
+                         for serial in (i.adb_serial, i.extra.get("alt_serial")) if serial}
     seen = set()
     result = []
     for instance in found:
         serial = instance.adb_serial
-        if instance.provider == "adb" and serial and (serial in seen or serial in mumu_serials):
+        if instance.provider == "adb" and serial and (serial in seen or serial in dedicated_serials):
             continue
         result.append(instance)
         if serial:

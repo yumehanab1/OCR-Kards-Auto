@@ -5,6 +5,7 @@ from copy import deepcopy
 from dataclasses import dataclass, field
 import importlib
 import json
+import os
 from pathlib import Path
 import sys
 import tempfile
@@ -121,10 +122,15 @@ def frame_motion(a: np.ndarray, b: np.ndarray,
 class EmuVision:
     def __init__(self, root: Path | None = None, ocr_fn: Callable | None = None,
                  load_core: bool = True, ocr_threads: int = 2,
-                 ocr_cache_ttl: float = 2.5, clock_fn=time.monotonic):
+                 ocr_cache_ttl: float = 2.5, clock_fn=time.monotonic,
+                 ocr_url: str | None = None, ocr_token: str | None = None):
         self.root = Path(root) if root is not None else repo_root()
         self.core = load_mobile_modules(self.root) if load_core else None
         self.ocr_fn, self._ocr = ocr_fn, None
+        self.ocr_url = self.ocr_token = None
+        if ocr_fn is None:
+            self.ocr_url = ocr_url if ocr_url is not None else os.environ.get("KARDS_EMU_OCR_URL") or None
+            self.ocr_token = ocr_token if ocr_token is not None else os.environ.get("KARDS_EMU_OCR_TOKEN") or ""
         self.ocr_threads = ocr_threads
         self.ocr_cache_ttl, self.clock = ocr_cache_ttl, clock_fn
         self._ocr_cache = None
@@ -164,6 +170,15 @@ class EmuVision:
     def run_ocr(self, frame):
         if self.ocr_fn is not None:
             return self.ocr_fn(frame)
+        if self.ocr_url:
+            try:
+                if __package__:
+                    from .emu_ocr_server import request_ocr
+                else:
+                    from emu_ocr_server import request_ocr
+                return request_ocr(self.ocr_url, self.ocr_token, frame)
+            except Exception:
+                pass  # A failed shared service must not interrupt a worker's local OCR.
         if self._ocr is None:
             from rapidocr_onnxruntime import RapidOCR
             try:
@@ -202,6 +217,10 @@ class EmuVision:
             if allow_opponent_turn and self.core.apk_enemy_turn.inspect_opponent_turn(frame).get("present") is True:
                 return ScreenObservation("opponent_turn", "enemy_turn_label")
         return None
+
+    def invalidate_ocr_cache(self):
+        """Force the next screen observation to read fresh OCR evidence."""
+        self._ocr_cache = None
 
     def classify_screen(self, frame: np.ndarray, *, target_mode="training", deck_name="",
                         allow_fast_opponent: bool = True):
@@ -242,6 +261,11 @@ class EmuVision:
         confirm = find("确认", lambda p: 450 <= p[0] <= 850 and p[1] >= 580)
         if find("选择要替换的卡牌") or confirm:
             return obs("mulligan", point(confirm, (640, 648)))
+        end_btn = next((e for e in entries
+                        if ("结束回合" in e[1] or "END TURN" in e[1].upper())
+                        and e[2][0] >= 980 and 420 <= e[2][1] <= 620), None)
+        if end_btn:
+            return obs("own_turn", end_btn[2], "ocr_end_turn")
         if find("敌方", lambda p: p[0] >= 1000 and 440 <= p[1] <= 590):
             return obs("opponent_turn", None, "ocr_opponent_turn")
         if find("胜利") and not find("对战模式"):

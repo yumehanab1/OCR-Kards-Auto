@@ -47,6 +47,7 @@ import time
 
 import cv2
 
+import actions as actions_mod
 from actions import click, park_cursor
 from attack import Attacker, FrontMover
 from deploy import drag_deploy, deploy_candidates
@@ -81,6 +82,8 @@ SKIP = {"order", "counter", "countermeasure"}
 
 # End-turn button must match at least this well to count as "our turn".
 END_TURN_MIN_SCORE = 0.60
+END_TURN_PENDING_RETRY_SEC = 4.0
+END_TURN_MAX_RETRIES = 3
 
 # 一回合最多试几张"完全认不出来"的牌(name/type 都是空)。
 # 这类牌只能靠试错确认,每试一次要花一次拖拽 + 一次面板比对(约 2 秒)。
@@ -215,6 +218,10 @@ class TurnEngine:
         #   ★ 攻击仍然排在上前线之前:移动会消耗单位的行动,
         #     能打的先打(打了就变灰、不会被选去移动),打不到的才挪上去。
         self.phase = "wait_our_turn"
+        self._end_turn_sent_at = 0.0
+        self._end_turn_retries = 0
+        self._end_turn_retry_exhausted = False
+        self._scan_aborts = 0
         self.selection_pending = None  # 已拖出的选牌必须先处理
         self.selection_flow = None
         self.selection_resume_phase = None
@@ -271,6 +278,10 @@ class TurnEngine:
                 or not self._end_turn_visible(frame))
 
     def reset_turn(self):
+        self._end_turn_sent_at = 0.0
+        self._end_turn_retries = 0
+        self._end_turn_retry_exhausted = False
+        self._scan_aborts = 0
         self._consecutive_refusals = 0
         self.weather_played = False
         self.failed_x = set()
@@ -417,6 +428,7 @@ class TurnEngine:
             self.cards = self.scanner.scan_fast(debug=self.debug)
         else:
             self.cards = self.scanner.scan(debug=self.debug)
+        self._scan_aborts = 0
         self.hand_at_turn_start = len(self.cards)
         # ★★ 手牌记忆:**全量扫描这一路不动记忆,直接作废**。
         #   为什么不做"按结果顺序写回":`scan_fast` 内部会按命中率挑候选、
@@ -1258,6 +1270,7 @@ class TurnEngine:
                         self._dump_frame("deploy_uncertain", "", subdir="choice")
                         return "selection_blocked"
                     self.deployed_this_turn += 1
+                    self._scan_aborts = 0
                     self.afford.note_deploy_ok(deferred["cost"])
                     self.memory.note_played(deferred["target"].get("i"))
                     self.cards = []
@@ -1294,6 +1307,7 @@ class TurnEngine:
                         return "selection_blocked"
             self._spend(cost)
             self.deployed_this_turn += 1
+            self._scan_aborts = 0
             self.afford.note_deploy_ok(cost)
             self.memory.note_played(target.get("i"))
             self.selection_pending = None
@@ -1309,8 +1323,21 @@ class TurnEngine:
 
         if self.phase == 'end_turn_pending':
             if et:
-                # Posting a click is not a new turn. Keep all failure locks and
-                # ledgers intact; never replay the action chain or end click.
+                # Keep failure locks and ledgers until the button disappears.
+                # Message-mode confirmation belongs to Controller; only a
+                # dropped physical click may be retried here.
+                if (getattr(actions_mod, "INPUT_MODE", "physical") != "message"
+                        and self._end_turn_sent_at > 0
+                        and time.monotonic() - self._end_turn_sent_at >= END_TURN_PENDING_RETRY_SEC):
+                    if self._end_turn_retries < END_TURN_MAX_RETRIES:
+                        self._end_turn_retries += 1
+                        self._end_turn_sent_at = 0.0
+                        self.phase = "end_turn"
+                        self.log(f"[turn] ⚠️ 结束回合点击 {END_TURN_PENDING_RETRY_SEC:.0f}s 后按钮仍在，重试点击 ({self._end_turn_retries}/{END_TURN_MAX_RETRIES})")
+                        return 'end_turn_retry'
+                    if not self._end_turn_retry_exhausted:
+                        self._end_turn_retry_exhausted = True
+                        self.log("[turn] ⚠️ 结束回合重试已达上限仍未切换，保持等待不重发动作")
                 return 'end_turn_pending'
             self.log('[turn] 新帧确认结束回合按钮消失，清理当前回合账本')
             self.reset_turn()
@@ -1413,7 +1440,13 @@ class TurnEngine:
                     self._lazy_find_playable()
                     if (self._orange_enabled()
                             and (getattr(self.scanner, 'last_orange', None) or {}).get('aborted')):
+                        self._scan_aborts += 1
+                        if self._scan_aborts >= 3:
+                            self.log("[turn] 连续 3 次手牌扫描中断，本回合收手并结束回合")
+                            self.phase = "end_turn"
+                            return 'scan_aborted_end_turn'
                         return 'user_took_over'
+                    self._scan_aborts = 0
 
             target = None
             skipped_full_line = False
@@ -1770,6 +1803,7 @@ class TurnEngine:
             #   ③ 面板对比(最后退路,而且日志里必须写明"用的是退路")
             if ok:
                 self.deployed_this_turn += 1
+                self._scan_aborts = 0
                 self._consecutive_refusals = 0
                 if orders.is_weather(name):
                     self.weather_played = True
@@ -1903,6 +1937,7 @@ class TurnEngine:
                 self.reset_turn()
                 return "turn_switched"
             self.phase = 'end_turn_pending'
+            self._end_turn_sent_at = time.monotonic()
             self.log('[turn] 结束回合输入已派发，等待新帧确认；未清账或解除失败锁')
             return 'end_turn_pending'
 

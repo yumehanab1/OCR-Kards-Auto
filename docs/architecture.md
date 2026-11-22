@@ -17,11 +17,12 @@ KARDS AUTO.exe
          │         ├─ deploy.py            部署拖拽
          │         ├─ order_choice.py      两牌/三牌选牌阶段与连续选牌
          │         └─ attack.py            上前线和攻击
-         └─ src/emu_manager.py    模拟器多开调度（多子进程、错峰启停、独立日志/配置）
-              ├─ src/emu_discovery.py  MuMuManager / 通用 ADB 发现 + 自定义提供方注册口
-              └─ src/emu_worker.py     单模拟器独立工作进程（全流程循环、协作停机）
+         └─ src/emu_manager.py    模拟器多开调度（多子进程、按实例覆盖、每日限额、共享OCR生命周期）
+              ├─ src/emu_discovery.py  MuMu / 雷电 / 蓝叠 / 通用 ADB 发现 + 自定义提供方注册口
+              ├─ src/emu_ocr_server.py 本地 127.0.0.1 鉴权共享 RapidOCR 服务（多开复用单模型）
+              └─ src/emu_worker.py     单模拟器独立工作进程（全流程循环、看门狗自愈、抖动与限额）
                    ├─ src/emu_transport.py  MuMu IPC 高速内存截屏/触控 + ADB 回退 + 扩展工厂
-                   └─ src/emu_vision.py     高速战斗模板/mobile-core 复用 + 菜单/弹窗 OCR
+                   └─ src/emu_vision.py     高速战斗模板/mobile-core 复用 + 共享/本地 OCR 回退
 ```
 
 面板 exe 只负责界面。发布包里的 `python\python.exe` 会重新读取发布包中的 `src\`、`config\`、`ui_templates\` 和 `card_db\`，所以修改引擎代码后不需要把代码编进 exe；修改 `src/gui.py` 后必须重打 exe。

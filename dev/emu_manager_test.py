@@ -93,6 +93,8 @@ class ManagerTests(unittest.TestCase):
     def test_options_defaults_types_bounds_and_clean_lists(self):
         opts = manager.normalize_emu_options({})
         self.assertEqual(opts, manager.DEFAULT_EMU_OPTIONS)
+        self.assertTrue(opts["shared_ocr"])
+        self.assertFalse(manager.normalize_emu_options({"shared_ocr": False})["shared_ocr"])
         opts["extra_serials"].append("changed")
         self.assertEqual(manager.DEFAULT_EMU_OPTIONS["extra_serials"], [])
         cleaned = manager.normalize_emu_options({
@@ -108,7 +110,8 @@ class ManagerTests(unittest.TestCase):
                         {"stagger_seconds": -1}, {"stagger_seconds": 10.1},
                         {"stagger_seconds": float("nan")}, {"stagger_seconds": float("inf")},
                         {"stagger_seconds": True}, {"dry_run": "false"}, {"allow_attack": 1},
-                        {"deck_name": None}, {"extra_serials": "a"}, {"selected_instances": [4]}):
+                        {"deck_name": None}, {"extra_serials": "a"}, {"selected_instances": [4]},
+                        {"shared_ocr": "true"}, {"shared_ocr": 1}):
             with self.subTest(invalid=invalid), self.assertRaises(ValueError):
                 manager.normalize_emu_options(invalid)
 
@@ -183,6 +186,7 @@ class ManagerTests(unittest.TestCase):
         self.assertEqual(self.mgr.start_instance("mumu:7"),
                          {"ok": False, "msg": "该实例已在运行中"})
         self.assertEqual(len(self.processes), 1)
+        self.assertIsNone(self.mgr._ocr_proc)  # Custom worker factories must not spawn a service.
         self.assertTrue(self.mgr.has_running_workers())
         self.processes[0].returncode = 7
         self.assertFalse(self.mgr.has_running_workers())
@@ -263,6 +267,7 @@ class ManagerTests(unittest.TestCase):
         snapshot = self.mgr.snapshot("mumu:7")
         self.discover.assert_called_with(extra_serials=["saved:5555"])
         self.assertEqual(snapshot["running_count"], 2)
+        self.assertFalse(snapshot["shared_ocr_running"])
         self.assertEqual(snapshot["log"]["lines"], ["one", "two"])
         rows = {i["instance_id"]: i for i in snapshot["instances"]}
         self.assertTrue(rows["custom:lost"]["worker_running"])
@@ -330,6 +335,166 @@ class ManagerTests(unittest.TestCase):
         self.assertTrue(self.mgr.launch_emulator("custom:1")["ok"])
         self.assertFalse(self.mgr.launch_emulator("absent")["ok"])
         self.assertFalse(self.mgr.shutdown_emulator("adb:127.0.0.1:5555")["ok"])
+
+    def test_builtin_ldplayer_and_bluestacks_control(self):
+        for name, factory, extra, keyword in (
+                ("ldplayer", "LDPlayerProvider", {"ld_root": "ld-root"}, "ld_root"),
+                ("bluestacks", "BlueStacksProvider", {"conf_path": "bs.conf"}, "conf_path")):
+            instance = EmulatorInstance(name, name + ":0", name, extra=extra)
+            self.instances.append(instance)
+            provider = Mock()
+            provider.launch.return_value = True
+            provider.shutdown.return_value = name == "ldplayer"
+            with patch.object(manager.emu_discovery, factory, return_value=provider) as constructor:
+                self.assertTrue(self.mgr.launch_emulator(instance.instance_id)["ok"])
+                constructor.assert_called_once_with(**{keyword: extra[keyword]})
+                self.assertEqual(self.mgr.shutdown_emulator(instance.instance_id)["ok"], name == "ldplayer")
+            provider.launch.assert_called_once_with(instance)
+            provider.shutdown.assert_called_once_with(instance)
+
+    def test_wave2_numeric_validation_global_and_per_instance(self):
+        bounds = {"watchdog_seconds": 3600, "jitter_ratio": .5,
+                  "daily_max_rounds": 999, "daily_max_minutes": 1440}
+        for key, upper in bounds.items():
+            for value in (0, upper):
+                with self.subTest(key=key, value=value):
+                    self.assertEqual(manager.normalize_emu_options({key: value})[key], value)
+                    opts = manager.normalize_emu_options({"instance_overrides": {"mumu:7": {key: value}}})
+                    self.assertEqual(opts["instance_overrides"]["mumu:7"][key], value)
+            invalid = [None, True, False, "1", [], {}, -1, upper + 1, float("nan"), float("inf")]
+            if key != "jitter_ratio":
+                invalid += [1.0, 1.5]
+            for value in invalid:
+                for options in ({key: value}, {"instance_overrides": {"mumu:7": {key: value}}}):
+                    with self.subTest(options=options), self.assertRaises(ValueError):
+                        manager.normalize_emu_options(options)
+        self.assertEqual(manager.normalize_emu_options({"jitter_ratio": .15})["jitter_ratio"], .15)
+
+    def test_instance_overrides_schema_and_empty_entries(self):
+        self.assertEqual(manager.normalize_emu_options({"instance_overrides": {
+            "mumu:7": {}, "mumu:8": {"mode": "casual"}}})["instance_overrides"],
+            {"mumu:8": {"mode": "casual"}})
+        for overrides in (None, [], "bad", {1: {}}, {"": {}}, {" ": {}},
+                          {"mumu:7": None}, {"mumu:7": []},
+                          {"mumu:7": {"unknown": 1}}, {"mumu:7": {"instance_overrides": {}}},
+                          {"mumu:7": {"shared_ocr": False}}, {"mumu:7": {"stagger_seconds": 1}},
+                          {"mumu:7": {"mode": "invalid"}}, {"mumu:7": {"dry_run": 1}},
+                          {"mumu:7": {"deck_name": []}}, {"mumu:7": {"max_rounds": 100}}):
+            with self.subTest(overrides=overrides), self.assertRaises(ValueError):
+                manager.normalize_emu_options({"instance_overrides": overrides})
+        with self.assertRaises(ValueError):
+            manager.normalize_emu_options({"unknown": 1})
+
+    def test_resolve_options_independence_and_global_fallback(self):
+        source = {"mode": "ranked", "deck_name": "global", "daily_max_rounds": 9,
+                  "extra_serials": ["host:5555"], "instance_overrides": {
+                      "mumu:7": {"deck_name": " 日本初始 ", "daily_max_rounds": 0, "dry_run": True},
+                      "mumu:8": {"mode": "training", "watchdog_seconds": 0}}}
+        saved = json.loads(json.dumps(source))
+        first = manager.resolve_instance_options(source, "mumu:7")
+        second = manager.resolve_instance_options(source, "mumu:8")
+        absent = manager.resolve_instance_options(source, "absent")
+        self.assertEqual((first["mode"], first["deck_name"], first["daily_max_rounds"], first["dry_run"]),
+                         ("ranked", "日本初始", 0, True))
+        self.assertEqual((second["mode"], second["daily_max_rounds"], second["watchdog_seconds"]),
+                         ("training", 9, 0))
+        self.assertEqual((absent["mode"], absent["deck_name"], absent["watchdog_seconds"]),
+                         ("ranked", "global", 240))
+        self.assertNotIn("instance_overrides", first)
+        first["extra_serials"].append("mutation")
+        first["mode"] = "casual"
+        self.assertEqual(second["extra_serials"], ["host:5555"])
+        self.assertEqual(source, saved)
+        normalized = manager.normalize_emu_options(source)
+        normalized["instance_overrides"]["mumu:7"]["dry_run"] = False
+        self.assertEqual(source, saved)
+        defaults = manager.normalize_emu_options({})
+        defaults["instance_overrides"]["x"] = {"mode": "ranked"}
+        self.assertEqual(manager.DEFAULT_EMU_OPTIONS["instance_overrides"], {})
+
+    def test_wave2_argv_resolves_all_instance_flags_and_zero_disables(self):
+        override = {"mode": "ranked", "deck_name": "独立 卡组", "max_rounds": 7,
+                    "prefer_ipc": False, "allow_attack": False, "allow_deploy": False,
+                    "allow_end_turn": False, "dry_run": True, "auto_launch_kards": False,
+                    "watchdog_seconds": 120, "jitter_ratio": .25,
+                    "daily_max_rounds": 10, "daily_max_minutes": 30}
+        self.assertEqual(set(override), set(manager.INSTANCE_OVERRIDE_KEYS))
+        options = {"instance_overrides": {"mumu:7": override}}
+        argv = self.mgr.build_worker_argv("mumu:7", options)
+        for flag, value in (("--mode", "ranked"), ("--deck", "独立 卡组"), ("--max-rounds", "7"),
+                            ("--watchdog-seconds", "120"), ("--jitter", "0.25"),
+                            ("--daily-max-rounds", "10"), ("--daily-max-minutes", "30"),
+                            ("--daily-usage-file", str(self.mgr.logs_dir / "emu_daily_usage.json"))):
+            self.assertEqual(argv[argv.index(flag)+1], value)
+        for flag in ("--adb-only", "--no-attack", "--no-deploy", "--no-end-turn", "--dry-run", "--no-auto-launch"):
+            self.assertIn(flag, argv)
+        other = self.mgr.build_worker_argv("mumu:8", options)
+        self.assertEqual(other[other.index("--watchdog-seconds")+1], "240")
+        self.assertEqual(other[other.index("--jitter")+1], "0.15")
+        self.assertNotIn("--daily-usage-file", other)
+        disabled = self.mgr.build_worker_argv("mumu:7", {
+            "daily_max_rounds": 10, "daily_max_minutes": 30,
+            "instance_overrides": {"mumu:7": {"watchdog_seconds": 0, "jitter_ratio": 0,
+                                               "daily_max_rounds": 0, "daily_max_minutes": 0}}})
+        for flag in ("--watchdog-seconds", "--jitter", "--daily-max-rounds", "--daily-max-minutes", "--daily-usage-file"):
+            self.assertNotIn(flag, disabled)
+        for key in ("daily_max_rounds", "daily_max_minutes"):
+            self.assertIn("--daily-usage-file", self.mgr.build_worker_argv("mumu:7", {key: 1}))
+
+    def test_start_many_uses_saved_independent_overrides(self):
+        options = {"mode": "casual", "instance_overrides": {
+            "mumu:7": {"mode": "training", "daily_max_rounds": 2},
+            "mumu:8": {"mode": "ranked", "watchdog_seconds": 0}, "empty": {}}}
+        normalized = manager.save_emu_options(options, self.root)
+        self.assertEqual(manager.load_emu_options(self.root), normalized)
+        self.assertNotIn("empty", normalized["instance_overrides"])
+        result = self.mgr.start_many(["mumu:7", "mumu:8"])
+        self.assertEqual(result["started"], ["mumu:7", "mumu:8"])
+        first, second = (result["results"][iid]["argv"] for iid in result["started"])
+        self.assertEqual(first[first.index("--mode")+1], "training")
+        self.assertEqual(second[second.index("--mode")+1], "ranked")
+        self.assertIn("--daily-max-rounds", first)
+        self.assertNotIn("--daily-max-rounds", second)
+        self.assertNotIn("--watchdog-seconds", second)
+
+    def test_snapshot_daily_usage_current_date_and_override_copies(self):
+        from datetime import datetime
+        today = datetime.now().strftime("%Y-%m-%d")
+        options = {"instance_overrides": {"mumu:7": {"daily_max_rounds": 10}}}
+        manager.save_emu_options(options, self.root)
+        self.mgr.logs_dir.mkdir()
+        path = self.mgr.logs_dir / "emu_daily_usage.json"
+        path.write_text(json.dumps({"2000-01-01": {"mumu:7": {"rounds": 99, "minutes": 999}},
+                                   today: {"mumu:7": {"rounds": 4, "minutes": 12.34}}}), encoding="utf-8")
+        snap = self.mgr.snapshot()
+        first, second = snap["instances"]
+        self.assertEqual((first["daily_rounds"], first["daily_minutes"], first["override"]),
+                         (4, 12.3, {"daily_max_rounds": 10}))
+        self.assertEqual((second["daily_rounds"], second["daily_minutes"], second["override"]), (0, 0, {}))
+        first["override"]["daily_max_rounds"] = 1
+        self.assertEqual(snap["options"]["instance_overrides"]["mumu:7"]["daily_max_rounds"], 10)
+        self.assertEqual(manager.load_emu_options(self.root)["instance_overrides"], options["instance_overrides"])
+
+    def test_snapshot_daily_missing_locked_or_malformed_is_safe(self):
+        from datetime import datetime
+        today = datetime.now().strftime("%Y-%m-%d")
+        self.mgr.logs_dir.mkdir()
+        path = self.mgr.logs_dir / "emu_daily_usage.json"
+        self.assertEqual(self.mgr.snapshot()["instances"][0]["daily_rounds"], 0)
+        original = Path.read_text
+        def read(file, *args, **kwargs):
+            if file == path:
+                raise PermissionError("locked")
+            return original(file, *args, **kwargs)
+        with patch.object(Path, "read_text", read):
+            self.assertEqual(self.mgr.snapshot()["instances"][0]["daily_minutes"], 0)
+        for payload in ("{", "[]", json.dumps({today: []}), json.dumps({today: {"mumu:7": []}}),
+                        json.dumps({today: {"mumu:7": {"rounds": True, "minutes": float("nan")}}}),
+                        json.dumps({today: {"mumu:7": {"rounds": -1, "minutes": -2}}})):
+            with self.subTest(payload=payload):
+                path.write_text(payload, encoding="utf-8")
+                row = self.mgr.snapshot()["instances"][0]
+                self.assertEqual((row["daily_rounds"], row["daily_minutes"], row["override"]), (0, 0, {}))
 
 
 if __name__ == "__main__":

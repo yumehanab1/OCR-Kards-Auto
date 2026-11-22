@@ -108,6 +108,117 @@ class DiscoveryTests(unittest.TestCase):
         items = discovery.discover_all(providers=[Mock(discover=lambda: adb), Mock(discover=lambda: mumu)])
         self.assertEqual(len(items), 2)
 
+    def test_ldplayer_list2_and_controls(self):
+        output = ('0," Main, VM ",1,2,1,123,456,1280,720,240\n'
+                  '2, ,0,0,0,789,0\n3,Stopped,0,0,0,bad,0\n'
+                  'index,title,top,bind,running,pid,vbox\nbad\n')
+        runner = Mock(return_value=result(output))
+        with patch.object(Path, "is_file", return_value=True):
+            provider = discovery.LDPlayerProvider("ld-root", runner)
+        items = provider.discover()
+        self.assertEqual([i.instance_id for i in items], ["ldplayer:0", "ldplayer:2", "ldplayer:3"])
+        self.assertEqual(items[0].name, "Main, VM")
+        self.assertEqual(items[1].name, "LDPlayer 2")
+        self.assertEqual(items[1].adb_serial, "127.0.0.1:5559")
+        self.assertEqual(items[1].extra, {"ld_index": 2, "ld_root": "ld-root",
+                                        "alt_serial": "emulator-5558", "pid": 789})
+        self.assertEqual([i.running for i in items], [True, False, False])
+        self.assertEqual([i.process_started for i in items], [True, True, False])
+        self.assertTrue(all(not i.ipc_available for i in items))
+        self.assertEqual(Path(items[0].adb_path).name, "adb.exe")
+        self.assertEqual(runner.call_args.args[0], [provider.console_path, "list2"])
+        runner.return_value = result()
+        self.assertTrue(provider.launch(items[1]))
+        self.assertEqual(runner.call_args.args[0], [provider.console_path, "launch", "--index", "2"])
+        self.assertTrue(provider.shutdown(items[1]))
+        self.assertEqual(runner.call_args.args[0], [provider.console_path, "quit", "--index", "2"])
+        runner.return_value = result(code=1)
+        self.assertEqual(provider.discover(), [])
+        self.assertFalse(provider.launch(items[0]))
+        runner.side_effect = OSError("not usable")
+        self.assertEqual(provider.discover(), [])
+
+    def test_ldplayer_root_detection_and_absence(self):
+        with patch.dict(os.environ, {"LDPLAYER_ROOT": "env-ld"}), \
+                patch.object(Path, "is_file", lambda p: p.as_posix() in
+                             {"env-ld/dnconsole.exe", "env-ld/adb.exe"}):
+            provider = discovery.LDPlayerProvider()
+            self.assertEqual(provider.ld_root, "env-ld")
+            self.assertEqual(Path(provider.console_path).name, "dnconsole.exe")
+        with patch.object(Path, "is_file", return_value=False):
+            runner = Mock()
+            self.assertEqual(discovery.LDPlayerProvider(runner=runner).discover(), [])
+            self.assertEqual(discovery.BlueStacksProvider(runner=runner).discover(), [])
+            runner.assert_not_called()
+
+    def bluestacks(self):
+        conf = ('bst.instance.Nougat32.display_name="Main BlueStacks"\n'
+                'bst.instance.Nougat32.status.adb_port="5555"\n'
+                'bst.instance.Pie64.status.adb_port="5565"\n'
+                'bst.instance.Bad.status.adb_port="bad"\n'
+                'bst.instance.Zero.status.adb_port="0"\n'
+                'bst.instance.Negative.status.adb_port="-1"\n'
+                'bst.instance.NoPort.display_name="Missing"\n')
+        runner = Mock(return_value=result("List of devices attached\n127.0.0.1:5555 device\n127.0.0.1:5565 offline\n"))
+        with patch.object(Path, "is_file", return_value=True):
+            provider = discovery.BlueStacksProvider("test.conf", runner)
+        with patch.object(Path, "read_text", return_value=conf):
+            items = provider.discover()
+        return provider, runner, items, conf
+
+    def test_bluestacks_config_online_and_launch(self):
+        provider, runner, items, conf = self.bluestacks()
+        self.assertEqual([i.instance_id for i in items], ["bluestacks:Nougat32", "bluestacks:Pie64"])
+        self.assertEqual([i.name for i in items], ["Main BlueStacks", "BlueStacks Pie64"])
+        self.assertEqual([i.running for i in items], [True, False])
+        self.assertEqual([i.process_started for i in items], [True, False])
+        self.assertEqual(items[0].extra, {"bs_instance": "Nougat32", "player_path": provider.player_path,
+                                         "conf_path": "test.conf"})
+        runner.assert_called_once()
+        self.assertEqual(runner.call_args.args[0], [provider.adb_path, "devices"])
+        with patch.object(Path, "is_file", return_value=True), patch.object(discovery.subprocess, "Popen") as launch:
+            self.assertTrue(provider.launch(items[0]))
+            self.assertEqual(launch.call_args.args[0], [provider.player_path, "--instance", "Nougat32"])
+            launch.return_value.wait.assert_not_called()
+        provider.player_path = None
+        self.assertFalse(provider.launch(items[0]))
+        self.assertFalse(provider.shutdown(items[0]))
+        for unavailable in (None, OSError("adb missing")):
+            runner.reset_mock()
+            if unavailable is None:
+                provider.adb_path = None
+            else:
+                provider.adb_path = "adb.exe"
+                runner.side_effect = unavailable
+            with patch.object(Path, "read_text", return_value=conf):
+                self.assertTrue(all(not i.running for i in provider.discover()))
+            if unavailable is None:
+                runner.assert_not_called()
+
+    def test_dedicated_serial_and_ld_alias_dedupe_in_either_order(self):
+        with patch.object(Path, "is_file", return_value=True):
+            ld = discovery.LDPlayerProvider("ld", Mock(return_value=result("0,LD,0,0,1,1,1")))
+        bs, _, bs_items, _ = self.bluestacks()
+        dedicated = [*ld.discover(), bs_items[1]]
+        generic = discovery.GenericAdbProvider("adb.exe", runner=Mock(return_value=result(
+            "127.0.0.1:5555 device\nemulator-5554 device\n127.0.0.1:5565 device\nusb device\n")))
+        for providers in ([Mock(discover=lambda: dedicated), generic],
+                          [generic, Mock(discover=lambda: dedicated)]):
+            items = discovery.discover_all(providers=providers)
+            self.assertEqual({i.instance_id for i in items}, {"ldplayer:0", "bluestacks:Pie64", "adb:usb"})
+
+    def test_default_discovery_isolates_failures_explicit_callers_still_raise(self):
+        good = EmulatorInstance("custom", "custom:1", "Custom")
+        discovery.register_provider(Mock(name="custom", discover=Mock(return_value=[good])))
+        with patch.object(discovery.MuMuProvider, "discover", side_effect=RuntimeError("mumu failed")), \
+                patch.object(discovery.LDPlayerProvider, "discover", side_effect=OSError("ld failed")), \
+                patch.object(discovery.BlueStacksProvider, "discover", return_value=[]), \
+                patch.object(discovery.GenericAdbProvider, "discover", return_value=[]):
+            self.assertEqual(discovery.discover_all(), [good])
+        for provider in (discovery.MuMuProvider(), discovery.GenericAdbProvider("adb.exe")):
+            with patch.object(provider, "discover", side_effect=RuntimeError("explicit")), self.assertRaises(RuntimeError):
+                discovery.discover_all(providers=[provider])
+
 
 class FakeDll:
     def __init__(self):

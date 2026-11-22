@@ -8,6 +8,7 @@ pixels around the box center to avoid pixel-perfect repetition.
 
 from __future__ import annotations
 
+import math
 import random
 import time
 from typing import Optional
@@ -19,6 +20,96 @@ CLICK_DOWN_MS = (40, 90)
 _stop_checker = None
 _stop_latched = False
 _message_held = None
+_yield_enabled = False
+_yield_idle_seconds = 5.0
+_yield_tol = 25
+_yield_log_fn = None
+_last_bot_cursor = None
+
+
+class UserYielded(Exception):
+    """Reserved for callers opting into cancellation; boolean input APIs do not raise it."""
+
+
+def configure_user_yield(enabled: bool = False, idle_seconds: float = 5.0,
+                         tol: int = 25, log_fn=None) -> None:
+    """Opt in per controller session; legacy callers remain unchanged."""
+    global _yield_enabled, _yield_idle_seconds, _yield_tol, _yield_log_fn, _last_bot_cursor
+    if not math.isfinite(idle_seconds) or idle_seconds < 0 or tol < 0:
+        raise ValueError("User yield requires finite, nonnegative idle seconds and tolerance")
+    _yield_enabled = bool(enabled)
+    _yield_idle_seconds, _yield_tol, _yield_log_fn = float(idle_seconds), int(tol), log_fn
+    _last_bot_cursor = None
+
+
+def user_took_cursor(tol: int | None = None) -> bool:
+    if not _yield_enabled or INPUT_MODE == "message":
+        return False
+    try:
+        cur = win32api.GetCursorPos()
+    except Exception:
+        return False
+    t = _yield_tol if tol is None else tol
+    return _last_bot_cursor is not None and (
+        abs(cur[0] - _last_bot_cursor[0]) > t or abs(cur[1] - _last_bot_cursor[1]) > t)
+
+
+def wait_if_user_active(poll_interval: float = 0.25, sleep_fn=None, clock_fn=None) -> bool:
+    """Wait for continuous idle without moving the cursor; Stop always propagates."""
+    global _last_bot_cursor
+    if not _yield_enabled or INPUT_MODE == "message":
+        return False
+    if not math.isfinite(poll_interval) or poll_interval <= 0:
+        raise ValueError("poll_interval must be positive and finite")
+    _check_input_stop()
+    if not (user_took_cursor() or cursor_is_moving(samples=2, interval=0.05, tol=6)):
+        return False
+    sleep, clock = sleep_fn or time.sleep, clock_fn or time.monotonic
+    if _yield_log_fn:
+        _yield_log_fn(f"[yield] 检测到人工移动鼠标，暂停接管，鼠标静止 {_yield_idle_seconds:.0f} 秒后自动恢复")
+    anchor, idle_since = None, clock()
+    while True:
+        _check_input_stop()
+        now = clock()
+        try:
+            cur = win32api.GetCursorPos()
+        except Exception:
+            anchor, idle_since = None, now  # unreadable is not evidence of idle
+        else:
+            # Compare with the idle anchor, not just the last poll: slow drift counts too.
+            if anchor is None or abs(cur[0] - anchor[0]) > 6 or abs(cur[1] - anchor[1]) > 6:
+                anchor, idle_since = cur, now
+            if now - idle_since >= _yield_idle_seconds:
+                _last_bot_cursor = cur
+                if _yield_log_fn:
+                    _yield_log_fn("[yield] 鼠标已空闲，恢复自动操作")
+                return True
+        sleep(poll_interval)
+
+
+def _user_yield_abort() -> bool:
+    if not _yield_enabled or INPUT_MODE == "message":
+        return False
+    _check_input_stop()
+    if user_took_cursor():
+        _input_failed("物理输入", "检测到人工移动鼠标，已让权")
+        return True
+    return False
+
+
+def _pause_physical(seconds: float) -> bool:
+    """Never wait for idle with a button held: abort and let finally release it."""
+    if not _yield_enabled:
+        _pause_input(seconds)
+        return True
+    remaining = max(0.0, seconds)
+    while remaining > 0:
+        if _user_yield_abort():
+            return False
+        delay = min(.05, remaining)
+        _pause_input(delay)
+        remaining -= delay
+    return not _user_yield_abort()
 
 
 class InputStopped(KeyboardInterrupt):
@@ -138,7 +229,7 @@ def _input_failed(what: str, err) -> None:
     global LAST_INPUT_ERROR, _input_fails
     _input_fails += 1
     LAST_INPUT_ERROR = f"{what} 失败({type(err).__name__}: {err})"
-    if _input_fails >= INPUT_FAIL_HINT_AT:
+    if _input_fails >= INPUT_FAIL_HINT_AT and err != "检测到人工移动鼠标，已让权":
         hint = ("窗口消息输入未成功；确认 KARDS 前台可见且客户区为1280×720。"
                 "游戏可能不响应消息输入；停止后关闭『不抢鼠标』可切回物理模式，不自动回退。"
                 if INPUT_MODE == "message" else _INPUT_HINT)
@@ -153,12 +244,18 @@ def set_cursor(x: int, y: int) -> bool:
     ★ 2026-09-19:以前这里是一句裸的 `win32api.SetCursorPos`,它一抛异常,
       整轮就结束了(见文件头那段实机证据)。现在失败只记账,由调用方决定怎么办。
     """
-    global _input_fails
+    global _input_fails, _last_bot_cursor
     _check_input_stop()
     if INPUT_MODE == "message":
         return move_message(x, y)
+    if _user_yield_abort():
+        return False
     try:
         win32api.SetCursorPos((int(x), int(y)))
+        try:
+            _last_bot_cursor = win32api.GetCursorPos()
+        except Exception:
+            _last_bot_cursor = (int(x), int(y))
         if _input_fails:            # 恢复了 -> 清零(下次失败会重新提示)
             _input_fails = 0
         return True
@@ -258,6 +355,8 @@ def move_stepped(x0: int, y0: int, x1: int, y1: int,
     dist = max(abs(dx), abs(dy))
     steps = steps or max(2, min(14, int(dist / 60)))
     for i in range(1, steps + 1):
+        if _user_yield_abort():
+            return False
         t = i / steps
         # slight easing + lateral jitter
         jx = random.randint(-3, 3)
@@ -284,6 +383,8 @@ def click(x: int, y: int, jitter: int = 5) -> bool:
     """
     if INPUT_MODE == "message":
         return click_message(x, y, jitter=jitter)
+    if _yield_enabled:
+        wait_if_user_active()
     jx = x + random.randint(-jitter, jitter)
     jy = y + random.randint(-jitter, jitter)
     try:
@@ -291,15 +392,28 @@ def click(x: int, y: int, jitter: int = 5) -> bool:
     except Exception:
         cur = (jx, jy)                 # 读不到当前位置就直接过去(不再是"从(0,0)划过去")
     if not move_stepped(cur[0], cur[1], jx, jy):
-        _input_failed(f"点到 ({jx},{jy})", "光标没挪到位")
+        if not user_took_cursor():
+            _input_failed(f"点到 ({jx},{jy})", "光标没挪到位")
         return False
+    if _user_yield_abort():
+        return False
+    down = False
     try:
+        down = True
         win32api.mouse_event(win32con.MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0)
-        time.sleep(random.uniform(*CLICK_DOWN_MS) / 1000.0)
+        if not _pause_physical(random.uniform(*CLICK_DOWN_MS) / 1000.0):
+            return False
         win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
+        down = False
     except Exception as e:
         _input_failed(f"在 ({jx},{jy}) 按下鼠标", e)
         return False
+    finally:
+        if down:
+            try:
+                win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
+            except Exception as error:
+                _input_failed("物理点击释放", error)
     return True
 
 
@@ -360,18 +474,23 @@ def move_drag(sx: int, sy: int, ex: int, ey: int,
     if INPUT_MODE == "message":
         return drag_message(sx, sy, ex, ey, hold=dwell, press_delay=press_delay,
                             settle=settle, on_pressed=on_pressed)
+    if _yield_enabled:
+        wait_if_user_active()
 
     # ★ 2026-09-19:按下之前先确认"光标真能挪到起点" —— 挪不过去就**不要按**,
     #   否则按下/松开落在光标当时所在的地方(屏幕上别的位置),那比不拖更糟。
     if not set_cursor(sx, sy):
-        _input_failed(f"拖拽起点 ({sx},{sy})", "光标没挪到位")
+        if not user_took_cursor():
+            _input_failed(f"拖拽起点 ({sx},{sy})", "光标没挪到位")
         return False
     down = False
     try:
-        _pause_input(settle)
+        if not _pause_physical(settle):
+            return False
         down = True  # even an uncertain DOWN must be followed by a release attempt
         win32api.mouse_event(win32con.MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0)
-        _pause_input(press_delay)
+        if not _pause_physical(press_delay):
+            return False
         if on_pressed is not None:
             try:
                 on_pressed()
@@ -382,18 +501,28 @@ def move_drag(sx: int, sy: int, ex: int, ey: int,
         except Exception:
             cur = (sx, sy)
         if not move_stepped(cur[0], cur[1], ex, ey):
+            if _yield_enabled:
+                return False
             raise OSError("拖拽中途挪不动")
         if not set_cursor(ex, ey):
+            if _yield_enabled:
+                return False
             raise OSError("拖拽精确落位失败")
         per = min(.12, max(.04, dwell / (jiggle + 1))) if jiggle else 0.0
         for i in range(max(0, jiggle)):
             off = DWELL_JIGGLE_PX if i % 2 == 0 else -DWELL_JIGGLE_PX
             if not set_cursor(ex + off, ey + off):
+                if _yield_enabled:
+                    return False
                 raise OSError("拖拽停留移动失败")
-            _pause_input(per)
+            if not _pause_physical(per):
+                return False
         if not set_cursor(ex, ey):
+            if _yield_enabled:
+                return False
             raise OSError("拖拽最终落位失败")
-        _pause_input(max(0.0, dwell - per * max(0, jiggle)))
+        if not _pause_physical(max(0.0, dwell - per * max(0, jiggle))):
+            return False
         win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
         down = False
         _pause_input(RELEASE_SETTLE)

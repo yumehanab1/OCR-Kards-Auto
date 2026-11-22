@@ -223,6 +223,186 @@ finally:
 
 print()
 print("=" * 84)
+import unittest
+from contextlib import ExitStack
+from unittest.mock import patch, Mock
+
+
+class UserYieldTests(unittest.TestCase):
+    def setUp(self):
+        self.stack = ExitStack()
+        self.addCleanup(self.stack.close)
+        self.mouse = FakeWin32()
+        self.stack.enter_context(patch.object(actions, 'win32api', self.mouse))
+        self.sleep = self.stack.enter_context(patch.object(actions.time, 'sleep'))
+        self.logs = []
+        self.now = 0.0
+        actions.configure_input('physical')
+        actions.configure_stop()
+        actions.configure_user_yield(True, idle_seconds=1, log_fn=self.logs.append)
+        self.addCleanup(actions.configure_user_yield)
+        self.addCleanup(actions.configure_stop)
+        self.addCleanup(actions.configure_input, 'physical')
+
+    def advance(self, seconds):
+        self.now += seconds
+
+    def wait(self, sleep=None):
+        return actions.wait_if_user_active(sleep_fn=sleep or self.advance, clock_fn=lambda: self.now)
+
+    def grab(self):
+        actions.set_cursor(100, 100)
+        self.mouse.pos = (140, 100)
+
+    def test_configuration_and_disabled_default(self):
+        self.grab()
+        self.assertTrue(actions.user_took_cursor())
+        actions.configure_user_yield()
+        self.assertFalse(actions._yield_enabled)
+        self.assertIsNone(actions._last_bot_cursor)
+        with patch.object(actions, 'cursor_is_moving', side_effect=AssertionError('disabled')):
+            self.assertFalse(self.wait())
+            self.assertFalse(actions.user_took_cursor())
+        actions.configure_user_yield(True, 2.5, 12, self.logs.append)
+        self.assertEqual((actions._yield_idle_seconds, actions._yield_tol), (2.5, 12))
+
+    def test_cursor_tolerance_actual_position_and_read_failure(self):
+        self.assertFalse(actions.user_took_cursor())
+        with patch.object(self.mouse, 'SetCursorPos', side_effect=lambda p: setattr(self.mouse, 'pos', (103, 98))):
+            self.assertTrue(actions.set_cursor(100, 100))
+        self.assertEqual(actions._last_bot_cursor, (103, 98))
+        self.mouse.pos = (128, 123)
+        self.assertFalse(actions.user_took_cursor())
+        self.assertTrue(actions.user_took_cursor(tol=24))
+        self.mouse.pos = (103, 124)
+        self.assertTrue(actions.user_took_cursor())
+        self.mouse.fail_read = True
+        self.assertFalse(actions.user_took_cursor())
+        self.assertTrue(actions.set_cursor(9, 8))
+        self.assertEqual(actions._last_bot_cursor, (9, 8))
+
+    def test_no_motion_returns_without_pause(self):
+        self.assertFalse(self.wait())
+        self.assertEqual(self.logs, [])
+        self.assertEqual(self.now, 0)
+
+    def test_wait_requires_continuous_idle_and_rebases_cursor(self):
+        self.grab()
+        def move_then_idle(seconds):
+            self.advance(seconds)
+            if self.now <= .5:
+                self.mouse.pos = (140 + int(self.now * 40), 100)
+        self.assertTrue(self.wait(move_then_idle))
+        self.assertEqual(self.now, 1.5)
+        self.assertEqual(actions._last_bot_cursor, self.mouse.pos)
+        self.assertFalse(self.wait())
+        self.assertEqual(len(self.logs), 2)
+        self.assertIn('暂停接管', self.logs[0])
+        self.assertEqual(self.logs[1], '[yield] 鼠标已空闲，恢复自动操作')
+
+    def test_slow_drift_resets_idle_anchor(self):
+        self.grab()
+        def drift(seconds):
+            self.advance(seconds)
+            if self.now <= 1:
+                self.mouse.pos = (140 + int(self.now * 16), 100)
+        self.assertTrue(self.wait(drift))
+        self.assertEqual(self.now, 2)
+
+    def test_initial_motion_without_bot_anchor_triggers(self):
+        self.sleep.side_effect = lambda _: setattr(self.mouse, 'pos', (110, 100))
+        self.assertTrue(self.wait())
+        self.assertEqual(self.now, 1)
+
+    def test_wait_propagates_stop_and_does_not_resume(self):
+        self.grab()
+        actions.configure_stop(lambda: self.now >= .25)
+        with self.assertRaises(actions.InputStopped):
+            self.wait()
+        self.assertEqual(self.now, .25)
+        self.assertEqual(len(self.logs), 1)
+        self.assertEqual(self.mouse.buttons, [])
+
+    def test_message_mode_never_reads_cursor_or_waits(self):
+        self.grab()
+        actions.configure_input('message')
+        actions.configure_stop(lambda: True)
+        with patch.object(self.mouse, 'GetCursorPos', side_effect=AssertionError('message cursor')):
+            self.assertFalse(actions.user_took_cursor())
+            self.assertFalse(self.wait())
+
+    def test_move_aborts_before_next_step(self):
+        actions.set_cursor(100, 100)
+        self.sleep.side_effect = lambda _: setattr(self.mouse, 'pos', (999, 999))
+        self.assertFalse(actions.move_stepped(100, 100, 400, 400, steps=3))
+        self.assertEqual(self.mouse.moves, 2)
+        self.assertIn('检测到人工移动鼠标，已让权', actions.take_input_error())
+        self.assertEqual(self.mouse.buttons, [])
+
+    def test_click_does_not_press_after_last_step_grab(self):
+        with patch.object(actions, 'wait_if_user_active') as wait:
+            def steal_after_last_step(_):
+                if self.mouse.moves == 2:
+                    self.mouse.pos = (999, 999)
+            self.sleep.side_effect = steal_after_last_step
+            self.assertFalse(actions.click(110, 110, jitter=0))
+            wait.assert_called_once()
+        self.assertEqual(self.mouse.moves, 2)
+        self.assertEqual(self.mouse.buttons, [])
+
+    def test_failed_cursor_reads_cannot_count_as_idle(self):
+        self.grab()
+        def unreadable_then_idle(seconds):
+            self.advance(seconds)
+            self.mouse.fail_read = self.now < .75
+        self.assertTrue(self.wait(unreadable_then_idle))
+        self.assertEqual(self.now, 1.75)
+
+    def test_drag_yields_during_settle_press_and_dwell(self):
+        for phase in ('settle', 'press', 'dwell'):
+            with self.subTest(phase=phase):
+                actions.configure_user_yield(True)
+                self.mouse.buttons.clear()
+                def steal(_):
+                    if phase == 'settle' or (phase == 'press' and self.mouse.buttons) or (
+                            phase == 'dwell' and self.mouse.pos[0] >= 398):
+                        self.mouse.pos = (999, 999)
+                self.sleep.side_effect = steal
+                with patch.object(actions, 'wait_if_user_active') as wait:
+                    self.assertFalse(actions.move_drag(100, 100, 400, 400))
+                    wait.assert_called_once()
+                self.assertEqual(self.mouse.buttons, [] if phase == 'settle' else [
+                    actions.win32con.MOUSEEVENTF_LEFTDOWN, actions.win32con.MOUSEEVENTF_LEFTUP])
+
+    def test_stop_during_held_drag_releases(self):
+        actions.configure_stop(lambda: bool(self.mouse.buttons))
+        with patch.object(actions, 'wait_if_user_active'), self.assertRaises(actions.InputStopped):
+            actions.move_drag(100, 100, 400, 400)
+        self.assertEqual(self.mouse.buttons, [actions.win32con.MOUSEEVENTF_LEFTDOWN,
+                                            actions.win32con.MOUSEEVENTF_LEFTUP])
+
+    def test_controller_opt_in_and_tick_order(self):
+        import main_loop
+        with patch.object(main_loop, 'load_meta'), patch.object(main_loop, 'load_templates'), \
+                patch.object(main_loop, 'load_states'), patch.object(main_loop, 'log') as log:
+            for dry, message, enabled in [(False, False, True), (True, False, False), (False, True, False)]:
+                ctl = main_loop.Controller('fake', dry, 0, False, message_input=message,
+                                           yield_to_user=True, yield_idle=2)
+                self.assertEqual(actions._yield_enabled, enabled)
+                self.assertEqual(ctl.yield_to_user, enabled)
+            ctl = main_loop.Controller('fake', False, 0, False, yield_to_user=True)
+            ctl.max_ticks = 1
+            ctl.grab_frame = Mock(side_effect=AssertionError('capture before idle'))
+            with patch.object(actions, 'wait_if_user_active', side_effect=actions.InputStopped), \
+                    self.assertRaises(actions.InputStopped):
+                ctl.run()
+            ctl.grab_frame.assert_not_called()
+            self.assertTrue(any('已启用动鼠标让权' in c.args[0] for c in log.call_args_list))
+            main_loop.Controller('fake', False, 0, False)
+            self.assertFalse(actions._yield_enabled)
+
+
+ALLOK &= unittest.TextTestRunner(verbosity=2).run(unittest.defaultTestLoader.loadTestsFromTestCase(UserYieldTests)).wasSuccessful()
 print("全部通过" if ALLOK else "存在失败项")
 print("=" * 84)
 sys.exit(0 if ALLOK else 1)

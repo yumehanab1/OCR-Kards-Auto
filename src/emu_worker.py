@@ -9,8 +9,11 @@ import argparse
 from dataclasses import dataclass
 from datetime import datetime
 import json
+import logging
+import math
 import os
 from pathlib import Path
+import random
 import signal
 import tempfile
 import threading
@@ -46,22 +49,145 @@ class WorkerConfig:
     adb_path: str | None = None
     extra_serial: str | None = None
     max_seconds: float = 0.0
+    watchdog_seconds: float = 0.0
+    watchdog_max_restarts: int = 4
+    jitter_ratio: float = 0.0
+    daily_max_rounds: int = 0
+    daily_max_minutes: float = 0.0
+    daily_usage_file: str | None = None
 
     def __post_init__(self):
         if self.mode not in ("training", "casual", "ranked"):
             raise ValueError("Unsupported mode")
         if self.max_rounds < 0 or self.max_seconds < 0 or self.poll_interval <= 0:
             raise ValueError("Limits must be nonnegative; poll interval must be positive")
+        for name in ("watchdog_seconds", "daily_max_minutes", "jitter_ratio"):
+            value = getattr(self, name)
+            if type(value) not in (int, float) or not math.isfinite(value) or value < 0:
+                raise ValueError(f"Invalid {name}")
+        for name in ("watchdog_max_restarts", "daily_max_rounds"):
+            value = getattr(self, name)
+            if type(value) is not int or value < 0:
+                raise ValueError(f"Invalid {name}")
+        if self.jitter_ratio > .5:
+            raise ValueError("jitter_ratio must be between 0 and 0.5")
+
+
+def _read_daily_usage(path):
+    try:
+        data = json.loads(Path(path).read_text(encoding="utf-8-sig"))
+    except FileNotFoundError:
+        return {}
+    if not isinstance(data, dict):
+        raise ValueError("Daily usage must be a dictionary")
+    return data
+
+
+def _daily_counts(data, day, instance_id):
+    entry = data.get(day, {}).get(instance_id, {})
+    rounds, minutes = entry.get("rounds", 0), entry.get("minutes", 0.0)
+    if (type(rounds) is not int or rounds < 0 or type(minutes) not in (int, float)
+            or not math.isfinite(minutes) or minutes < 0):
+        raise ValueError("Invalid daily usage counters")
+    return rounds, float(minutes)
+
+
+def load_daily_usage(path, day, instance_id, sleep_fn=time.sleep):
+    """Read {date: {instance_id: {rounds, minutes}}}; missing/locked is non-fatal."""
+    delays = (.02, .04, .08, .12, .20)
+    for attempt in range(len(delays) + 1):
+        try:
+            return _daily_counts(_read_daily_usage(path), day, instance_id)
+        except (OSError, ValueError, AttributeError, TypeError) as exc:
+            if isinstance(exc, PermissionError) and attempt < len(delays):
+                sleep_fn(delays[attempt])
+                continue
+            logging.getLogger(__name__).warning("Daily usage read skipped: %s", exc)
+            return 0, 0.0
+
+
+def record_daily_usage(path, day, instance_id, add_rounds, add_minutes, sleep_fn):
+    """Atomically add usage under a process lock, preserving other instances/days.
+
+    The sidecar is persistent; its OS lock is released even if a worker dies.
+    Return False on a busy file so callers can retry their unrecorded delta later.
+    """
+    path = Path(path)
+    delays = (.02, .04, .08, .12, .20)
+    for attempt in range(len(delays) + 1):
+        temporary = lock = None
+        locked = False
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            lock = path.with_name(path.name + ".lock").open("a+b")
+            lock.seek(0)
+            if os.name == "nt":
+                import msvcrt
+                msvcrt.locking(lock.fileno(), msvcrt.LK_NBLCK, 1)
+            else:
+                import fcntl
+                fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            locked = True
+            data = _read_daily_usage(path)
+            rounds, minutes = _daily_counts(data, day, instance_id)
+            data.setdefault(day, {})[instance_id] = {
+                "rounds": rounds + add_rounds, "minutes": minutes + add_minutes}
+            with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=path.parent,
+                                             prefix=path.name + ".", suffix=".tmp", delete=False) as out:
+                temporary = out.name
+                json.dump(data, out, ensure_ascii=False, indent=2)
+                out.flush()
+                os.fsync(out.fileno())
+            os.replace(temporary, path)
+            return True
+        except OSError as exc:
+            if attempt == len(delays):
+                logging.getLogger(__name__).warning("Daily usage write skipped: %s", exc)
+                return False
+        except (ValueError, AttributeError, TypeError) as exc:
+            logging.getLogger(__name__).warning("Daily usage write skipped: %s", exc)
+            return False
+        finally:
+            if lock is not None:
+                try:
+                    if locked:
+                        if os.name == "nt":
+                            lock.seek(0)
+                            msvcrt.locking(lock.fileno(), msvcrt.LK_UNLCK, 1)
+                        else:
+                            fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+                finally:
+                    lock.close()
+            if temporary:
+                try:
+                    os.unlink(temporary)
+                except OSError:
+                    pass
+        sleep_fn(delays[attempt])
 
 
 class EmuWorker:
     def __init__(self, config: WorkerConfig, transport=None, vision=None,
-                 sleep_fn=time.sleep, clock_fn=time.monotonic):
+                 sleep_fn=time.sleep, clock_fn=time.monotonic, rng=None, today_fn=None):
         self.cfg = config
         self.transport, self.vision = transport, vision
         self.sleep_fn, self.clock = sleep_fn, clock_fn
+        self._rng = rng or random.Random()
+        self._today_fn = today_fn or (lambda: datetime.now().strftime("%Y-%m-%d"))
         self.stop_event = threading.Event()
         self._started = self.clock()
+        self._last_progress_at = self._started
+        self._last_watchdog_restart = float("-inf")
+        self._watchdog_restarts = 0
+        self._daily_day = self._today_fn()
+        self._daily_started = self._started
+        self._daily_session_rounds = self._daily_saved_rounds = 0
+        self._daily_saved_minutes = 0.0
+        self._pending_daily_usage = {}
+        self._daily_base_rounds, self._daily_base_minutes = (
+            load_daily_usage(config.daily_usage_file, self._daily_day, config.instance_id, self.sleep_fn)
+            if config.daily_usage_file else (0, 0.0))
+        self._first_step = True
         self._startup_done = False
         self._last_foreground = self._last_launch = float("-inf")
         self._foreground = False
@@ -81,8 +207,10 @@ class EmuWorker:
                            pid=os.getpid(), backend=getattr(transport, "backend_name", ""),
                            running=False, state="unknown", mode=config.mode, rounds_done=0,
                            victories=0, defeats=0, turns=0, deploys=0, attacks=0,
+                           restarts=0, daily_rounds=0, daily_minutes=0.0,
                            last_action="", last_error="", avg_capture_ms=0.0,
                            started_at=now, updated_at=now)
+        self._update_daily_usage()
 
     @staticmethod
     def _timestamp():
@@ -98,6 +226,7 @@ class EmuWorker:
                 out.write(line + "\n")
 
     def _write_status(self):
+        self._update_daily_usage()
         self.status["updated_at"] = self._timestamp()
         if not self.cfg.status_file:
             return
@@ -143,12 +272,114 @@ class EmuWorker:
         return False
 
     def _sleep(self, seconds):
+        if self.cfg.jitter_ratio > 0 and seconds > 0:
+            seconds = max(.05, seconds * self._rng.uniform(
+                1.0 - self.cfg.jitter_ratio, 1.0 + self.cfg.jitter_ratio))
         end = self.clock() + seconds
         while not self.should_stop():
             remaining = end-self.clock()
             if remaining <= 0:
                 break
             self.sleep_fn(min(.1, remaining))
+
+    def _mark_progress(self):
+        self._last_progress_at = self.clock()
+
+    def _check_watchdog(self, state):
+        if (self.cfg.watchdog_seconds <= 0 or not self.cfg.auto_launch_kards
+                or self.cfg.dry_run or self.should_stop()):
+            return False
+        now = self.clock()
+        stalled_since = self._last_progress_at
+        if now - stalled_since < self.cfg.watchdog_seconds:
+            return False
+        if now - self._last_watchdog_restart < max(60.0, self.cfg.watchdog_seconds * .5):
+            return False
+        if self._watchdog_restarts >= self.cfg.watchdog_max_restarts:
+            self.log(f"watchdog: max restarts ({self.cfg.watchdog_max_restarts}) reached; stopping")
+            self.status["last_error"] = "Watchdog: stalled after max restarts"
+            self.stop()
+            return True
+        self._watchdog_restarts += 1
+        self.status["restarts"] = self._watchdog_restarts
+        self._last_watchdog_restart = self._last_progress_at = now
+        self.log(f"watchdog: stalled {now - stalled_since:.0f}s in {state}; restarting KARDS "
+                 f"({self._watchdog_restarts}/{self.cfg.watchdog_max_restarts})")
+        try:
+            self.transport.force_stop_package("com.android1939.kards")
+        except EmuTransportError as exc:
+            self.log(f"warning: watchdog force-stop: {exc}")
+        self._sleep(2.0)
+        if not self.should_stop():
+            try:
+                self._last_launch = self.clock()
+                self.transport.launch_kards()
+            except EmuTransportError as exc:
+                self.log(f"warning: watchdog launch: {exc}")
+        self._reset_turn()
+        self._match_turns = 0
+        self._settling = False
+        self._settle_clicks = 0
+        self._unknown_streak = self._unknown_turn_streak = 0
+        self._last_foreground = float("-inf")
+        self._foreground = False
+        return True
+
+    def _persist_daily_usage(self, now=None):
+        if not self.cfg.daily_usage_file or self.cfg.dry_run:
+            return
+        # A midnight rollover must not discard deltas held back by a file lock.
+        for day, (rounds, minutes) in list(self._pending_daily_usage.items()):
+            if record_daily_usage(self.cfg.daily_usage_file, day, self.cfg.instance_id,
+                                  rounds, minutes, self.sleep_fn):
+                del self._pending_daily_usage[day]
+        minutes = max(0.0, ((self.clock() if now is None else now) - self._daily_started) / 60.0)
+        rounds = self._daily_session_rounds
+        if rounds == self._daily_saved_rounds and minutes <= self._daily_saved_minutes:
+            return
+        # Checkpoint session time between results (including menus), then the
+        # remaining time on clean exit. Never add the same elapsed time twice.
+        if record_daily_usage(self.cfg.daily_usage_file, self._daily_day, self.cfg.instance_id,
+                              rounds - self._daily_saved_rounds,
+                              minutes - self._daily_saved_minutes, self.sleep_fn):
+            self._daily_saved_rounds, self._daily_saved_minutes = rounds, minutes
+
+    def _update_daily_usage(self):
+        day = self._today_fn()
+        if day != self._daily_day:
+            now = self.clock()
+            self._persist_daily_usage(now)
+            if self.cfg.daily_usage_file and not self.cfg.dry_run:
+                rounds = self._daily_session_rounds - self._daily_saved_rounds
+                minutes = max(0.0, (now - self._daily_started) / 60.0) - self._daily_saved_minutes
+                if rounds or minutes > 0:
+                    old_rounds, old_minutes = self._pending_daily_usage.get(self._daily_day, (0, 0.0))
+                    self._pending_daily_usage[self._daily_day] = (old_rounds + rounds, old_minutes + minutes)
+            self._daily_day, self._daily_started = day, now
+            self._daily_session_rounds = self._daily_saved_rounds = 0
+            self._daily_saved_minutes = 0.0
+            self._daily_base_rounds, self._daily_base_minutes = (
+                load_daily_usage(self.cfg.daily_usage_file, day, self.cfg.instance_id, self.sleep_fn)
+                if self.cfg.daily_usage_file else (0, 0.0))
+        rounds = self._daily_base_rounds + self._daily_session_rounds
+        minutes = self._daily_base_minutes + max(0.0, (self.clock() - self._daily_started) / 60.0)
+        self.status["daily_rounds"] = rounds
+        self.status["daily_minutes"] = round(minutes, 1)
+        return rounds, minutes
+
+    def _daily_limit_hit(self):
+        rounds, minutes = self._update_daily_usage()
+        return ((self.cfg.daily_max_rounds > 0 and rounds >= self.cfg.daily_max_rounds)
+                or (self.cfg.daily_max_minutes > 0 and minutes >= self.cfg.daily_max_minutes))
+
+    def _stop_at_daily_limit(self):
+        rounds, minutes = self._update_daily_usage()
+        self.status["state"] = "daily_limit"
+        self.status["running"] = False
+        self.log(f"daily limit reached (rounds={rounds}/{self.cfg.daily_max_rounds}, "
+                 f"minutes={minutes:.1f}/{self.cfg.daily_max_minutes}); stopping")
+        self._persist_daily_usage()
+        self.stop()
 
     def _startup(self):
         if self._startup_done or self.should_stop():
@@ -202,6 +433,9 @@ class EmuWorker:
         if self.cfg.dry_run:
             self.log(f"[dry-run] {kind} {path or target}")
             return False
+        if path is None and target is not None and self.cfg.jitter_ratio > 0:
+            target = (max(1, min(1278, target[0] + self._rng.randint(-3, 3))),
+                      max(1, min(718, target[1] + self._rng.randint(-3, 3))))
         if path is not None:
             self.transport.drag(path, duration_ms=duration_ms)
         else:
@@ -212,6 +446,7 @@ class EmuWorker:
         self._in_own_turn = False
         self._turn_rechecked = False
         self.skip_actors, self.skip_grabs = set(), set()
+        self._actor_attempts: dict = {}
         self.attacks_this_turn = self.deploys_this_turn = self.end_retries = 0
 
     def _foreground_ready(self):
@@ -272,11 +507,15 @@ class EmuWorker:
                     self._sleep(self.cfg.poll_interval)
                     return
                 self.attacks_this_turn += 1
+                count = self._actor_attempts.get(plan.key, 0) + 1
+                self._actor_attempts[plan.key] = count
                 self.status["attacks"] += 1
                 self._sleep(1.1)
                 after = self._capture()
-                if frame_motion(frame, after) < .004:
+                if frame_motion(frame, after) < .004 or count >= 2:
                     self.skip_actors.add(plan.key)
+                elif after is not None:
+                    self._mark_progress()
                 return
         if self.cfg.allow_deploy and self.deploys_this_turn < 6:
             plan = self.vision.plan_deploy_action(frame, self.skip_grabs)
@@ -299,6 +538,8 @@ class EmuWorker:
                         break
                 if rejected or not changed:
                     self.skip_grabs.add(plan.key)
+                else:
+                    self._mark_progress()
                 return
         if ((self.cfg.allow_attack or self.cfg.allow_deploy)
                 and self.attacks_this_turn == 0 and self.deploys_this_turn == 0 and not self._turn_rechecked):
@@ -317,9 +558,18 @@ class EmuWorker:
                 after = self._capture()
                 if after is None:
                     break
-                result = self.vision.classify_battle(after)
-                if result is None or result.state != "own_turn":
+                if obs.reason == "ocr_end_turn":
+                    # A template miss was already expected on this turn.
+                    # Local button changes can hide in the whole-frame cache.
+                    if frame_motion(frame, after, (980, 420, 1275, 620)) >= .02:
+                        self.vision.invalidate_ocr_cache()
+                    ended = self._observe(after).state != "own_turn"
+                else:
+                    result = self.vision.classify_battle(after)
+                    ended = result is None or result.state != "own_turn"
+                if ended:
                     # The own-turn button disappeared after our end-turn tap.
+                    self._mark_progress()
                     self._reset_turn()
                     return
             self.end_retries += 1
@@ -332,21 +582,35 @@ class EmuWorker:
     def step(self):
         if self.should_stop():
             return False
+        # Only the first step may stop without looking at the screen. Once
+        # started, quota enforcement waits for a confirmed lobby, not turn flags.
+        if self._first_step:
+            self._first_step = False
+            if self._daily_limit_hit():
+                self._stop_at_daily_limit()
+                self._write_status()
+                return False
+        self._update_daily_usage()
         self._startup()
         if self.should_stop():
             return False
         self.status["running"] = True
         try:
             if not self._foreground_ready():
+                self._check_watchdog("unknown")
                 return not self.should_stop()
             frame = self._capture()
             if frame is None:
+                if self._check_watchdog("blank"):
+                    return not self.should_stop()
                 self._sleep(self.cfg.poll_interval)
                 return not self.should_stop()
             obs = self._observe(frame)
             state = obs.state
             if state != self.status["state"]:
                 self.log(f"state -> {state}")
+                if state not in ("unknown", "blank"):
+                    self._mark_progress()
             if state == "unknown" and obs.ocr_texts:
                 now = self.clock()
                 if self.status["state"] != "unknown" or now-self._last_unknown_ocr >= 15:
@@ -354,6 +618,11 @@ class EmuWorker:
                     self.log(f"unknown OCR: {summary}")
                     self._last_unknown_ocr = now
             self.status["state"] = state
+            if state in ("home", "deck_list", "deck_detail") and self._daily_limit_hit():
+                self._stop_at_daily_limit()
+                return False
+            if self._check_watchdog(state):
+                return not self.should_stop()
             if state in ("home", "deck_list", "deck_detail", "queueing", "mulligan", "victory", "defeat"):
                 self._match_turns = 0
                 self._reset_turn()
@@ -379,6 +648,10 @@ class EmuWorker:
                     self._settling = True
                     self.status["rounds_done"] += 1
                     self.status["victories" if state == "victory" else "defeats"] += 1
+                    self._update_daily_usage()
+                    self._daily_session_rounds += 1
+                    self._persist_daily_usage()
+                    self._mark_progress()
                     elapsed = (self.clock()-self._match_started)/60
                     self.log(f"== round {self.status['rounds_done']} finished ({state}) after {elapsed:.2f} min ==")
                 self._reset_turn()
@@ -439,6 +712,8 @@ class EmuWorker:
                     self.transport.close()
             finally:
                 self.status["running"] = False
+                self._update_daily_usage()
+                self._persist_daily_usage()
                 self._write_status()
         return dict(self.status)
 
@@ -471,9 +746,19 @@ def main(argv=None):
     for option in ("stop-file", "log-file", "status-file", "extra-serial", "adb-path"):
         parser.add_argument("--"+option)
     parser.add_argument("--max-seconds", type=float, default=0.0)
+    parser.add_argument("--watchdog-seconds", type=float, default=0.0)
+    parser.add_argument("--watchdog-max-restarts", type=int, default=4)
+    parser.add_argument("--jitter", type=float, dest="jitter_ratio", default=0.0)
+    parser.add_argument("--daily-max-rounds", type=int, default=0)
+    parser.add_argument("--daily-max-minutes", type=float, default=0.0)
+    parser.add_argument("--daily-usage-file", default=None)
     args = vars(parser.parse_args(argv))
     args["instance_id"], args["deck_name"] = args.pop("instance"), args.pop("deck")
-    worker = EmuWorker(WorkerConfig(**args))
+    try:
+        config = WorkerConfig(**args)
+    except ValueError as exc:
+        parser.error(str(exc))
+    worker = EmuWorker(config)
     def stop_handler(signum, frame):
         worker.stop()
     for sig in (signal.SIGINT, signal.SIGTERM):

@@ -2605,5 +2605,142 @@ with patch.object(turn_engine, "click", return_value=True), \
     state['end_turn'] = False
     assert end_hover_engine.think() == "ended_turn"
     assert end_hover_engine.phase == "wait_our_turn"
+print("CASE: physical end-turn retries are bounded; message mode keeps locks")
+for mode in ('physical', 'message'):
+    pending = new_engine([], kredits=4)
+    pending.phase = 'end_turn'
+    pending.kredits_left = 4
+    pending.attacker.input_failed = pending.front_mover.input_failed = 1
+    pending.failed_x = {500}
+    with patch.object(turn_engine.actions_mod, 'INPUT_MODE', mode), \
+         patch.object(turn_engine.time, 'monotonic', return_value=100.) as clock, \
+         patch.object(turn_engine, 'click', return_value=True) as click:
+        assert pending.think() == 'end_turn_pending'
+        assert pending._end_turn_sent_at == 100.
+        for attempt in range(turn_engine.END_TURN_MAX_RETRIES):
+            clock.return_value = pending._end_turn_sent_at + turn_engine.END_TURN_PENDING_RETRY_SEC - .01
+            assert pending.think() == 'end_turn_pending'
+            clock.return_value += .01
+            if mode == 'physical':
+                assert pending.think() == 'end_turn_retry'
+                assert pending.phase == 'end_turn'
+                assert pending._end_turn_sent_at == 0.
+                assert pending._end_turn_retries == attempt + 1
+                assert click.call_count == attempt + 1  # Retry is sent on the next tick.
+                assert pending.think() == 'end_turn_pending'
+                assert pending._end_turn_sent_at == clock.return_value
+            else:
+                clock.return_value += 1000
+                assert pending.think() == 'end_turn_pending'
+                assert pending._end_turn_retries == 0
+            assert pending.kredits_left == 4 and pending.failed_x == {500}
+            assert pending.attacker.input_failed == pending.front_mover.input_failed == 1
+        clock.return_value += turn_engine.END_TURN_PENDING_RETRY_SEC
+        for _ in range(4):
+            assert pending.think() == 'end_turn_pending'
+        assert click.call_count == (1 + turn_engine.END_TURN_MAX_RETRIES if mode == 'physical' else 1)
+        assert sum('重试已达上限' in msg for msg in engine_logs) == (mode == 'physical')
+        with patch.object(turn_engine, 'capture_client_bgr', return_value=None):
+            assert pending.think() == 'no_frame'
+            assert pending.failed_x == {500}
+        state['end_turn'] = False
+        assert pending.think() == 'ended_turn'
+        assert pending.phase == 'wait_our_turn' and not pending.failed_x
+        assert pending.attacker.input_failed == pending.front_mover.input_failed == 0
+        assert pending._end_turn_sent_at == 0. and pending._end_turn_retries == 0
+        assert not pending._end_turn_retry_exhausted
+
+print("CASE: three consecutive scan aborts end the turn; completed scans reset the streak")
+aborted = new_engine([], kredits=4, lazy=True)
+aborted.phase = 'play'
+aborted.kredits_left = 4
+aborted.scanner.last_orange = {'aborted': True}
+with patch.object(aborted, '_orange_enabled', return_value=True), \
+     patch.object(aborted, '_lazy_find_playable'):
+    assert aborted.think() == 'user_took_over'
+    assert aborted.think() == 'user_took_over'
+    assert aborted._scan_aborts == 2 and aborted.phase == 'play'
+    aborted.scanner.last_orange = {'aborted': False}
+    aborted.think()
+    assert aborted._scan_aborts == 0
+    aborted.phase = 'play'
+    aborted.scanner.last_orange = {'aborted': True}
+    assert aborted.think() == 'user_took_over'
+    assert aborted.think() == 'user_took_over'
+    assert aborted.think() == 'scan_aborted_end_turn'
+    assert aborted.phase == 'end_turn' and aborted._scan_aborts == 3
+    assert aborted.think() == 'end_turn_pending'
+    assert len(clicks) == 1
+    assert aborted.think() == 'ended_turn'
+    assert aborted._scan_aborts == 0
+
+played = new_engine(hand(('步兵', 'infantry', 1, 500)), kredits=4)
+assert played.think() == 'our_turn'
+played.phase = 'play'
+played._scan_aborts = 2
+played.think()
+assert played.deployed_this_turn == 1 and played._scan_aborts == 0
+
+print("CASE: unknown UI classification still routes active turns and glowing End Turn")
+import main_loop
+import ui_state
+from contextlib import ExitStack
+from types import SimpleNamespace
+
+def unknown_controller(engine):
+    # Use the ordinary constructor, but isolate settings and every native input.
+    with patch.object(main_loop, 'load_meta', return_value={}), \
+         patch.object(main_loop, 'load_templates', return_value={'end_turn_btn': FRAME}), \
+         patch.object(main_loop, 'load_states', return_value={'in_game': {'any_of': ['end_turn_btn']}}), \
+         patch.object(main_loop.actions_mod, 'configure_input'), \
+         patch.object(main_loop.actions_mod, 'configure_user_yield'):
+        ctl = main_loop.Controller('test', False, 0, True, play=True)
+    ctl.hwnd, ctl.max_ticks, ctl.turn_engine = 123, 1, engine
+    return ctl
+
+for phase, score, routed in (
+        ('attack', .72, True), ('move_front', .72, True), ('play', .72, True),
+        ('end_turn', .72, True), ('end_turn_pending', .72, True),
+        ('wait_our_turn', .72, True), ('wait_our_turn', .60, True),
+        ('wait_our_turn', .59, False), (None, .72, False)):
+    ctl = unknown_controller(SimpleNamespace(phase=phase) if phase else None)
+    with ExitStack() as stack:
+        stack.enter_context(patch.object(ctl, 'grab_frame', return_value=np.full_like(FRAME, 35) + FRAME // 2))
+        stack.enter_context(patch.object(main_loop, 'window_is_capturable', return_value=True))
+        stack.enter_context(patch.object(main_loop.actions_mod, 'stop_requested', return_value=False))
+        stack.enter_context(patch.object(main_loop.order_choice, 'ENABLE_SELECTION_STAGE', False))
+        stack.enter_context(patch.object(main_loop, 'log'))
+        stack.enter_context(patch.object(main_loop.time, 'sleep'))
+        stack.enter_context(patch.object(ui_state, 'match_roi', return_value=(score, (1120, 453, 130, 36))))
+        stack.enter_context(patch.object(main_loop, 'match_roi', return_value=(score, (1120, 453, 130, 36))))
+        handler = stack.enter_context(patch.object(ctl, 'handle_in_game'))
+        assert ctl.run() == 0 and ctl.current_state is None
+        assert handler.call_count == int(routed), (phase, score)
+
+glowing = new_engine([], kredits=0)
+glowing.phase = 'end_turn'
+ctl = unknown_controller(glowing)
+with patch.object(ctl, 'grab_frame', return_value=np.full_like(FRAME, 35) + FRAME // 2), \
+     patch.object(main_loop, 'window_is_capturable', return_value=True), \
+     patch.object(main_loop.actions_mod, 'stop_requested', return_value=False), \
+     patch.object(main_loop.order_choice, 'ENABLE_SELECTION_STAGE', False), \
+     patch.object(main_loop, 'log'), patch.object(main_loop.time, 'sleep'), \
+     patch.object(ui_state, 'match_roi', return_value=(.72, (1120, 453, 130, 36))), \
+     patch.object(turn_engine, 'match_one', return_value=(.72, (1120, 453, 130, 36))):
+    assert ctl.run() == 0 and ctl.current_state is None
+    assert len(clicks) == 1 and glowing.phase == 'end_turn_pending'
+
+for current in ('in_game', None, 'main_menu'):
+    ctl.current_state = current
+    for phase in ('attack', 'move_front', 'play', 'end_turn', 'end_turn_pending', 'wait_our_turn'):
+        glowing.phase = phase
+        fast = (phase != 'wait_our_turn' and
+                (current == 'in_game' or (current is None and phase in ('end_turn', 'end_turn_pending'))))
+        assert ctl._tick_delay() == (.15 if fast else .8), (current, phase)
+ctl.current_state, glowing.phase = 'in_game', 'end_turn'
+for flag in ('classic_strategy', 'dry'):
+    with patch.object(ctl, flag, True):
+        assert ctl._tick_delay() == .8
+
 print("ALL CASES PASSED")
 print("=" * 78)

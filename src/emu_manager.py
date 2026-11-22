@@ -2,16 +2,21 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from datetime import datetime
 import json
+import http.client
+import logging
 import math
 import os
 from pathlib import Path
 import re
+import secrets
 import subprocess
 import sys
 import tempfile
 import threading
 import time
+from urllib.parse import urlsplit
 
 if __package__:
     from . import emu_discovery, log_io
@@ -24,26 +29,51 @@ DEFAULT_EMU_OPTIONS = {
     "mode": "training", "deck_name": "", "max_rounds": 3, "prefer_ipc": True,
     "allow_attack": True, "allow_deploy": True, "allow_end_turn": True,
     "dry_run": False, "auto_launch_kards": True, "stagger_seconds": 1.5,
-    "extra_serials": [], "selected_instances": [],
+    "extra_serials": [], "selected_instances": [], "shared_ocr": True,
+    "watchdog_seconds": 240, "jitter_ratio": .15,
+    "daily_max_rounds": 0, "daily_max_minutes": 0, "instance_overrides": {},
 }
+
+
+INSTANCE_OVERRIDE_KEYS = (
+    "mode", "deck_name", "max_rounds", "prefer_ipc", "allow_attack", "allow_deploy",
+    "allow_end_turn", "dry_run", "auto_launch_kards", "watchdog_seconds", "jitter_ratio",
+    "daily_max_rounds", "daily_max_minutes",
+)
 
 
 def normalize_emu_options(opts: dict) -> dict:
     """Return independent defaults plus validated known fields; reject bad values."""
     if not isinstance(opts, dict):
         raise ValueError("Options must be a dictionary")
+    if any(key not in DEFAULT_EMU_OPTIONS for key in opts):
+        raise ValueError("Unknown emulator option")
     result = {}
     for key, default in DEFAULT_EMU_OPTIONS.items():
         value = opts.get(key, default)
         if isinstance(default, bool):
             valid = type(value) is bool
-        elif key == "max_rounds":
-            valid = type(value) is int and 0 <= value <= 99
-        elif key == "stagger_seconds":
+        elif key in ("max_rounds", "watchdog_seconds", "daily_max_rounds", "daily_max_minutes"):
+            upper = {"max_rounds": 99, "watchdog_seconds": 3600,
+                     "daily_max_rounds": 999, "daily_max_minutes": 1440}[key]
+            valid = type(value) is int and 0 <= value <= upper
+        elif key in ("stagger_seconds", "jitter_ratio"):
             valid = (type(value) in (int, float) and math.isfinite(value)
-                     and 0 <= value <= 10)
+                     and 0 <= value <= (10 if key == "stagger_seconds" else .5))
             if valid:
                 value = float(value)
+        elif key == "instance_overrides":
+            if not isinstance(value, dict):
+                raise ValueError("Invalid emulator option: instance_overrides")
+            overrides = {}
+            for iid, entry in value.items():
+                if (not isinstance(iid, str) or not iid.strip() or not isinstance(entry, dict)
+                        or any(k not in INSTANCE_OVERRIDE_KEYS for k in entry)):
+                    raise ValueError(f"Invalid instance override: {iid}")
+                if entry:
+                    normalized = normalize_emu_options({**entry, "instance_overrides": {}})
+                    overrides[iid] = {k: normalized[k] for k in entry}
+            value, valid = overrides, True
         elif isinstance(default, list):
             valid = isinstance(value, (list, tuple)) and all(isinstance(v, str) for v in value)
             if valid:
@@ -55,6 +85,14 @@ def normalize_emu_options(opts: dict) -> dict:
         if not valid or (key == "mode" and value not in ("training", "casual", "ranked")):
             raise ValueError(f"Invalid emulator option: {key}")
         result[key] = value
+    return result
+
+
+def resolve_instance_options(opts: dict, instance_id: str) -> dict:
+    """Return independent flat global settings with this instance's overrides."""
+    result = normalize_emu_options(opts)
+    overrides = result.pop("instance_overrides")
+    result.update(overrides.get(instance_id, {}))
     return result
 
 
@@ -97,16 +135,99 @@ def default_python_exe(project_root: Path) -> str:
 
 class EmuManager:
     def __init__(self, project_root: Path | str, python_exe: str | None = None,
-                 discover_fn=None, popen_fn=None, sleep_fn=time.sleep, providers=None):
+                 discover_fn=None, popen_fn=None, sleep_fn=time.sleep, providers=None,
+                 ocr_popen_fn=None):
         self.project_root = Path(project_root)
         self.logs_dir = self.project_root / "logs"
         self.python_exe = python_exe or default_python_exe(self.project_root)
         self.discover_fn = discover_fn or emu_discovery.discover_all
         self.popen_fn = popen_fn or subprocess.Popen
+        self.ocr_popen_fn = ocr_popen_fn
         self.sleep_fn = sleep_fn
         self.providers = list(providers or ())
         self._lock = threading.RLock()
         self._workers: dict[str, dict] = {}
+        self._ocr_proc = None
+        self._ocr_url = self._ocr_token = ""
+
+    def _ocr_running(self):
+        proc = self._ocr_proc
+        return proc is not None and proc.poll() is None
+
+    def _stop_ocr_server(self):
+        proc, url, token = self._ocr_proc, self._ocr_url, self._ocr_token
+        self._ocr_proc = None
+        self._ocr_url = self._ocr_token = ""
+        if proc is None:
+            return
+        try:
+            if proc.poll() is None and url:
+                connection = http.client.HTTPConnection("127.0.0.1", urlsplit(url).port, timeout=.5)
+                try:
+                    connection.request("POST", "/shutdown", body=b"", headers={"X-OCR-Token": token})
+                    response = connection.getresponse()
+                    response.read()
+                except (OSError, http.client.HTTPException):
+                    pass  # An unresponsive service is terminated below.
+                finally:
+                    connection.close()
+                try:
+                    proc.wait(timeout=.5)
+                except subprocess.TimeoutExpired:
+                    pass
+            if proc.poll() is None:
+                proc.terminate()
+                try:
+                    proc.wait(timeout=.5)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+                    proc.wait(timeout=1)
+        except (OSError, subprocess.SubprocessError):
+            logging.getLogger(__name__).warning("Could not stop shared OCR process")
+        finally:
+            if proc.stdout is not None:
+                proc.stdout.close()
+
+    def _ensure_ocr_server(self):
+        """Called with _lock held; fake worker launchers remain worker-only."""
+        if self.ocr_popen_fn is None and self.popen_fn is not subprocess.Popen:
+            return
+        if self._ocr_running():
+            return
+        self._stop_ocr_server()
+        token = secrets.token_urlsafe(24)
+        ready, lines = threading.Event(), []
+        try:
+            proc = (self.ocr_popen_fn or subprocess.Popen)(
+                [self.python_exe, "-B", str(self.project_root / "src/emu_ocr_server.py")],
+                cwd=str(self.project_root), stdout=subprocess.PIPE,
+                env={**os.environ, "KARDS_EMU_OCR_TOKEN": token},
+                creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0)
+            self._ocr_proc = proc
+
+            def read_ready():
+                try:
+                    lines.append(proc.stdout.readline(4096))
+                except (OSError, ValueError):
+                    pass
+                finally:
+                    ready.set()
+
+            threading.Thread(target=read_ready, daemon=True).start()
+            if not ready.wait(5.0) or not lines:
+                raise ValueError("OCR startup timed out")
+            data = json.loads(lines[0])
+            url = data.get("url", "")
+            address = urlsplit(url)
+            if (data.get("ready") is not True or address.scheme != "http"
+                    or address.hostname != "127.0.0.1" or not address.port
+                    or address.username is not None or address.password is not None
+                    or address.path or address.query or address.fragment or proc.poll() is not None):
+                raise ValueError("Invalid OCR startup response")
+            self._ocr_url, self._ocr_token = url, token
+        except (OSError, ValueError, TypeError, AttributeError, subprocess.SubprocessError):
+            logging.getLogger(__name__).warning("Shared OCR unavailable; workers will use local OCR")
+            self._stop_ocr_server()
 
     def worker_paths(self, instance_id: str) -> dict[str, Path]:
         base = "emu_" + safe_instance_slug(instance_id)
@@ -114,25 +235,32 @@ class EmuManager:
                 (("log_file", ".log"), ("status_file", ".status.json"), ("stop_file", ".stop"))}
 
     def build_worker_argv(self, instance_id: str, opts: dict) -> list[str]:
-        opts = normalize_emu_options(opts)
+        eff = resolve_instance_options(opts, instance_id)
         paths = self.worker_paths(instance_id)
         argv = [self.python_exe, "-B", str(self.project_root / "src/emu_worker.py"),
-                "--instance", instance_id, "--mode", opts["mode"],
-                "--max-rounds", str(opts["max_rounds"])]
+                "--instance", instance_id, "--mode", eff["mode"],
+                "--max-rounds", str(eff["max_rounds"])]
         for key in ("stop_file", "log_file", "status_file"):
             argv += ["--" + key.replace("_", "-"), str(paths[key])]
-        if opts["deck_name"]:
-            argv += ["--deck", opts["deck_name"]]
-        argv += ["--prefer-ipc" if opts["prefer_ipc"] else "--adb-only"]
+        if eff["deck_name"]:
+            argv += ["--deck", eff["deck_name"]]
+        argv += ["--prefer-ipc" if eff["prefer_ipc"] else "--adb-only"]
         for key in ("attack", "deploy", "end_turn"):
-            if not opts["allow_" + key]:
+            if not eff["allow_" + key]:
                 argv.append("--no-" + key.replace("_", "-"))
-        if opts["dry_run"]:
+        if eff["dry_run"]:
             argv.append("--dry-run")
-        if not opts["auto_launch_kards"]:
+        if not eff["auto_launch_kards"]:
             argv.append("--no-auto-launch")
         if instance_id.startswith("adb:"):
             argv += ["--extra-serial", instance_id[4:]]
+        for key, flag in (("watchdog_seconds", "--watchdog-seconds"), ("jitter_ratio", "--jitter"),
+                          ("daily_max_rounds", "--daily-max-rounds"),
+                          ("daily_max_minutes", "--daily-max-minutes")):
+            if eff[key] > 0:
+                argv += [flag, str(eff[key])]
+        if eff["daily_max_rounds"] > 0 or eff["daily_max_minutes"] > 0:
+            argv += ["--daily-usage-file", str(self.logs_dir / "emu_daily_usage.json")]
         return argv
 
     def _options(self, overrides):
@@ -149,6 +277,8 @@ class EmuManager:
             if code is not None and worker["exit_code"] is None:
                 worker["stop_file"].unlink(missing_ok=True)
             worker["exit_code"] = code
+        if not any(w["exit_code"] is None for w in self._workers.values()):
+            self._stop_ocr_server()
 
     def list_instances(self, extra_serials: Sequence[str] = ()) -> list[dict]:
         discovered = self.discover_fn(extra_serials=extra_serials)
@@ -197,9 +327,22 @@ class EmuManager:
                 self.logs_dir.mkdir(parents=True, exist_ok=True)
                 paths["stop_file"].unlink(missing_ok=True)
                 paths["status_file"].unlink(missing_ok=True)
+                if options["shared_ocr"]:
+                    self._ensure_ocr_server()
+                launch_options = {}
+                # Remove stale inherited sessions even when shared OCR is disabled.
+                if ("KARDS_EMU_OCR_URL" in os.environ or "KARDS_EMU_OCR_TOKEN" in os.environ
+                        or (options["shared_ocr"] and self._ocr_running())):
+                    env = {k: v for k, v in os.environ.items()
+                           if k not in ("KARDS_EMU_OCR_URL", "KARDS_EMU_OCR_TOKEN")}
+                    if options["shared_ocr"] and self._ocr_running():
+                        env.update(KARDS_EMU_OCR_URL=self._ocr_url, KARDS_EMU_OCR_TOKEN=self._ocr_token)
+                    launch_options["env"] = env
                 proc = self.popen_fn(argv, cwd=str(self.project_root),
-                                     creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0)
+                                     creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+                                     **launch_options)
             except (OSError, ValueError, subprocess.SubprocessError) as exc:
+                self._reap()
                 return {"ok": False, "instance_id": instance_id, "msg": str(exc)}
             self._workers[instance_id] = dict(proc=proc, **paths, started_at=time.time(),
                                               opts=options, argv=argv, exit_code=None)
@@ -280,6 +423,10 @@ class EmuManager:
         provider = next((p for p in providers if p.name == instance.provider), None)
         if provider is None and instance.provider == "mumu":
             provider = emu_discovery.MuMuProvider(mumu_root=instance.mumu_root)
+        if provider is None and instance.provider == "ldplayer":
+            provider = emu_discovery.LDPlayerProvider(ld_root=instance.extra.get("ld_root"))
+        if provider is None and instance.provider == "bluestacks":
+            provider = emu_discovery.BlueStacksProvider(conf_path=instance.extra.get("conf_path"))
         if provider is None:
             return {"ok": False, "msg": "该提供方不支持实例控制"}
         try:
@@ -306,8 +453,28 @@ class EmuManager:
                  extra_serials: Sequence[str] | None = None) -> dict:
         options = load_emu_options(self.project_root)
         instances = self.list_instances(options["extra_serials"] if extra_serials is None else extra_serials)
+        # Keep the GUI manager independent of the worker's cv2/vision imports.
+        try:
+            usage = json.loads((self.logs_dir / "emu_daily_usage.json").read_text(encoding="utf-8-sig"))
+            today = usage.get(datetime.now().strftime("%Y-%m-%d"), {})
+            if not isinstance(today, dict):
+                today = {}
+        except (OSError, ValueError, AttributeError):
+            today = {}
+        for inst in instances:
+            iid = inst["instance_id"]
+            entry = today.get(iid, {})
+            rounds, minutes = 0, 0.0
+            if isinstance(entry, dict):
+                r, m = entry.get("rounds", 0), entry.get("minutes", 0.0)
+                if type(r) is int and r >= 0:
+                    rounds = r
+                if type(m) in (int, float) and math.isfinite(m) and m >= 0:
+                    minutes = round(float(m), 1)
+            inst.update(daily_rounds=rounds, daily_minutes=minutes,
+                        override=options["instance_overrides"].get(iid, {}).copy())
         return {"instances": instances, "running_count": sum(i["worker_running"] for i in instances),
-                "options": options,
+                "options": options, "shared_ocr_running": bool(self._ocr_running()),
                 "log": self.tail_instance_log(selected_log_id, since_rev=log_since_rev) if selected_log_id else None}
 
     def has_running_workers(self) -> bool:

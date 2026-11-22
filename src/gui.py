@@ -235,7 +235,10 @@ SWITCHES = [
     {"key": "classic_strategy", "flag": "--classic-strategy", "label": "传统策略",
      "hint": "绕过橙色筛选和凑费，使用传统扫描与出牌流程；停止后重新开始生效"},
     {"key": "message_input", "flag": "--message-input", "label": "不抢鼠标（实验）",
+     "advanced": True,
      "hint": "关=物理鼠标；开=窗口消息悬停/点击/拖拽。游戏须前台可见；可能不响应，不自动回退；停止后重启生效"},
+    {"key": "yield_to_user", "flag": "--yield-to-user", "label": "动鼠标自动让权",
+     "hint": "检测到人工移动鼠标时暂停接管，静止约 5 秒后自动恢复（仅物理鼠标模式生效）"},
     {"key": "end_turn", "flag": "--end-turn", "label": "结束回合",
      "hint": "只在未开启『自动打完一局』时单独点结束回合"},
     #  ★ 2026-09-21 用户要求改口径:干跑**是调试用的,平时不需要开**
@@ -246,7 +249,7 @@ SWITCHES = [
 ]
 
 #: 默认勾上的(和平时跑实机的命令行一致)。
-DEFAULT_ON = {"play", "attack", "fast_scan"}
+DEFAULT_ON = {"play", "attack", "fast_scan", "yield_to_user"}
 
 RE_ROUND = re.compile(r"== round (\d+) finished \((\w+)\) after ([\d.]+) min ==")
 RE_STATE = re.compile(r"state -> (\w+)")
@@ -754,7 +757,12 @@ class Api:
         if self.proc is not None and self.proc.poll() is None:
             return {"ok": False, "msg": "已经在跑了"}
         self._close_run_log()
-        saved = self.save_settings(opts or {})
+        # The rendered GUI always sends every switch. Legacy bridge callers that
+        # omit the new opt-in keep their original physical input/stop contract.
+        start_options = opts or {}
+        if isinstance(start_options, dict):
+            start_options = {"yield_to_user": False, **start_options}
+        saved = self.save_settings(start_options)
         if not saved["ok"]:
             return saved
         opts = dict(self.saved_options)
@@ -788,7 +796,7 @@ class Api:
             env = os.environ.copy()
             env.pop('KARDS_AUTO_STOP_FILE', None)
             self._stop_file = None
-            if opts.get('message_input'):
+            if opts.get('message_input') or opts.get('yield_to_user'):
                 controls = os.path.join(PROJECT_ROOT, 'logs', 'controls')
                 os.makedirs(controls, exist_ok=True)
                 self._stop_file = os.path.join(controls, uuid.uuid4().hex + '.stop')
@@ -827,9 +835,9 @@ class Api:
         if self.proc is None or self.proc.poll() is not None:
             return {"ok": False, "msg": "没在跑"}
         try:
-            if self.last_opts.get('message_input'):
+            if self.last_opts.get('message_input') or self.last_opts.get('yield_to_user'):
                 if not self._stop_file:
-                    return {"ok": False, "msg": "缺少安全停止通道，未强杀消息输入进程"}
+                    return {"ok": False, "msg": "缺少安全停止通道，未强杀输入进程"}
                 with open(self._stop_file, 'w', encoding='utf-8') as marker:
                     marker.write('stop\n')
                 try:
@@ -1027,6 +1035,19 @@ main {flex:1; min-height:0; padding:16px 22px; display:grid; grid-template-colum
 .emu-instance label {font-weight:650;display:flex;align-items:center;gap:8px;overflow-wrap:anywhere}
 .emu-instance .hint-text {margin-top:5px}
 .emu-instance .buttons {justify-content:flex-end;align-content:center}
+.adv-box {border-top:1px solid var(--line);padding:12px 0;margin-top:8px}
+.adv-box summary {cursor:pointer;color:var(--light);font-weight:600}
+.adv-tip {padding:12px 0;color:var(--muted);font-size:13px}
+.adv-tip button {margin-top:8px}
+.emu-badges {display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+.emu-override {grid-column:1/-1;background:var(--well);border-radius:6px;padding:12px}
+.emu-override[hidden] {display:none}
+.emu-override-grid {display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.emu-override label {display:flex;align-items:stretch;flex-direction:column;gap:4px;font-size:13px}
+.emu-override input,.emu-override select {width:100%;min-width:0;font:inherit;padding:6px;color:var(--text);background:var(--subpanel);border:1px solid var(--edge);border-radius:5px}
+.emu-override .buttons {margin-top:12px;justify-content:flex-start}
+.emu-override .hint-text {font-size:13px}
+@media(max-width:1000px){.emu-instance{grid-template-columns:1fr}.emu-instance .buttons{justify-content:flex-start}}
 #emuSaveStatus {margin-bottom:8px}
 @media(max-width:1000px){.emu-instance{grid-template-columns:1fr}.emu-instance .buttons{justify-content:flex-start}}
 #emuLog {flex:1; min-height:0;overflow:auto;overflow-anchor:none;white-space:pre-wrap;overflow-wrap:anywhere;background:var(--well);padding:8px 15px; font:13px/1.6 var(--mono),'Microsoft YaHei UI';scrollbar-color:var(--edge) var(--well)} #emuLog:focus-visible {outline-offset:-3px} #emuLog:empty::before {content:'暂无符合条件的日志';display:block;padding:12px 0;color:var(--muted)} #emuLog div {padding:3px 0;border-bottom:1px solid #ffffff0c} #emuLog .ok {color:var(--light)} #emuLog .warn {color:var(--warn)} #emuLog .bad {color:var(--bad)} #emuLog .state {color:var(--info)} #emuLog .dim {color:var(--muted)} #emuLog .turn {font-weight:650}
@@ -1053,6 +1074,7 @@ main {flex:1; min-height:0; padding:16px 22px; display:grid; grid-template-colum
       <div class="field"><label for="emuRounds">目标局数 <small>0 表示不限</small></label><input type="number" id="emuRounds" min="0" max="99" value="3"></div>
       <div class="field"><label for="emuStagger">启动间隔 <small>秒</small></label><input type="number" id="emuStagger" min="0" max="10" step="0.1" value="1.5"></div>
 <label class="sw"><input type="checkbox" id="emuPreferIpc"><span class="txt"><span class="lbl">MuMu IPC 高速截图</span></span></label>
+<label class="sw"><input type="checkbox" id="emuSharedOcr"><span class="txt"><span class="lbl">共享本地 OCR 服务</span><span class="hint">多开复用单个 OCR 模型，显著降低内存与 CPU</span></span></label>
 <label class="sw"><input type="checkbox" id="emuDeploy"><span class="txt"><span class="lbl">自动部署单位</span></span></label>
 <label class="sw"><input type="checkbox" id="emuAttack"><span class="txt"><span class="lbl">自动进攻与上前线</span></span></label>
 <label class="sw"><input type="checkbox" id="emuEndTurn"><span class="txt"><span class="lbl">自动结束回合</span></span></label>
@@ -1060,7 +1082,13 @@ main {flex:1; min-height:0; padding:16px 22px; display:grid; grid-template-colum
 <label class="sw"><input type="checkbox" id="emuDryRun"><span class="txt"><span class="lbl">只看日志不点击 (Dry-Run)</span></span></label>
 
       <div class="field"><label for="emuExtraSerials">自定义 ADB 端点</label><input type="text" id="emuExtraSerials" placeholder="127.0.0.1:5555" aria-describedby="emuAdbHint"></div>
-      <p class="hint-text" id="emuAdbHint">雷电/蓝叠等其他模拟器可填 ADB 端口，以逗号或空格分隔。</p>
+      <p class="hint-text" id="emuAdbHint">MuMu / 雷电 / 蓝叠已支持自动发现；其他模拟器可填 ADB 端口（逗号或空格分隔）。</p>
+      <details class="adv-box" id="emuAdvBox"><summary>无人值守与防风控设置</summary>
+        <div class="field"><label for="emuWatchdog">卡死看门狗 (秒)<br><small>0=关闭，默认240</small></label><input type="number" id="emuWatchdog" min="0" max="3600" step="1" value="240"></div>
+        <div class="field"><label for="emuDailyRounds">每日局数上限<br><small>0=不限</small></label><input type="number" id="emuDailyRounds" min="0" max="999" step="1" value="0"></div>
+        <div class="field"><label for="emuDailyMinutes">每日时长上限 (分)<br><small>0=不限</small></label><input type="number" id="emuDailyMinutes" min="0" max="1440" step="1" value="0"></div>
+        <div class="field"><label for="emuJitter">操作节奏随机抖动<br><small>0.15=±15%</small></label><input type="number" id="emuJitter" min="0" max="0.5" step="0.05" value="0.15"></div>
+      </details>
     </fieldset>
     <div class="launch"><p id="emuSaveStatus" class="hint-text" role="status">正在读取模拟器配置…</p><div class="buttons"><button id="btnEmuRefresh">刷新实例</button><button id="btnEmuStartSel" disabled>启动已选</button><button id="btnEmuStopAll">全部停止</button></div></div>
   </section>
@@ -1081,13 +1109,16 @@ function renderSwitches(list, opts){
   if(box.childElementCount) return;
   $('#rounds').value = opts.max_rounds;
   $('#rounds').disabled = false;
+  const advanced=document.createElement('details'); advanced.className='adv-box adv-switches';
+  const summary=document.createElement('summary'); summary.textContent='高级 / 实验选项'; advanced.append(summary);
   for(const s of list){
     const d = document.createElement('label'); d.className='sw';
     d.title = s.flag;
-    d.innerHTML = `<input type="checkbox" id="sw_${s.key}" ${opts[s.key]?'checked':''}>
-      <span class="txt"><span class="lbl">${s.label}</span>
-      <span class="hint">${s.hint}</span></span>`;
-    const input = d.querySelector('input');
+    const input=document.createElement('input'); input.type='checkbox'; input.id='sw_'+s.key; input.checked=!!opts[s.key];
+    const txt=document.createElement('span'); txt.className='txt';
+    const label=document.createElement('span'); label.className='lbl'; label.textContent=s.label;
+    const hint=document.createElement('span'); hint.className='hint'; hint.textContent=s.hint;
+    txt.append(label,hint); d.append(input,txt);
     input.addEventListener('change', ()=>{
       if(s.key === 'ranked' && input.checked && !window.confirm(
         '警告：排位模式下的自动操作可能被游戏检测，存在封号风险。\n\n确认要启用排位模式吗？')){
@@ -1095,7 +1126,13 @@ function renderSwitches(list, opts){
       }
       persistOptions();
     });
-    box.appendChild(d);
+    (s.advanced?advanced:box).appendChild(d);
+  }
+  if(list.some(s=>s.advanced)){
+    const tip=document.createElement('div'); tip.className='adv-tip';
+    tip.append(document.createTextNode('UE5 客户端窗口消息无法触发手牌悬停；如需真正后台不抢鼠标挂机，请切换顶部「模拟器多开」。'));
+    const jump=document.createElement('button'); jump.type='button'; jump.id='btnJumpEmu'; jump.textContent='切到模拟器多开 →';
+    jump.onclick=()=>setMode('emu'); tip.append(jump); box.append(tip,advanced);
   }
 }
 function render(s){
@@ -1253,35 +1290,44 @@ window.addEventListener('pywebviewready', async ()=>{
 let emuActive=false, emuPolling=false, emuReady=false, emuBusy=false;
 let emuSelected=new Set(), emuLogId='', emuLogRev='', emuAutoscroll=true;
 let emuSaveQueue=Promise.resolve(), emuSaveRevision=0, emuLastPoll=0, emuListKey='';
+let emuOverrides={}, emuRowOrder='';
+const emuRows=new Map(), emuEditors=new Map();
 const emuToggles={emuPreferIpc:'prefer_ipc',emuDeploy:'allow_deploy',emuAttack:'allow_attack',
-  emuEndTurn:'allow_end_turn',emuAutoLaunch:'auto_launch_kards',emuDryRun:'dry_run'};
+  emuEndTurn:'allow_end_turn',emuAutoLaunch:'auto_launch_kards',emuDryRun:'dry_run',emuSharedOcr:'shared_ocr'};
+const emuNumbers={emuRounds:['max_rounds',99,true,3],emuStagger:['stagger_seconds',10,false,1.5],
+  emuWatchdog:['watchdog_seconds',3600,true,240],emuDailyRounds:['daily_max_rounds',999,true,0],
+  emuDailyMinutes:['daily_max_minutes',1440,true,0],emuJitter:['jitter_ratio',.5,false,.15]};
+function emuNumberValid(value,max,integer){
+  const n=Number(value);
+  return String(value).trim()!=='' && Number.isFinite(n) && n>=0 && n<=max && (!integer || Number.isInteger(n));
+}
 function emuCollect(){
   return {mode:$('#emuMode').value,deck_name:$('#emuDeck').value,
-    max_rounds:Number($('#emuRounds').value),stagger_seconds:Number($('#emuStagger').value),
+    ...Object.fromEntries(Object.entries(emuNumbers).map(([id,[key]])=>[key,Number($('#'+id).value)])),
     extra_serials:$('#emuExtraSerials').value.split(/[,，\s]+/).filter(Boolean),
     selected_instances:[...emuSelected],
+    instance_overrides:JSON.parse(JSON.stringify(emuOverrides)),
     ...Object.fromEntries(Object.entries(emuToggles).map(([id,key])=>[key,$('#'+id).checked]))};
 }
 function emuLoad(o){
   $('#emuMode').value=o.mode; $('#emuDeck').value=o.deck_name;
-  $('#emuRounds').value=o.max_rounds; $('#emuStagger').value=o.stagger_seconds;
+  for(const [id,[key,max,integer,fallback]] of Object.entries(emuNumbers)) $('#'+id).value=o[key]??fallback;
   $('#emuExtraSerials').value=o.extra_serials.join(', ');
-  for(const [id,key] of Object.entries(emuToggles)) $('#'+id).checked=o[key];
+  for(const [id,key] of Object.entries(emuToggles)) $('#'+id).checked=o[key]??(key==='shared_ocr');
+  emuOverrides=JSON.parse(JSON.stringify(o.instance_overrides || {}));
   emuSelected=new Set(o.selected_instances); emuReady=true;
   $('#emuFields').disabled=emuBusy; $('#btnEmuStartSel').disabled=emuBusy;
   $('#emuSaveStatus').textContent='选项自动保存；停止后重新启动生效。';
 }
 function emuValid(){
-  const rounds=Number($('#emuRounds').value), stagger=Number($('#emuStagger').value);
-  return $('#emuRounds').value!=='' && $('#emuStagger').value!=='' &&
-    Number.isInteger(rounds) && rounds>=0 && rounds<=99 &&
-    Number.isFinite(stagger) && stagger>=0 && stagger<=10;
+  return ['training','casual','ranked'].includes($('#emuMode').value) &&
+    Object.entries(emuNumbers).every(([id,[key,max,integer]])=>emuNumberValid($('#'+id).value,max,integer));
 }
 function emuPersist(){
-  if(!emuReady) return;
+  if(!emuReady || emuBusy) return;
   const revision=++emuSaveRevision, opts=emuCollect();
   if(!emuValid()){
-    $('#emuSaveStatus').textContent='局数须为 0~99 的整数，间隔须为 0~10 秒。'; return;
+    $('#emuSaveStatus').textContent='请检查数值：局数 0~99，间隔 0~10，看门狗 0~3600，每日局数 0~999、分钟 0~1440，抖动 0~0.5。'; return;
   }
   $('#emuSaveStatus').textContent='正在自动保存…';
   emuSaveQueue=emuSaveQueue.then(async()=>{
@@ -1298,37 +1344,114 @@ function emuChooseLog(id){
 async function emuAction(action){
   if(emuBusy) return;
   emuBusy=true; $('#emuFields').disabled=true; $('#btnEmuStartSel').disabled=true;
-  document.querySelectorAll('#emuInstances button, #emuInstances input').forEach(e=>e.disabled=true);
+  document.querySelectorAll('#emuInstances button, #emuInstances input, #emuInstances select').forEach(e=>e.disabled=true);
   try{
     await emuSaveQueue;
     const r=await action(); toast(r.msg || (r.ok?'操作已完成':'操作失败'),r.ok?3200:10000);
   }catch(e){toast('模拟器操作失败：'+e,10000);}
   finally{
     emuBusy=false; $('#emuFields').disabled=!emuReady; $('#btnEmuStartSel').disabled=!emuReady;
+    document.querySelectorAll('#emuInstances button, #emuInstances input, #emuInstances select').forEach(e=>e.disabled=false);
     emuListKey=''; emuPoll(true);
   }
 }
 function emuStart(ids){
   if(!ids.length) return {ok:false,msg:'请先选择模拟器实例'};
-  if(!emuValid()) return {ok:false,msg:'请检查目标局数和启动间隔'};
+  if(!emuValid()) return {ok:false,msg:'请检查全局设置中的数值范围'};
   return window.pywebview.api.emu_start(ids,emuCollect());
 }
+function emuEditor(iid){
+  if(emuEditors.has(iid)) return emuEditors.get(iid);
+  const panel=document.createElement('div'); panel.className='emu-override'; panel.hidden=true;
+  const grid=document.createElement('div'); grid.className='emu-override-grid';
+  const fields={}, saved=emuOverrides[iid] || {};
+  for(const [key,title,max] of [['mode','对战模式'],['deck_name','卡组名称'],['max_rounds','目标局数',99],
+      ['daily_max_rounds','每日局数上限',999],['daily_max_minutes','每日时长上限 (分)',1440]]){
+    const label=document.createElement('label'); label.append(document.createTextNode(title));
+    const input=document.createElement(key==='mode'?'select':'input'); fields[key]=input;
+    if(key==='mode'){
+      for(const [value,text] of [['','继承全局'],['training','训练模式'],['casual','休闲对战'],['ranked','排位模式']]){
+        const option=document.createElement('option'); option.value=value; option.textContent=text; input.append(option);
+      }
+    }else{
+      input.type=max===undefined?'text':'number'; input.placeholder='留空继承全局';
+      if(max!==undefined){input.min=0; input.max=max; input.step=1;}
+    }
+    input.value=saved[key]??'';
+    label.append(input); grid.append(label);
+  }
+  fields.mode.onchange=()=>{
+    if(fields.mode.value==='ranked' && !window.confirm('警告：排位模式下的自动操作可能被游戏检测，存在封号风险。\n\n确认要启用排位模式吗？')) fields.mode.value=emuOverrides[iid]?.mode || '';
+  };
+  const hint=document.createElement('p'); hint.className='hint-text'; hint.setAttribute('role','status');
+  hint.textContent='留空继承全局；局数 / 分钟填 0 表示不限。保存后下次启动生效。';
+  const buttons=document.createElement('div'); buttons.className='buttons';
+  for(const [title,reset] of [['保存覆盖',false],['恢复全局',true]]){
+    const b=document.createElement('button'); b.type='button'; b.textContent=title;
+    b.onclick=()=>emuSaveOverride(iid,reset); buttons.append(b);
+  }
+  panel.append(grid,hint,buttons);
+  const editor={panel,fields,hint}; emuEditors.set(iid,editor); return editor;
+}
+function emuSaveOverride(iid,reset=false){
+  const editor=emuEditor(iid), entry={...(emuOverrides[iid] || {})};
+  if(!reset){
+    for(const [key,input] of Object.entries(editor.fields)){
+      const value=String(input.value).trim();
+      if(!value){delete entry[key]; continue;}
+      if(['max_rounds','daily_max_rounds','daily_max_minutes'].includes(key)){
+        if(!emuNumberValid(value,Number(input.max),true)){
+          editor.hint.textContent='局数 / 分钟须为范围内整数，或留空继承全局。'; return;
+        }
+        entry[key]=Number(value);
+      }else entry[key]=value;
+    }
+  }
+  if(!emuValid()){editor.hint.textContent='请先修正全局设置中的数值。'; return;}
+  return emuAction(async()=>{
+    const opts=emuCollect();
+    if(reset || !Object.keys(entry).length) delete opts.instance_overrides[iid];
+    else opts.instance_overrides[iid]=entry;
+    const r=await window.pywebview.api.emu_save_options(opts);
+    editor.hint.textContent=r.msg;
+    if(r.ok){
+      emuOverrides=opts.instance_overrides;
+      for(const [key,input] of Object.entries(editor.fields)) input.value=emuOverrides[iid]?.[key]??'';
+      editor.panel.hidden=true;
+    }
+    return r;
+  });
+}
 function emuRenderInstances(instances){
-  const key=JSON.stringify([instances,[...emuSelected],emuLogId,emuBusy]);
+  const key=JSON.stringify([instances,[...emuSelected],emuLogId,emuBusy,emuOverrides]);
   if(key===emuListKey) return;
   emuListKey=key;
   const box=$('#emuInstances'), fragment=document.createDocumentFragment();
   for(const i of instances){
-    const row=document.createElement('div'); row.className='emu-instance';
+    const iid=i.instance_id;
+    let nodes=emuRows.get(iid);
+    if(!nodes){
+      const row=document.createElement('div'); row.className='emu-instance';
+      const info=document.createElement('div'), buttons=document.createElement('div'); buttons.className='buttons';
+      row.append(info,buttons); nodes={row,info,buttons}; emuRows.set(iid,nodes);
+    }
+    const {row}=nodes;
     const info=document.createElement('div'), label=document.createElement('label');
     const check=document.createElement('input'); check.type='checkbox'; check.checked=emuSelected.has(i.instance_id); check.disabled=emuBusy;
     check.onchange=()=>{if(check.checked) emuSelected.add(i.instance_id); else emuSelected.delete(i.instance_id); emuPersist();};
     label.append(check,document.createTextNode(i.name)); info.append(label);
-    const badges=document.createElement('div'); badges.className='hint-text';
-    const provider=i.provider==='mumu'?'MuMu'+(i.android_version?' '+i.android_version:''):'ADB';
-    badges.textContent=provider+(i.ipc_available?' · IPC':'')+' · '+(i.running?'运行中':'未启动'); info.append(badges);
+    const badges=document.createElement('div'); badges.className='emu-badges';
+    const provider={mumu:'MuMu',ldplayer:'雷电',bluestacks:'蓝叠',adb:'ADB'}[i.provider] || i.provider;
+    for(const text of [provider, ...(i.ipc_available?['IPC']:[]), ...(Object.keys(emuOverrides[iid] || {}).length?['已自定义']:[])]){
+      const badge=document.createElement('span'); badge.className='badge'; badge.textContent=text; badges.append(badge);
+    }
+    info.append(badges);
+    if(i.daily_rounds || i.daily_minutes){
+      const usage=document.createElement('div'); usage.className='hint-text';
+      usage.textContent='今日 '+(i.daily_rounds || 0)+'局 / '+Number((i.daily_minutes || 0).toFixed(1))+'分'; info.append(usage);
+    }
     const status=document.createElement('div'); status.className='hint-text';
-    status.textContent=i.worker_running?('运行中 · '+i.worker_state+' · '+i.rounds_done+'局('+i.victories+'胜'+i.defeats+'负) · '+(i.avg_capture_ms==null?'—':Math.round(i.avg_capture_ms))+'ms'):'空闲';
+    status.textContent=i.worker_running?('运行中 · '+i.worker_state+' · '+i.rounds_done+'局('+i.victories+'胜'+i.defeats+'负) · '+(i.avg_capture_ms==null?'—':Math.round(i.avg_capture_ms))+'ms'):(i.running?'模拟器运行中 · 自动对局空闲':'模拟器未启动');
     info.append(status);
     if(i.last_error){const err=document.createElement('div'); err.className='hint-text'; err.style.color='var(--bad)'; err.textContent=i.last_error; info.append(err);}
     const buttons=document.createElement('div'); buttons.className='buttons';
@@ -1342,10 +1465,20 @@ function emuRenderInstances(instances){
     button(i.worker_running?'停止':'启动',()=>emuAction(()=>i.worker_running?
       window.pywebview.api.emu_stop([i.instance_id]):emuStart([i.instance_id])));
     const logButton=button('日志',()=>emuChooseLog(i.instance_id)); logButton.setAttribute('aria-pressed',String(emuLogId===i.instance_id));
-    row.append(info,buttons); fragment.append(row);
+    const editButton=button('独立配置',()=>{
+      const editor=emuEditor(iid);
+      if(!editor.panel.parentNode) row.append(editor.panel);
+      editor.panel.hidden=!editor.panel.hidden;
+      editButton.setAttribute('aria-expanded',String(!editor.panel.hidden));
+    });
+    editButton.setAttribute('aria-expanded',String(emuEditors.has(iid) && !emuEditors.get(iid).panel.hidden));
+    nodes.info.replaceChildren(info); nodes.buttons.replaceChildren(buttons);
+    // Only replace row membership when discovery changes; polling must not blur a draft editor.
+    if(emuRowOrder!==JSON.stringify(instances.map(i=>i.instance_id))) fragment.append(row);
   }
   if(!instances.length){const empty=document.createElement('p'); empty.className='hint-text'; empty.style.padding='18px 0'; empty.textContent='未发现实例。请打开模拟器，或填写 ADB 端点后刷新。'; fragment.append(empty);}
-  box.replaceChildren(fragment); $('#emuCount').textContent=instances.length+' 个实例';
+  const order=JSON.stringify(instances.map(i=>i.instance_id));
+  if(emuRowOrder!==order){box.replaceChildren(fragment); emuRowOrder=order;}
 }
 async function emuPoll(force=false){
   if(emuPolling || (!force && !emuActive && Date.now()-emuLastPoll<3000)) return;
@@ -1356,6 +1489,7 @@ async function emuPoll(force=false){
     $('#tabEmu').textContent='模拟器多开'+(s.running_count?' ('+s.running_count+')':'');
     if(!emuReady) emuLoad(s.options);
     emuRenderInstances(s.instances);
+    $('#emuCount').textContent=s.instances.length+' 个实例'+(s.shared_ocr_running?' · 共享OCR运行中':'');
     if(emuActive && id && id===emuLogId && s.log){
       $('#emuLogTag').textContent=id;
       if(s.log.changed){
@@ -1369,13 +1503,14 @@ async function emuPoll(force=false){
   }catch(e){$('#emuCount').textContent='读取失败，请刷新重试'; $('#emuLogTag').textContent='模拟器状态读取失败：'+e;}
   finally{emuPolling=false;}
 }
-window.addEventListener('pywebviewready',()=>{
-  function mode(active){
+function setMode(mode){
+    const active=mode==='emu';
     emuActive=active; $('#pcView').style.display=active?'none':''; $('#emuView').style.display=active?'':'none';
     $('#tabPc').setAttribute('aria-pressed',String(!active)); $('#tabEmu').setAttribute('aria-pressed',String(active));
     if(active) emuPoll(true);
-  }
-  $('#tabPc').onclick=()=>mode(false); $('#tabEmu').onclick=()=>mode(true);
+}
+window.addEventListener('pywebviewready',()=>{
+  $('#tabPc').onclick=()=>setMode('pc'); $('#tabEmu').onclick=()=>setMode('emu');
   $('#emuFields').addEventListener('change',e=>{
     if(e.target.id==='emuMode' && e.target.value==='ranked' && !window.confirm(
       '警告：排位模式下的自动操作可能被游戏检测，存在封号风险。\n\n确认要启用排位模式吗？')) e.target.value='training';
@@ -1446,7 +1581,8 @@ def main() -> int:
             "version": read_version(),
             "options_file": options_path(),
             "saved_options": load_options(),
-            "emulator_multi_instance": {"available": True, "providers": ["mumu", "adb"], "ipc_supported": True},
+            "emulator_multi_instance": {"available": True, "providers": ["mumu", "ldplayer", "bluestacks", "adb"], "ipc_supported": True},
+            "yield_to_user": {"available": True, "default": True, "flag": "--yield-to-user"},
             "classic_strategy": True,
             "message_input": {"available": True, "default": False,
                               "flag": "--message-input", "physical_fallback": False,

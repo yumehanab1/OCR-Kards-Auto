@@ -5,6 +5,19 @@
 
 从新到旧排列。
 
+## 未发布 — PC / 模拟器多开
+
+### 模拟器多开
+- 新增雷电（`LDPlayerProvider`）与蓝叠（`BlueStacksProvider`）自动发现及 ADB 别名去重，扩展默认发现链至 `mumu` / `ldplayer` / `bluestacks` / `adb`。
+- 新增共享本地 OCR 服务（`src/emu_ocr_server.py`，严格绑定 `127.0.0.1` + 随机 token 鉴权 + 绕过系统代理 + 异常无感回退本地 RapidOCR），多开复用单份模型降低内存与 CPU 占用。
+- 新增无人值守看门狗自愈（`--watchdog-seconds`）、随机节奏抖动（`--jitter`）、按日局数/时长上限（`logs/emu_daily_usage.json`，跨午夜与 Windows 锁重试）及按实例独立配置覆盖（`instance_overrides`），同步接入面板 UI。
+- 修复结束回合漏点：补齐右侧按钮区「结束回合 / END TURN」OCR 兜底（`ocr_end_turn`）与针对性离场确认；单回合同一单位最多尝试行动 2 次即隔离，防止背景动效误判反复空拖烧绳。
+
+### PC / Windows
+- 新增「动鼠标自动让权」（`--yield-to-user`，默认开启）：检测到人工移动鼠标超过 25px 立即暂停接管，静止 5 秒后自动恢复，中途抢鼠中止拖拽。
+- 将「不抢鼠标（实验）」折叠进面板「高级 / 实验选项」抽屉，并增加一键跳转「模拟器多开」按钮。
+- 修复端游结束回合漏点：`state is None` 时将活跃对局及高亮变橙的结束回合按钮（`>= 0.60`）交回 `TurnEngine`；物理鼠标模式下 `end_turn_pending` 4 秒未切换自动重试最多 3 次（消息模式语义不变）；连续 3 次手牌扫描中断自动收手进 `end_turn`。
+
 ## v0.3.0 — 2026-11-20
 
 ### 模拟器多开（路线 B：MuMu IPC + 通用 ADB）

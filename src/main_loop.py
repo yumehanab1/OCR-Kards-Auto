@@ -63,7 +63,7 @@ from actions import click  # noqa: E402
 import actions as actions_mod  # noqa: E402
 import order_choice  # noqa: E402
 from turn_engine import END_TURN_MIN_SCORE, TurnEngine  # noqa: E402
-from ui_state import classify, load_meta, load_states, load_templates, match_one  # noqa: E402
+from ui_state import classify, load_meta, load_states, load_templates, match_one, match_roi  # noqa: E402
 from win import (  # noqa: E402
     acquire_single_instance_lock,
     capture_client_bgr,
@@ -220,7 +220,8 @@ class Controller:
                  play: bool = False, fast_scan: bool = False,
                  attack: bool = True, lazy_scan: bool = True,
                  ranked: bool = False, classic_strategy: bool = False,
-                 message_input: bool = False):
+                 message_input: bool = False, yield_to_user: bool = False,
+                 yield_idle: float = 5.0):
         self.proc = proc
         self.dry = dry
         self.max_rounds = max_rounds
@@ -234,6 +235,12 @@ class Controller:
         self.classic_strategy = bool(classic_strategy)
         self.input_mode = "message" if message_input else "physical"
         actions_mod.configure_input(self.input_mode)
+        self.yield_to_user = bool(yield_to_user and not self.dry and self.input_mode != "message")
+        self.yield_idle = yield_idle
+        if self.yield_to_user:
+            actions_mod.configure_user_yield(True, idle_seconds=yield_idle, log_fn=log)
+        else:
+            actions_mod.configure_user_yield(False)
         self.turn_engine = None
         self.last_turn_status = None
         self.hwnd = None
@@ -1003,6 +1010,8 @@ class Controller:
             h()
 
     def run(self) -> int:
+        if getattr(self, 'yield_to_user', False):
+            log(f"[input] 已启用动鼠标让权（空闲 {self.yield_idle:g} 秒恢复）")
         log(f"main_loop start (dry={self.dry} end_turn={self.end_turn} "
             f"max_rounds={self.max_rounds})")
         log("[input] " + ("窗口消息输入(实验)：不移动系统鼠标，不回退物理输入；"
@@ -1042,6 +1051,8 @@ class Controller:
             #   ★ 循环里原来那道闸(下面 L1041 那处)照旧保留,两条路径都要过。
             if self._post_clicks_left <= 0 and self._max_rounds_hit():
                 break
+            if getattr(self, 'yield_to_user', False):
+                actions_mod.wait_if_user_active()
             frame = self.grab_frame()
             if frame is None:
                 log("KARDS window not found - waiting")
@@ -1207,9 +1218,14 @@ class Controller:
                 break
 
             if (state is None and self.turn_engine is not None
-                    and self.turn_engine.phase == 'end_turn_pending'):
-                # Opponent frames may classify as unknown. This phase only
-                # observes the end-button posterior; it never replays actions.
+                    and (self.turn_engine.phase in (
+                        'attack', 'move_front', 'play', 'end_turn', 'end_turn_pending')
+                         or (self.turn_engine.phase == 'wait_our_turn'
+                             and 'end_turn_btn' in self.templates
+                             and match_roi(frame, 'end_turn_btn', self.templates['end_turn_btn'])[0]
+                             >= END_TURN_MIN_SCORE))):
+                # Glow can fall below classify's threshold. The engine checks
+                # its own end-button threshold before acting or resyncing.
                 self.handle_in_game()
             elif state:
                 self.handle_state(state)
@@ -1235,7 +1251,9 @@ class Controller:
         """Actions settle inside the engine; promptly schedule its next phase."""
         engine = self.turn_engine
         if (self.play and not self.dry and engine is not None
-                and self.current_state == 'in_game'
+                and self.current_state in ('in_game', None)
+                and (self.current_state == 'in_game'
+                     or engine.phase in ('end_turn', 'end_turn_pending'))
                 and not getattr(self, 'classic_strategy', False)
                 and engine.phase in ('attack', 'move_front', 'play', 'end_turn', 'end_turn_pending')):
             return 0.15
@@ -1326,7 +1344,13 @@ def main() -> int:
                     help='绕过橙色筛选/凑费/同点重悬停，使用传统手牌扫描和出牌流程')
     ap.add_argument('--message-input', action='store_true',
                     help='实验：窗口消息悬停/点击/拖拽，不移动系统鼠标；KARDS须前台可见，不自动回退物理输入')
+    ap.add_argument('--yield-to-user', action='store_true', default=False,
+                    help='检测到人工移动鼠标时暂停物理输入')
+    ap.add_argument('--yield-idle', type=float, default=5.0,
+                    help='seconds mouse must stay idle before resuming')
     args = ap.parse_args()
+    if not 0 <= args.yield_idle < float('inf'):
+        ap.error('--yield-idle must be finite and nonnegative')
     log('[strategy] ' + ('传统策略：手牌记忆/布局探针，禁用橙色筛选与凑费'
                          if args.classic_strategy else '当前策略：橙色候选首张扫描')
         + '；本次启动固定，停止后重新开始可切换')
@@ -1467,7 +1491,8 @@ def main() -> int:
                      play=args.play, fast_scan=args.fast_scan,
                      attack=args.attack, lazy_scan=not args.no_lazy,
                      ranked=args.ranked, classic_strategy=args.classic_strategy,
-                     message_input=args.message_input)
+                     message_input=args.message_input, yield_to_user=args.yield_to_user,
+                     yield_idle=args.yield_idle)
     ctl.max_ticks = args.max_ticks
     stop_file = os.environ.get('KARDS_AUTO_STOP_FILE')
     actions_mod.configure_stop((lambda: os.path.exists(stop_file)) if stop_file else None)

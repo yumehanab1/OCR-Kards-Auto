@@ -68,6 +68,13 @@ def main() -> int:
     check(gui.build_argv({}) == [], "什么都没勾 -> 空 argv(面板据此拒绝启动)")
     check(gui.DEFAULT_ON <= {s["key"] for s in gui.SWITCHES},
           "默认勾选必须是真实存在的开关(写错 key 会静默失效)")
+    switches = {s['key']: s for s in gui.SWITCHES}
+    check('yield_to_user' in gui.DEFAULT_ON and 'yield_to_user' in switches,
+          '动鼠标让权默认开启并有对应开关')
+    check(gui.build_argv({'yield_to_user': True}) == ['--yield-to-user']
+          and gui.build_argv({'yield_to_user': False}) == [], '让权只在启用时传参')
+    check(switches['message_input'].get('advanced') is True,
+          '消息输入保留兼容 key，归入高级选项')
     check(gui.build_argv({"play": True, "attack": True, "fast_scan": True,
                           "classic_strategy": True, "max_rounds": "3"})
           == ["--play", "--attack", "--fast-scan", "--classic-strategy",

@@ -86,6 +86,66 @@ class GuiEmuTests(unittest.TestCase):
         finally:
             path.unlink()
 
+    def test_wave3_options_roundtrip_and_invalid_values(self):
+        options = dict(shared_ocr=False, watchdog_seconds=3600, daily_max_rounds=999,
+                       daily_max_minutes=1440, jitter_ratio=.5,
+                       instance_overrides={'ldplayer:2': dict(mode='casual', deck_name='日本',
+                           max_rounds=0, daily_max_rounds=10, daily_max_minutes=60, allow_attack=False)})
+        saved = self.api.emu_save_options(options)
+        self.assertTrue(saved['ok'])
+        self.assertEqual(emu_manager.load_emu_options(self.root), saved['options'])
+        for key, value in options.items():
+            self.assertEqual(saved['options'][key], value)
+        for key, value in [('shared_ocr', 'yes'), ('watchdog_seconds', 3601),
+                           ('daily_max_rounds', 1000), ('daily_max_minutes', 1441),
+                           ('jitter_ratio', .51), ('watchdog_seconds', 1.5),
+                           ('instance_overrides', {'adb:x': {'max_rounds': 100}})]:
+            self.assertFalse(self.api.emu_save_options({**options, key: value})['ok'])
+            self.assertEqual(emu_manager.load_emu_options(self.root), saved['options'])
+
+    def test_selftest_wave3_metadata(self):
+        # Run the real entry point; redirect its report to the isolated test root.
+        with patch.object(sys, 'argv', ['gui.py', '--selftest']), \
+                patch.object(gui, 'LOG_DIR', str(self.root / 'logs')):
+            self.assertEqual(gui.main(), 0)
+        report = json.loads((self.root / 'logs/gui_selftest.txt').read_text(encoding='utf-8'))
+        self.assertEqual(report['yield_to_user'], dict(available=True, default=True, flag='--yield-to-user'))
+        self.assertEqual(report['emulator_multi_instance']['providers'], ['mumu', 'ldplayer', 'bluestacks', 'adb'])
+
+    def test_yield_stop_uses_cooperative_marker(self):
+        self.api.proc = Mock(returncode=0)
+        self.api.proc.poll.side_effect = [None, 0]
+        self.api.last_opts = {'yield_to_user': True, 'message_input': False}
+        self.api._stop_file = str(self.root / 'yield.stop')
+        self.assertTrue(self.api.stop()['ok'])
+        self.assertEqual((self.root / 'yield.stop').read_text(), 'stop\n')
+        self.api.proc.terminate.assert_not_called()
+        self.api.proc.kill.assert_not_called()
+
+    def test_gui_yield_launch_opt_in_and_legacy_bridge(self):
+        script = self.root / 'main_loop.py'
+        script.write_text('# test fixture', encoding='utf-8')
+        with patch.object(gui, 'MAIN_LOOP', str(script)), \
+                patch.object(gui, 'LOG_DIR', str(self.root / 'logs')), \
+                patch.object(gui, 'GUI_RUN_LOG', str(self.root / 'logs/run.log')), \
+                patch.object(gui, 'engine_python', return_value=sys.executable), \
+                patch.object(gui.time, 'sleep'), patch.object(gui.subprocess, 'Popen') as launch:
+            child = launch.return_value
+            child.poll.return_value = None
+            child.pid = 42
+            try:
+                self.assertTrue(self.api.start({'play': True, 'yield_to_user': True})['ok'])
+                self.assertIn('--yield-to-user', launch.call_args.args[0])
+                self.assertEqual(launch.call_args.kwargs['env']['KARDS_AUTO_STOP_FILE'], self.api._stop_file)
+                self.assertFalse(Path(self.api._stop_file).exists())
+                self.api.proc = None
+                self.assertTrue(self.api.start({'play': True})['ok'])
+                self.assertNotIn('--yield-to-user', launch.call_args.args[0])
+                self.assertNotIn('KARDS_AUTO_STOP_FILE', launch.call_args.kwargs['env'])
+            finally:
+                self.api._close_run_log()
+                (self.root / 'config/gui_options.json').unlink(missing_ok=True)
+
     def test_snapshot_marks_log_and_passes_revision(self):
         original = {"instances": [], "running_count": 0, "options": {},
                     "log": {"changed": True, "rev": "r2", "lines": ["state -> own_turn", "our turn starts"]}}
@@ -173,6 +233,7 @@ class GuiEmuTests(unittest.TestCase):
                "emuStagger", "emuPreferIpc", "emuDeploy", "emuAttack", "emuEndTurn",
                "emuAutoLaunch", "emuDryRun", "emuExtraSerials", "btnEmuRefresh",
                "btnEmuStartSel", "btnEmuStopAll", "emuLog", "emuLogTag"}
+        emu |= {'emuSharedOcr', 'emuWatchdog', 'emuDailyRounds', 'emuDailyMinutes', 'emuJitter', 'emuAdvBox'}
         self.assertTrue(pc | emu <= set(ids))
         self.assertIn('<main id="emuView" style="display:none">', gui.HTML)
         for token in ("--bg:#141416", "--panel:#222225", "--iris:#ac9af7"):
@@ -183,25 +244,33 @@ class GuiEmuTests(unittest.TestCase):
         script = gui.HTML.split("<script>", 1)[1].split("</script>", 1)[0]
         harness = r"""
 const assert=require('node:assert/strict'), vm=require('node:vm');
-const source=JSON.parse(require('node:fs').readFileSync(0,'utf8'));
+const payload=JSON.parse(require('node:fs').readFileSync(0,'utf8')), source=payload.script;
 class Element {
- constructor(){this.value='';this.checked=false;this.disabled=false;this.style={};this.children=[];this.events={};this.attrs={};this.textContent='';this.scrollHeight=300;this.clientHeight=100;this.scrollTop=0;}
- append(...items){this.children.push(...items);}
- replaceChildren(...items){this.children=items;}
+ constructor(tag='div'){this.tagName=tag;this.value='';this.checked=false;this.disabled=false;this.style={};this.children=[];this.events={};this.attrs={};this.textContent='';this.scrollHeight=300;this.clientHeight=100;this.scrollTop=0;this.open=false;}
+ append(...items){for(const i of items){if(i.tagName==='fragment'){this.append(...[...i.children]);continue;} if(i.parentNode)i.parentNode.children=i.parentNode.children.filter(c=>c!==i);i.parentNode=this;this.children.push(i);}}
+ appendChild(item){this.append(item);return item;}
+ replaceChildren(...items){for(const c of this.children)c.parentNode=null;this.children=[];this.append(...items);}
+ get childElementCount(){return this.children.length;}
+ querySelector(s){return this.querySelectorAll(s)[0] || null;}
+ querySelectorAll(s){return descendants(this).filter(e=>s.startsWith('#')?e.id===s.slice(1):e.tagName===s);}
  addEventListener(name,fn){this.events[name]=fn;}
  setAttribute(k,v){this.attrs[k]=v;}
 }
+function descendants(e){return e.children.flatMap(c=>[c,...descendants(c)]);}
 const elements={}, listeners=[], calls=[];
-global.document={querySelector:s=>elements[s]??=new Element(),querySelectorAll:()=>[],
- createElement:()=>new Element(),createDocumentFragment:()=>new Element(),createTextNode:t=>t};
+global.document={querySelector:s=>Object.values(elements).flatMap(e=>[e,...descendants(e)]).find(e=>'#'+e.id===s) || (elements[s]??=new Element()),
+ querySelectorAll:s=>s.split(',').flatMap(part=>{const [root,tag]=part.trim().split(' ');return document.querySelector(root).querySelectorAll(tag);}),
+ createElement:t=>new Element(t),createDocumentFragment:()=>new Element('fragment'),createTextNode:t=>Object.assign(new Element('text'),{textContent:t})};
 global.setInterval=()=>0;
 global.window={addEventListener:(name,fn)=>listeners.push(fn),confirm:()=>false};
-const options={mode:'training',deck_name:'',max_rounds:3,stagger_seconds:1.5,extra_serials:[],selected_instances:['mumu:7'],prefer_ipc:true,allow_deploy:true,allow_attack:true,allow_end_turn:true,auto_launch_kards:true,dry_run:false};
-const instance={instance_id:'mumu:7',name:'MuMu 7',provider:'mumu',android_version:'15',running:true,ipc_available:true,worker_running:true,worker_state:'own_turn',rounds_done:2,victories:1,defeats:1,avg_capture_ms:6};
-let pending=null;
+const options={mode:'training',deck_name:'',max_rounds:3,stagger_seconds:1.5,extra_serials:[],selected_instances:['mumu:7'],prefer_ipc:true,allow_deploy:true,allow_attack:true,allow_end_turn:true,auto_launch_kards:true,dry_run:false,
+ shared_ocr:true,watchdog_seconds:240,daily_max_rounds:8,daily_max_minutes:90,jitter_ratio:.15,
+ instance_overrides:{'mumu:7':{deck_name:'日本',allow_attack:false},'adb:other':{mode:'casual'}}};
+const instance={instance_id:'mumu:7',name:'MuMu 7',provider:'mumu',android_version:'15',running:true,ipc_available:true,worker_running:true,worker_state:'own_turn',rounds_done:2,victories:1,defeats:1,avg_capture_ms:6,daily_rounds:3,daily_minutes:12.5};
+let pending=null, saveFails=false;
 window.pywebview={api:{
- emu_snapshot:async(id,rev)=>{calls.push(['snapshot',id,rev]);if(pending)return await pending;return {options,instances:[instance],running_count:1,log:{changed:rev!=='r1',rev:'r1',log_lines:[['state','state -> own_turn']]}};},
- emu_save_options:async(o)=>{calls.push(['save',o]);return {ok:true,msg:'saved'};},
+ emu_snapshot:async(id,rev)=>{calls.push(['snapshot',id,rev]);if(pending)return await pending;return {options,instances:[instance],running_count:1,shared_ocr_running:true,log:{changed:rev!=='r1',rev:'r1',log_lines:[['state','state -> own_turn']]}};},
+ emu_save_options:async(o)=>{calls.push(['save',o]);return {ok:!saveFails,msg:saveFails?'save failed':'saved'};},
  emu_start:async(ids,o)=>{calls.push(['start',ids,o]);return {ok:true,msg:'started'};},
  emu_stop:async(ids)=>{calls.push(['stop',ids]);return {ok:true,msg:'stopped'};}
 }};
@@ -210,9 +279,64 @@ vm.runInThisContext(source);
 toast=()=>{};
 (async()=>{
  listeners.at(-1)();
+ renderSwitches(payload.switches,payload.pcOptions);
+ const drawer=document.querySelector('#switches').children.find(e=>e.tagName==='details');
+ assert.ok(drawer.className.includes('adv-switches')); assert.equal(drawer.open,false);
+ assert.ok(drawer.querySelector('#sw_message_input'));
+ assert.equal(document.querySelector('#sw_yield_to_user').checked,true);
+ assert.equal(collectOptions().message_input,false);
+ lockOptionControls(true); assert.equal(document.querySelector('#sw_message_input').disabled,true);
+ lockOptionControls(false);
+ document.querySelector('#btnJumpEmu').onclick();
+ assert.equal(document.querySelector('#emuView').style.display,'');
+ await new Promise(setImmediate);
  await emuPoll(true);
  assert.equal(document.querySelector('#tabEmu').textContent,'模拟器多开 (1)');
  assert.equal(document.querySelector('#emuFields').disabled,false);
+ assert.match(document.querySelector('#emuCount').textContent,/共享OCR运行中/);
+ assert.deepEqual(emuCollect().instance_overrides,options.instance_overrides);
+ for(const [id,key] of [['emuSharedOcr','shared_ocr'],['emuWatchdog','watchdog_seconds'],['emuDailyRounds','daily_max_rounds'],['emuDailyMinutes','daily_max_minutes'],['emuJitter','jitter_ratio']]){
+   assert.equal(emuCollect()[key],options[key]);
+ }
+ function textTree(e){return [e.textContent,...e.children.map(textTree)].join(' ');}
+ assert.match(textTree(document.querySelector('#emuInstances')),/今日 3局 \/ 12.5分/);
+ assert.match(textTree(document.querySelector('#emuInstances')),/已自定义/);
+ for(const [provider,label] of [['mumu','MuMu'],['ldplayer','雷电'],['bluestacks','蓝叠'],['adb','ADB']]){
+   emuRenderInstances([{...instance,provider}]); assert.ok(textTree(document.querySelector('#emuInstances')).includes(label));
+ }
+ const edit=descendants(document.querySelector('#emuInstances')).find(e=>e.textContent==='独立配置'); edit.onclick();
+ const editor=emuEditors.get('mumu:7'), panel=editor.panel;
+ assert.equal(panel.hidden,false);
+ editor.fields.deck_name.value='英国'; editor.fields.mode.value='ranked'; editor.fields.mode.onchange();
+ assert.equal(editor.fields.mode.value,'');
+ editor.fields.mode.value='casual'; editor.fields.max_rounds.value='0';
+ editor.fields.daily_max_rounds.value='15'; editor.fields.daily_max_minutes.value='120';
+ emuRenderInstances([{...instance,rounds_done:4}]);
+ assert.equal(emuEditors.get('mumu:7').panel,panel); assert.equal(editor.fields.deck_name.value,'英国');
+ editor.fields.max_rounds.value='100';
+ const savesBefore=calls.filter(c=>c[0]==='save').length;
+ await emuSaveOverride('mumu:7'); assert.equal(calls.filter(c=>c[0]==='save').length,savesBefore);
+ editor.fields.max_rounds.value='0'; saveFails=true;
+ await emuSaveOverride('mumu:7'); await new Promise(setImmediate);
+ assert.equal(emuOverrides['mumu:7'].deck_name,'日本'); assert.equal(panel.hidden,false);
+ saveFails=false;
+ await emuSaveOverride('mumu:7'); await new Promise(setImmediate);
+ assert.deepEqual(emuOverrides['mumu:7'],{deck_name:'英国',allow_attack:false,mode:'casual',max_rounds:0,daily_max_rounds:15,daily_max_minutes:120});
+ assert.deepEqual(emuOverrides['adb:other'],{mode:'casual'}); assert.equal(panel.hidden,true);
+ document.querySelector('#emuSharedOcr').checked=false;
+ document.querySelector('#emuWatchdog').value='300'; document.querySelector('#emuDailyRounds').value='25';
+ document.querySelector('#emuDailyMinutes').value='180'; document.querySelector('#emuJitter').value='.25';
+ emuPersist(); await emuSaveQueue;
+ const saved=calls.filter(c=>c[0]==='save').at(-1)[1];
+ assert.equal(saved.shared_ocr,false); assert.equal(saved.watchdog_seconds,300);
+ assert.equal(saved.daily_max_rounds,25); assert.equal(saved.daily_max_minutes,180); assert.equal(saved.jitter_ratio,.25);
+ assert.deepEqual(saved.instance_overrides,emuOverrides);
+ for(const [id,bad] of [['emuWatchdog','3601'],['emuWatchdog','1.5'],['emuDailyRounds','1000'],['emuDailyMinutes','1441'],['emuJitter','.51'],['emuJitter',''],['emuRounds','-1'],['emuStagger','NaN']]){
+   const el=document.querySelector('#'+id), old=el.value; el.value=bad; assert.equal(emuValid(),false,id+bad); el.value=old;
+ }
+ assert.equal(emuValid(),true);
+ await emuSaveOverride('mumu:7',true); await new Promise(setImmediate);
+ assert.equal(emuOverrides['mumu:7'],undefined); assert.deepEqual(emuOverrides['adb:other'],{mode:'casual'});
  document.querySelector('#tabEmu').onclick(); await new Promise(setImmediate);
  assert.equal(document.querySelector('#pcView').style.display,'none');
  assert.equal(document.querySelector('#emuView').style.display,'');
@@ -255,7 +379,8 @@ toast=()=>{};
  console.log('Frontend interactions, independent polling and stale-log guard passed');
 })().catch(e=>{console.error(e);process.exitCode=1;});
 """
-        result = subprocess.run([shutil.which("node"), "-e", harness], input=json.dumps(script),
+        result = subprocess.run([shutil.which("node"), "-e", harness], input=json.dumps({
+            'script': script, 'switches': gui.SWITCHES, 'pcOptions': gui.normalize_options({})}),
                                 text=True, encoding="utf-8", capture_output=True, timeout=20)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 

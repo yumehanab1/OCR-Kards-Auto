@@ -218,6 +218,7 @@ def main() -> int:
                 f"{BASE}/src/emu_discovery.py",
                 f"{BASE}/src/emu_transport.py",
                 f"{BASE}/src/emu_vision.py",
+                f"{BASE}/src/emu_ocr_server.py",
                 f"{BASE}/src/emu_worker.py",
                 f"{BASE}/src/emu_manager.py",
                 f"{BASE}/src/emu_runtime/python/apk_simple_combat.py",
