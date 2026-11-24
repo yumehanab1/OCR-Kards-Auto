@@ -2,17 +2,20 @@ package com.kards.mobilert;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.annotation.TargetApi;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.provider.Settings;
 import android.view.Gravity;
 import android.view.View;
+import android.view.Window;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -33,6 +36,9 @@ import java.util.Locale;
 import java.util.function.Consumer;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BooleanSupplier;
+import java.util.function.Supplier;
 
 /** User control panel. Observing the panel never starts or resumes game input. */
 public final class MainActivity extends Activity {
@@ -47,10 +53,12 @@ public final class MainActivity extends Activity {
     private boolean gameInstalled;
     private String savedReport = "{}";
     private String shownReport = "";
-    private boolean shownConnected, shownBusy, shownInstalled;
+    private boolean shownConnected, shownBusy, shownInstalled, shownCaptureBlocked, shownCaptureExists;
     private TrainingPanelState panelState = TrainingPanelState.from("{}");
     private final Handler main = new Handler(Looper.getMainLooper());
     private final ExecutorService historyReader = Executors.newSingleThreadExecutor();
+    private final ReplayWorker replayWorker = new ReplayWorker(Executors.newSingleThreadExecutor(),
+            callback -> main.post(callback), () -> !isFinishing() && !isDestroyed());
     private int historyGeneration;
     private boolean visible;
     private long messageUntil;
@@ -65,13 +73,13 @@ public final class MainActivity extends Activity {
     private final MobileCore mobileCore = new ReadOnlyMobileCore();
     private ReadOnlyObservationLoop observationLoop;
     private Button monitorButton;
-     private Runnable pendingCaptureStart;
     private final Consumer<Boolean> connectionListener = connected -> refreshDashboard();
 
     @Override
     protected void onCreate(Bundle state) {
         super.onCreate(state);
-        getWindow().setDecorFitsSystemWindows(false);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) DecorApi30.layoutBehindBars(getWindow());
+        else layoutBehindLegacyBars(getWindow());
         getWindow().setStatusBarColor(Color.TRANSPARENT);
         getWindow().setNavigationBarColor(Color.TRANSPARENT);
         String version = "0.6.1";
@@ -96,7 +104,7 @@ public final class MainActivity extends Activity {
              @Override public void chooseGame() { showGamePicker(); }
              @Override public void compatCapture() {
                  if(BattleWorkerLease.isOwned()) return;
-                 if(CompatCaptureService.isReady()) {
+                 if(CompatCaptureService.hasSource()) {
                      startService(new Intent(MainActivity.this,CompatCaptureService.class).setAction(CompatCaptureService.ACTION_STOP));
                  } else requestCompatCapture();
              }
@@ -281,13 +289,33 @@ public final class MainActivity extends Activity {
         }
         if (state != null) dashboard.setDiagnosticsOpen(state.getBoolean("diagnostics_open", false));
         setContentView(dashboard.view());
-        if(getIntent().getBooleanExtra("show_compat_capture",false))
-            main.post(this::requestCompatCapture);
+        if (getIntent().getBooleanExtra("show_compat_capture", false))
+            main.post(this::showCompatCapture);
     }
 
     @Override protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);setIntent(intent);
-        if(intent.getBooleanExtra("show_compat_capture",false))main.post(this::requestCompatCapture);
+        if (intent.getBooleanExtra("show_compat_capture", false)) main.post(this::showCompatCapture);
+    }
+
+    @TargetApi(30)
+    private static final class DecorApi30 {
+        static void layoutBehindBars(Window window) { window.setDecorFitsSystemWindows(false); }
+    }
+
+    @SuppressWarnings("deprecation")
+    private static void layoutBehindLegacyBars(Window window) {
+        View decor = window.getDecorView();
+        decor.setSystemUiVisibility(decor.getSystemUiVisibility() | View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION);
+    }
+
+    private void showCompatCapture() {
+        if (ProjectionFramePolicy.requiresConsentSource(Build.VERSION.SDK_INT)) {
+            panelMessage("需要兼容截图", CompatCaptureService.hasSource()
+                    ? "兼容截图尚未就绪；可在下方关闭后重新授权。"
+                    : TrainingPanelState.CAPTURE_AUTHORIZATION_GUIDE);
+        } else requestCompatCapture();
     }
 
     private void requestCompatCapture() {
@@ -373,15 +401,22 @@ public final class MainActivity extends Activity {
         catch (Exception ignored) { }
         String report = useMemory ? memory : savedReport;
          boolean busy = BattleWorkerLease.isOwned();
-         dashboard.setCompatCaptureState(CompatCaptureService.isReady(), busy);
+        boolean captureExists = CompatCaptureService.hasSource();
+        boolean captureReady = captureExists && CompatCaptureService.isReady();
+        boolean captureBlocked = !TrainingPanelState.captureAllowsBattleStart(Build.VERSION.SDK_INT, captureReady);
+        boolean captureChanged = captureBlocked != shownCaptureBlocked
+                || (captureBlocked && captureExists != shownCaptureExists);
+        dashboard.setCompatCaptureState(captureExists, captureReady, busy);
         boolean connected = service != null;
-        if (android.os.SystemClock.elapsedRealtime() < messageUntil && !busy) return;
+        if (android.os.SystemClock.elapsedRealtime() < messageUntil && !busy && !captureChanged) return;
         if (report.equals(shownReport) && connected == shownConnected && busy == shownBusy
-                && gameInstalled == shownInstalled) return;
+                && gameInstalled == shownInstalled && !captureChanged) return;
         shownReport = report;
         shownConnected = connected;
         shownBusy = busy;
         shownInstalled = gameInstalled;
+        shownCaptureBlocked = captureBlocked;
+        shownCaptureExists = captureExists;
         panelState = useMemory ? TrainingPanelState.from(report) : TrainingPanelState.fromSaved(report);
         dashboard.render(panelState, connected, gameInstalled, busy, sessionDate(report));
     }
@@ -435,11 +470,8 @@ public final class MainActivity extends Activity {
             panelMessage("还差一步准备", "请先开启对战助手的无障碍权限。");
             return;
         }
-        // Older systems can return opaque black window screenshots. Obtain
-        // normal consent before arming; never turn a permission UI into input.
-        if(android.os.Build.VERSION.SDK_INT<34 && !CompatCaptureService.isReady()) {
-            pendingCaptureStart=()->launchBattle(readOnly,mode,openGame,matchCount);
-            requestCompatCapture();
+        if (!TrainingPanelState.captureAllowsBattleStart(Build.VERSION.SDK_INT, CompatCaptureService.isReady())) {
+            showCompatCapture();
             return;
         }
         boolean launchGame = openGame || readOnly || "training".equals(mode);
@@ -488,28 +520,21 @@ public final class MainActivity extends Activity {
                 .put("idle_seconds", 120).put("max_failed_inputs", 5);
     }
 
-    private void waitForCaptureStart(Runnable requested,long deadline) {
-        if(isFinishing() || isDestroyed())return;
-        if(CompatCaptureService.isReady()) {requested.run();return;}
-        if(android.os.SystemClock.elapsedRealtime()>=deadline) {
-            status.setText("兼容截图连接超时，本次未启动辅助；请重试。");return;
-        }
-        main.postDelayed(()->waitForCaptureStart(requested,deadline),250);
-    }
-
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if(requestCode==REQUEST_COMPAT_CAPTURE) {
             if(resultCode==RESULT_OK && data!=null) {
+                if (BattleWorkerLease.isOwned()) {
+                    status.setText("请先停止辅助，再启用兼容截图。");
+                    return;
+                }
                 try {
                     startForegroundService(new Intent(this,CompatCaptureService.class)
                             .putExtra("result_code",resultCode).putExtra("result_data",data));
-                    Runnable requested=pendingCaptureStart;pendingCaptureStart=null;
-                    if(requested!=null)waitForCaptureStart(requested,android.os.SystemClock.elapsedRealtime()+12000);
-                    status.setText("兼容截图正在连接；连接后返回游戏，再开始辅助。");
+                    status.setText("兼容截图正在连接；连接后可开始辅助。");
                 } catch(RuntimeException error){status.setText("兼容截图启动失败，请重新启用。");}
-            } else {pendingCaptureStart=null;status.setText("未启用兼容截图；本次没有开始辅助或游戏输入。");}
+            } else {status.setText("未启用兼容截图；本次没有开始辅助或游戏输入。");}
             return;
         }
         if (requestCode != REQUEST_REPLAY_PNG || resultCode != RESULT_OK || data == null
@@ -518,6 +543,11 @@ public final class MainActivity extends Activity {
         }
         Uri uri = data.getData();
         status.setText(R.string.replay_loading);
+        replayWorker.submit(() -> readReplay(uri), text -> status.setText(text));
+    }
+
+    private String readReplay(Uri uri) {
+        Bitmap bitmap = null;
         try {
             // Read dimensions before allocating a bitmap from an untrusted document.
             BitmapFactory.Options bounds = new BitmapFactory.Options();
@@ -536,22 +566,53 @@ public final class MainActivity extends Activity {
             BitmapFactory.Options options = new BitmapFactory.Options();
             options.inScaled = false;
             options.inPreferredConfig = Bitmap.Config.ARGB_8888;
-            Bitmap bitmap;
             try (InputStream stream = getContentResolver().openInputStream(uri)) {
                 if (stream == null) throw new IllegalStateException("无法打开所选 PNG");
                 bitmap = BitmapFactory.decodeStream(stream, null, options);
             }
             if (bitmap == null) throw new IllegalStateException("PNG 解码失败");
-            String json = FrameReplay.analyze(bitmap, uri.toString(), mobileCore);
+            String json = FrameReplay.analyze(bitmap, uri.toString(), new ReadOnlyMobileCore());
             java.io.File result = FrameReplay.writeResult(this, json);
             JSONObject observation = new JSONObject(json);
-            status.setText(getString(R.string.replay_result, observation.getString("state"),
+            return getString(R.string.replay_result, observation.getString("state"),
                     bounds.outWidth, bounds.outHeight,
                     observation.getJSONObject("diagnostics").getInt("candidate_count"),
-                    result.getAbsolutePath()));
+                    result.getAbsolutePath());
         } catch (Exception error) {
-            status.setText(getString(R.string.replay_failure,
-                    error.getClass().getSimpleName(), String.valueOf(error.getMessage())));
+            return getString(R.string.replay_failure,
+                    error.getClass().getSimpleName(), String.valueOf(error.getMessage()));
+        } finally {
+            if (bitmap != null && !bitmap.isRecycled()) bitmap.recycle();
+        }
+    }
+
+    /** Serial document work; only the latest request may update a live activity. */
+    static final class ReplayWorker {
+        private final ExecutorService executor;
+        private final Consumer<Runnable> post;
+        private final BooleanSupplier alive;
+        private final AtomicLong generation = new AtomicLong();
+
+        ReplayWorker(ExecutorService executor, Consumer<Runnable> post, BooleanSupplier alive) {
+            this.executor = executor;
+            this.post = post;
+            this.alive = alive;
+        }
+
+        void submit(Supplier<String> read, Consumer<String> display) {
+            long token = generation.incrementAndGet();
+            executor.execute(() -> {
+                if (token != generation.get()) return;
+                String result = read.get();
+                post.accept(() -> {
+                    if (token == generation.get() && alive.getAsBoolean()) display.accept(result);
+                });
+            });
+        }
+
+        void close() {
+            generation.incrementAndGet();
+            executor.shutdownNow();
         }
     }
 
@@ -610,6 +671,7 @@ public final class MainActivity extends Activity {
     protected void onDestroy() {
         historyGeneration++;
         historyReader.shutdownNow();
+        replayWorker.close();
         main.removeCallbacks(refresh);
         super.onDestroy();
     }

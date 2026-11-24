@@ -1,5 +1,8 @@
 import cv2,numpy as np,time
 
+_TEXT_CLOSE_KERNEL=np.ones((3,11),np.uint8)
+_TEXT_CLOSE_KERNEL.flags.writeable=False
+
 class Detector:
     def __init__(self,bank,mode='filtered',refine=False):
         self.mode=mode
@@ -150,30 +153,28 @@ class Detector:
         started = time.perf_counter()
         gray = features.get('gray') if features is not None else cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         hsv = features.get('hsv') if features is not None else cv2.cvtColor(frame,cv2.COLOR_BGR2HSV)
-        mask = cv2.inRange(hsv,(5,80,80),(35,255,255))
-        contours,_ = cv2.findContours(mask,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE)
-        boxes = [list(cv2.boundingRect(c)) for c in contours
-                 if cv2.boundingRect(c)[2]>=8 and cv2.boundingRect(c)[3]>=5]
+        raw_orange = cv2.inRange(hsv,(5,80,80),(35,255,255))
+        contours,_ = cv2.findContours(raw_orange,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE)
+        boxes = [list(box) for box in map(cv2.boundingRect,contours)
+                 if box[2]>=8 and box[3]>=5]
         text_mask=cv2.inRange(gray,165,255)
-        text_mask=cv2.morphologyEx(text_mask,cv2.MORPH_CLOSE,np.ones((3,11),np.uint8))
+        text_mask=cv2.morphologyEx(text_mask,cv2.MORPH_CLOSE,_TEXT_CLOSE_KERNEL)
         text_contours,_=cv2.findContours(text_mask,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE)
-        self.text_boxes=[cv2.boundingRect(c) for c in text_contours
-                         if cv2.boundingRect(c)[2]>=12 and cv2.boundingRect(c)[3]>=8]
+        self.text_boxes=[box for box in map(cv2.boundingRect,text_contours)
+                         if box[2]>=12 and box[3]>=8]
         # The ready end-turn control is orange, and falls below the white
         # text threshold. It needs its own CURRENT candidate inventory.
-        hsv=features.get('hsv') if features is not None else cv2.cvtColor(frame,cv2.COLOR_BGR2HSV)
-        orange=cv2.inRange(hsv,(5,80,80),(35,255,255))
-        orange=cv2.morphologyEx(orange,cv2.MORPH_CLOSE,np.ones((3,11),np.uint8))
+        orange=cv2.morphologyEx(raw_orange,cv2.MORPH_CLOSE,_TEXT_CLOSE_KERNEL)
         contours,_=cv2.findContours(orange,cv2.RETR_LIST,cv2.CHAIN_APPROX_SIMPLE)
-        self.text_boxes.extend(cv2.boundingRect(c) for c in contours
-                               if cv2.boundingRect(c)[2]>=12 and cv2.boundingRect(c)[3]>=8)
+        self.text_boxes.extend(box for box in map(cv2.boundingRect,contours)
+                               if box[2]>=12 and box[3]>=8)
         # Turn labels can be dim grey or have a border joined to tabletop art.
         # Inventory enclosed contours in the established control area; these
         # boxes only propose searches, never establish a state or an absence.
         h,w=gray.shape;left,top=round(.75*w),round(.45*h)
         for threshold in (80,145):
             mask=cv2.inRange(gray[top:round(.82*h),left:],threshold,255)
-            mask=cv2.morphologyEx(mask,cv2.MORPH_CLOSE,np.ones((3,11),np.uint8))
+            mask=cv2.morphologyEx(mask,cv2.MORPH_CLOSE,_TEXT_CLOSE_KERNEL)
             contours,_=cv2.findContours(mask,cv2.RETR_LIST,cv2.CHAIN_APPROX_SIMPLE)
             self.text_boxes.extend((left+x,top+y,bw,bh) for x,y,bw,bh in
                 (cv2.boundingRect(c) for c in contours) if 12<=bw<=.4*h and 8<=bh<=.12*h)

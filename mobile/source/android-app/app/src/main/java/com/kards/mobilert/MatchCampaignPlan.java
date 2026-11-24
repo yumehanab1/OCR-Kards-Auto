@@ -144,7 +144,8 @@ final class MatchCampaignPlan {
                 if (!Boolean.TRUE.equals(completed)) return blocked("accepted_touch_incomplete");
                 accepted.add((String) kind);
             } else if (Boolean.TRUE.equals(completed) || !("frame_age_expired".equals(reply.opt("reason"))
-                    || "input_frame_age_exceeded".equals(reply.opt("reason")) || "frame_expired".equals(reply.opt("reason"))))
+                    || "input_frame_age_exceeded".equals(reply.opt("reason")) || "frame_expired".equals(reply.opt("reason"))
+                    || "temporary_game_window_occluded".equals(reply.opt("reason"))))
                 return blocked("dispatcher_failed_or_refused");
         }
         if (accepted.size() != sent) return blocked("accepted_receipt_count_mismatch");

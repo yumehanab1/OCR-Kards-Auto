@@ -5,6 +5,10 @@ import org.json.JSONObject;
 
 /** No consent, game launch or input: production lifecycle predicates, not live-frame acceptance. */
 final class ProjectionFramePolicyChecks {
+    public static void main(String[] args) throws Exception {
+        System.out.println("ProjectionFramePolicyChecks: " + run().getInt("check_count") + " passed");
+    }
+
     static JSONObject run() throws Exception {
         JSONArray checks = new JSONArray();
         check(checks,"idle_images_never_eligible",!ProjectionFramePolicy.fresh(0,101));
@@ -20,9 +24,26 @@ final class ProjectionFramePolicyChecks {
         check(checks,"at_deadline_rejected",!ProjectionFramePolicy.deliver(false,100,100));
         check(checks,"after_deadline_rejected",!ProjectionFramePolicy.deliver(false,101,100));
         check(checks,"revoked_pending_frame_rejected",!ProjectionFramePolicy.deliver(true,99,100));
-        check(checks,"initializing_source_not_bypassed",ProjectionFramePolicy.useConsentSource(32,true));
-        check(checks,"missing_source_not_invented",!ProjectionFramePolicy.useConsentSource(32,false));
-        check(checks,"api35_keeps_window_route",!ProjectionFramePolicy.useConsentSource(35,true));
+        check(checks, "api29_missing_source_is_explicitly_rejected",
+                ProjectionFramePolicy.route(29, false) == ProjectionFramePolicy.Route.NO_CONSENT
+                        && "compat_capture_required_api29".equals(ProjectionFramePolicy.CONSENT_REQUIRED));
+        check(checks, "api29_allocated_source_not_bypassed_before_ready",
+                !ProjectionFramePolicy.ready(false, false)
+                        && ProjectionFramePolicy.route(29, true) == ProjectionFramePolicy.Route.COMPAT);
+        check(checks, "api29_ready_source_uses_projection",
+                ProjectionFramePolicy.ready(false, true)
+                        && ProjectionFramePolicy.route(29, true) == ProjectionFramePolicy.Route.COMPAT);
+        for (int sdk = 30; sdk <= 33; sdk++) {
+            check(checks, "api" + sdk + "_allocated_source_uses_projection",
+                    ProjectionFramePolicy.route(sdk, true) == ProjectionFramePolicy.Route.COMPAT);
+            check(checks, "api" + sdk + "_no_source_uses_system_screenshot",
+                    ProjectionFramePolicy.route(sdk, false) == ProjectionFramePolicy.Route.SYSTEM_DISPLAY);
+        }
+        for (int sdk = 34; sdk <= 35; sdk++) {
+            check(checks, "api" + sdk + "_uses_game_window_regardless_of_projection",
+                    ProjectionFramePolicy.route(sdk, true) == ProjectionFramePolicy.Route.GAME_WINDOW
+                            && ProjectionFramePolicy.route(sdk, false) == ProjectionFramePolicy.Route.GAME_WINDOW);
+        }
         check(checks,"legacy_live_natural_fallback_can_recover",ProjectionFramePolicy.recoverLogicalMirror(32,false,true,false));
         check(checks,"closed_mirror_cannot_recover",!ProjectionFramePolicy.recoverLogicalMirror(32,true,true,false));
         check(checks,"logical_mirror_not_recreated",!ProjectionFramePolicy.recoverLogicalMirror(32,false,false,false));

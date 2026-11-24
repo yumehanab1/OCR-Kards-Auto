@@ -439,6 +439,7 @@ public final class MulliganSessionChecks {
             f.scheduler.until(() -> f.source.requests == 1);
             FrameSource.Callback old = f.source.pending.remove();
             f.session.cancel(); require(f.session.start(), "Restart succeeds");
+            f.scheduler.advanceBy(0);
             int reports = f.reports.size();
             Bitmap late = f.source.deliver(old, new FrameSpec(mulligan(), STILL));
             f.scheduler.advanceBy(500L);
@@ -487,6 +488,7 @@ public final class MulliganSessionChecks {
             f.startAndEnter(); f.scheduler.until(() -> f.platform.taps == 1);
             BoundedMulliganSession.TapCallback old = f.platform.callback;
             f.session.cancel(); f.session.start();
+            f.scheduler.advanceBy(0);
             int reports = f.reports.size();
             old.onCompleted(); f.scheduler.advanceBy(500L);
             require(f.reports.size() == reports && f.session.gameInputs() == 0, "Old gesture cannot update new session");
@@ -715,7 +717,7 @@ public final class MulliganSessionChecks {
                 catch (JSONException error) { throw new AssertionError("Report must be JSON", error); }
                 reports.add(report);
                 if (onReport != null) onReport.accept(report);
-            }, entryGate);
+            }, entryGate, () -> new ScheduledWorker(scheduler));
         }
         GameEntryGate startCurrentGame() {
             platform.enterGame();
@@ -723,10 +725,11 @@ public final class MulliganSessionChecks {
                     platform.foreground, platform.generation, clock.elapsedRealtimeMillis());
             session = createSession(directory, entry);
             require(session.start(), "Current game session starts without another entry");
+            scheduler.advanceBy(0);
             return entry;
         }
-        void startAndEnter() { require(session.start(), "Session starts"); platform.enterGame(); }
-        void runToStop() { scheduler.until(() -> !session.isRunning()); }
+        void startAndEnter() { require(session.start(), "Session starts"); platform.enterGame(); scheduler.advanceBy(0); }
+        void runToStop() { scheduler.until(() -> !session.isRunning()); scheduler.advanceBy(0); }
         JSONObject last() { return reports.get(reports.size() - 1); }
         void expectStopped(String reason, int inputs) {
             require(!session.isRunning(), "Session stopped");
@@ -772,6 +775,7 @@ public final class MulliganSessionChecks {
             for (int step = 0; !condition.getAsBoolean(); step++) {
                 require(step < 2_000, "Fake scheduler progress bound"); next();
             }
+            advanceBy(0); // Drain worker completions at the current fake time, without advancing the clock.
         }
         void advanceBy(long millis) {
             long target = clock.elapsed + millis;
@@ -781,6 +785,23 @@ public final class MulliganSessionChecks {
             }
             clock.elapsed = Math.max(clock.elapsed, target);
         }
+    }
+
+    private static final class ScheduledWorker extends java.util.concurrent.AbstractExecutorService {
+        final FakeScheduler scheduler;
+        boolean stopped;
+        int pending;
+        ScheduledWorker(FakeScheduler scheduler) { this.scheduler = scheduler; }
+        @Override public void execute(Runnable work) {
+            if (stopped) throw new java.util.concurrent.RejectedExecutionException();
+            pending++;
+            scheduler.postDelayed(() -> { try { work.run(); } finally { pending--; } }, 0);
+        }
+        @Override public void shutdown() { stopped = true; }
+        @Override public List<Runnable> shutdownNow() { shutdown(); return java.util.Collections.emptyList(); }
+        @Override public boolean isShutdown() { return stopped; }
+        @Override public boolean isTerminated() { return stopped && pending == 0; }
+        @Override public boolean awaitTermination(long timeout, java.util.concurrent.TimeUnit unit) { return isTerminated(); }
     }
 
     private static final class Scheduled implements Comparable<Scheduled> {

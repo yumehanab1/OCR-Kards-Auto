@@ -705,7 +705,8 @@ def run(bridge, assets_dir, mode, native=False):
                 and flow.daily_pending[0]=='daily_reward_continue'
                 and observation.get('state') in ('home','mode_menu','deck_list','deck_ready','blocking_popup')):
             from apk_native.daily_reward import ticket_return_evidence
-            current,ocr_ok=recognizer.daily_return_probe or ([],False)
+            current=observation.get('daily_reward_probe',[])
+            ocr_ok=observation.get('daily_scoped_ocr') is True
             observation['daily_ticket_return']=ticket_return_evidence(observation,current,packet,
                 int(bridge.elapsedRealtime()),ocr_ok)
         observation.update(frame_reader=reader,

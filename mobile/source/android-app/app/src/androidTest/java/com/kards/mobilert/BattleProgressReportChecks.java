@@ -17,6 +17,38 @@ public final class BattleProgressReportChecks {
     }
 
     private void matrix() throws Exception {
+        check("single_formal_campaign_preserves_terminal_reason_and_completion", () -> {
+            for (String mode : new String[]{"casual", "ranked"}) {
+                JSONObject source = campaign(1, 1, false).put("match_mode", mode)
+                        .put("engine", result(1));
+                JSONObject progress = projected(source, completeTotals(1));
+                require(progress.getBoolean("campaign_complete_verified"));
+                TrainingPanelState panel = TrainingPanelState.from(progress.toString());
+                require(!panel.interrupted && "complete".equals(panel.statusKind)
+                        && panel.summary.contains("1 次") && panel.outcomeLabel.contains("1 / 1"));
+                source.put("reason", "campaign_return_unverified");
+                progress = projected(source, completeTotals(1));
+                require(!progress.getBoolean("campaign_complete_verified"));
+                require(TrainingPanelState.from(progress.toString()).interrupted);
+            }
+        });
+        check("floating_unknown_effect_counts_are_strict_long_or_unknown", () -> {
+            for (Object value : new Object[]{JSONObject.NULL, -1, 1.5, true, "0"}) {
+                JSONObject source = campaign(1, 0, true).put("round_totals",
+                        new JSONObject().put("unconfirmed_inputs", value));
+                require(FloatingStatus.from(source.toString(), "").detail.contains("普通效果未知 —"));
+            }
+            require(FloatingStatus.from(campaign(1, 0, true).toString(), "").detail.contains("普通效果未知 —"));
+            for (long value : new long[]{0, 2147483648L, Long.MAX_VALUE}) {
+                JSONObject source = campaign(1, 0, true).put("round_totals",
+                        new JSONObject().put("unconfirmed_inputs", value));
+                require(FloatingStatus.from(source.toString(), "").detail.contains("普通效果未知 " + value));
+            }
+            require(BattleProgressReport.integer(0.0) == -1);
+            BattleProgressReport.RoundTotals totals = new BattleProgressReport.RoundTotals();
+            totals.add(row(1, result(0).put("unconfirmed_inputs", JSONObject.NULL), returned(), false));
+            require(totals.snapshot().isNull("unconfirmed_inputs"));
+        });
         check("active_round_three_with_two_closed_rounds_is_not_complete", () -> {
             BattleProgressReport.RoundTotals totals = new BattleProgressReport.RoundTotals();
             totals.add(row(1, result(8), returned(), false));

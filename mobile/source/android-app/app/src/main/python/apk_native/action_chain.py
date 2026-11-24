@@ -1,7 +1,9 @@
 """Replan one safe step at a time: spend hand resources, then activate the board."""
+import random
 
 
-def select(entry,allow=lambda action:True,bomber_roll=.25):
+def select(entry,allow=lambda action:True,bomber_roll=None,rng=None):
+    """Sample at most once per plan; rng is a zero-argument random callable."""
     state=entry['state']
     base={'dispatch':'offline_only','executable':False,
           'requires':['fresh_frame','foreground','cancel_check','turn_budget','real_touch_receipt','postcondition']}
@@ -19,7 +21,9 @@ def select(entry,allow=lambda action:True,bomber_roll=.25):
         if option['kind']=='pending':skipped.append(option['reason']);continue
         current=dict(option)
         if current['kind']=='bomber_choice':
+            if bomber_roll is None:bomber_roll=(rng or random.random)()
             if not 0<=bomber_roll<1:raise ValueError('bomber_roll outside [0,1)')
+            base['bomber_roll']=bomber_roll
             category='hq' if bomber_roll<.5 else 'enemy_front'
             target=current['target'][category]
             if (category=='enemy_front' and target.get('guard_state')=='unknown'

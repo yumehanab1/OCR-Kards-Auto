@@ -1,8 +1,10 @@
 package com.kards.mobilert;
 
 import android.accessibilityservice.AccessibilityService;
+import android.annotation.TargetApi;
 import android.graphics.Bitmap;
 import android.hardware.HardwareBuffer;
+import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
@@ -25,6 +27,8 @@ final class DebugScreenshotAudit {
     private int index;
 
     static String start(KardsAccessibilityService service) throws Exception {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R)
+            throw new IllegalStateException("capture_audit_requires_api30");
         if (BattleWorkerLease.isOwned() || new JSONObject(service.battleProgressReport()).optBoolean("active"))
             throw new IllegalStateException("capture_audit_requires_inactive");
         if (!GamePackages.isGame(service.currentForegroundPackage()))
@@ -59,43 +63,55 @@ final class DebugScreenshotAudit {
         else capture(number,mode,()->{});
     }
     private void capture(int number,String mode,Runnable release) {
-        final long requested=SystemClock.elapsedRealtime();
-        try {service.takeScreenshot(Display.DEFAULT_DISPLAY,service.getMainExecutor(),new AccessibilityService.TakeScreenshotCallback(){
-            @Override public void onFailure(int code) {
-                release.run();
-                try {save(number,new JSONObject().put("mode",mode).put("error",code));}
-                catch(Exception ignored){}
-                main.postDelayed(DebugScreenshotAudit.this::next,700);
-            }
-            @Override public void onSuccess(AccessibilityService.ScreenshotResult shot) {
-                final HardwareBuffer buffer=shot.getHardwareBuffer();
-                if(finished){if(buffer!=null)buffer.close();release.run();return;}
-                Bitmap wrapped=null;
-                try {
-                    final long callback=SystemClock.elapsedRealtime();
-                    wrapped=Bitmap.wrapHardwareBuffer(buffer,shot.getColorSpace());
-                    if(wrapped==null)throw new IllegalStateException("wrap_failed");
-                    final Bitmap hardware=wrapped;
-                    final JSONObject row=new JSONObject().put("number",number).put("mode",mode)
-                            .put("requested_elapsed_ms",requested).put("callback_elapsed_ms",callback)
-                            .put("platform_timestamp_ms",shot.getTimestamp())
-                            .put("buffer_format",buffer.getFormat()).put("buffer_usage",buffer.getUsage())
-                            .put("width",buffer.getWidth()).put("height",buffer.getHeight())
-                            .put("color_space",String.valueOf(shot.getColorSpace()));
-                    copy(number,"immediate",hardware,row);
-                    main.postDelayed(()->{
-                        try {
-                            copy(number,"delayed100",hardware,row);
-                            row.put("completed_elapsed_ms",SystemClock.elapsedRealtime());save(number,row);
-                        } catch(Exception error){finish(error.toString());}
-                        finally {hardware.recycle();buffer.close();release.run();}
-                        if(!finished)main.postDelayed(DebugScreenshotAudit.this::next,700);
-                    },100);
-                } catch(Exception error){
-                    if(wrapped!=null)wrapped.recycle();if(buffer!=null)buffer.close();release.run();finish(error.toString());
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+            release.run();
+            finish("capture_audit_requires_api30");
+            return;
+        }
+        Api30.capture(this, number, mode, release);
+    }
+
+    @TargetApi(30)
+    private static final class Api30 {
+        private static void capture(DebugScreenshotAudit audit, int number, String mode, Runnable release) {
+            final long requested=SystemClock.elapsedRealtime();
+            try {audit.service.takeScreenshot(Display.DEFAULT_DISPLAY,audit.service.getMainExecutor(),new AccessibilityService.TakeScreenshotCallback(){
+                @Override public void onFailure(int code) {
+                    release.run();
+                    try {audit.save(number,new JSONObject().put("mode",mode).put("error",code));}
+                    catch(Exception ignored){}
+                    audit.main.postDelayed(audit::next,700);
                 }
-            }
-        });} catch(RuntimeException error){release.run();finish(error.toString());}
+                @Override public void onSuccess(AccessibilityService.ScreenshotResult shot) {
+                    final HardwareBuffer buffer=shot.getHardwareBuffer();
+                    if(audit.finished){if(buffer!=null)buffer.close();release.run();return;}
+                    Bitmap wrapped=null;
+                    try {
+                        final long callback=SystemClock.elapsedRealtime();
+                        wrapped=Bitmap.wrapHardwareBuffer(buffer,shot.getColorSpace());
+                        if(wrapped==null)throw new IllegalStateException("wrap_failed");
+                        final Bitmap hardware=wrapped;
+                        final JSONObject row=new JSONObject().put("number",number).put("mode",mode)
+                                .put("requested_elapsed_ms",requested).put("callback_elapsed_ms",callback)
+                                .put("platform_timestamp_ms",shot.getTimestamp())
+                                .put("buffer_format",buffer.getFormat()).put("buffer_usage",buffer.getUsage())
+                                .put("width",buffer.getWidth()).put("height",buffer.getHeight())
+                                .put("color_space",String.valueOf(shot.getColorSpace()));
+                        audit.copy(number,"immediate",hardware,row);
+                        audit.main.postDelayed(()->{
+                            try {
+                                audit.copy(number,"delayed100",hardware,row);
+                                row.put("completed_elapsed_ms",SystemClock.elapsedRealtime());audit.save(number,row);
+                            } catch(Exception error){audit.finish(error.toString());}
+                            finally {hardware.recycle();buffer.close();release.run();}
+                            if(!audit.finished)audit.main.postDelayed(audit::next,700);
+                        },100);
+                    } catch(Exception error){
+                        if(wrapped!=null)wrapped.recycle();if(buffer!=null)buffer.close();release.run();audit.finish(error.toString());
+                    }
+                }
+            });} catch(RuntimeException error){release.run();audit.finish(error.toString());}
+        }
     }
     private void copy(int number,String label,Bitmap hardware,JSONObject row) throws Exception {
         long started=SystemClock.elapsedRealtime();

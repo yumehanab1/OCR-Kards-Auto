@@ -4,6 +4,12 @@ import org.json.JSONObject;
 
 /** Read-only presentation of the campaign report. Never authorizes or retries a game action. */
 public final class TrainingPanelState {
+    static final String CAPTURE_AUTHORIZATION_GUIDE = "Android 10 必须授权屏幕录制。请点击「启用兼容截图」，等待连接后再开始。";
+
+    static boolean captureAllowsBattleStart(int sdk, boolean compatReady) {
+        return !ProjectionFramePolicy.requiresConsentSource(sdk) || compatReady;
+    }
+
     public final boolean hasSession;
     public final boolean active;
     public final boolean finished;
@@ -189,7 +195,11 @@ public final class TrainingPanelState {
         Object requested = campaign.opt("match_count");
         if (!(requested instanceof Integer || requested instanceof Long) || !hasSession) return this;
         long target = number(campaign, "match_count");
-        if (target < 0 || target > Integer.MAX_VALUE || target == 1) return this;
+        if (target < 0 || target > Integer.MAX_VALUE) return this;
+        // Legacy/training single-game records keep their existing result labels.
+        if (target == 1 && ("training".equals(matchMode) || isTrue(campaign, "read_only")
+                || !("campaign_progress_v1".equals(string(campaign, "report_kind"))
+                    || campaign.has("rounds")))) return this;
         boolean unlimited = target == 0;
         long index = number(campaign, "round_index");
         long done = number(campaign, "completed_matches");
@@ -350,6 +360,8 @@ public final class TrainingPanelState {
         }
         if (reason.contains("capture_black_frame"))
             return "系统截图连续返回黑屏。请在工具与诊断中启用兼容截图，再重新开始辅助。";
+        if (reason.contains(ProjectionFramePolicy.CONSENT_REQUIRED))
+            return CAPTURE_AUTHORIZATION_GUIDE;
         if (reason.contains("compat_capture_incomplete_frame"))
             return "兼容截图连续不完整，重试后仍未恢复，已停止。请检查模拟器画面与截图设置。";
         if (reason.contains("compat_capture_virtual_geometry_mismatch"))
@@ -357,6 +369,8 @@ public final class TrainingPanelState {
         if (reason.contains("compat_capture"))
             return "兼容截图已中断，请在工具与诊断中重新启用后再开始辅助。";
         if (reason.startsWith("menu_")) return "对战准备未完成，请检查游戏画面后重试。";
+        if ("campaign_return_unverified".equals(reason))
+            return "已结束本局，但未能确认返回对战菜单，本次辅助已停止。";
         if (reason.startsWith("time_budget") || "input_budget".equals(reason) || "frame_budget".equals(reason)) {
             return "已达到本次训练上限，自动操作已停止。";
         }

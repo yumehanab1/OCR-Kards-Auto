@@ -40,12 +40,43 @@ final class BattleDispatchGuardChecks {
 
     static JSONObject run() throws Exception {
         BattleDispatchGuardChecks test = new BattleDispatchGuardChecks();
-        test.matrix();
+        test.matrix(true);
         return new JSONObject().put("checks", test.checks).put("check_count", test.checks.length())
                 .put("failure_count", test.failures).put("device_inputs", 0).put("uses_real_service", false);
     }
 
-    private void matrix() throws Exception {
+    /** Pure guards run on the host; Android path geometry remains in run(). */
+    public static void main(String[] args) throws Exception {
+        BattleDispatchGuardChecks test=new BattleDispatchGuardChecks();test.matrix(false);
+        System.out.println(new JSONObject().put("checks",test.checks).put("check_count",test.checks.length())
+                .put("failure_count",test.failures));
+        if(test.failures!=0)throw new AssertionError("battle checks failed");
+        int count=0;
+        for(String file:args) for(String line:java.nio.file.Files.readAllLines(java.nio.file.Path.of(file))) {
+            JSONObject fixture=new JSONObject(line);Case t=new Case();
+            t.plan=fixture.getJSONObject("plan");t.frame=fixture.getJSONObject("frame");
+            t.consumed=0;t.generation=t.frame.getLong("foreground_generation");
+            t.now=t.frame.getLong("captured_elapsed_ms")+100;
+            double scale=t.frame.getInt("height")/720.0;
+            double expected=Math.min(575*scale,t.plan.getJSONArray("from").getDouble(1)-60*scale);
+            String bits=Long.toHexString(Double.doubleToLongBits(expected));
+            if(!bits.equals(fixture.getString("lift_bits")))throw new AssertionError("Python/Java lift bits differ");
+            String verdict=t.verdict();if(verdict!=null)throw new AssertionError("Python deployment fixture "+count+": "+verdict);
+            count++;
+        }
+        System.out.println("Python deployment fixtures passed: "+count);
+    }
+
+    private void matrix(boolean androidGeometry) throws Exception {
+        for(int[] size:new int[][]{{2112,1320},{1280,720},{1920,1080},{2400,1080},{1280,960},{1600,1000}})
+            verify("native_exact_lift_"+size[0]+"x"+size[1],t -> {
+                int w=size[0],h=size[1];double scale=h/720.0;
+                t.frame.put("width",w).put("height",h).put("source_width",w).put("source_height",h).put("coordinate_space","source_pixels");
+                t.plan.put("source_width",w).put("source_height",h).put("coordinate_space","source_pixels")
+                        .put("kind","drag").put("context","deploy").put("from",point(w/2.0,h*.91)).put("to",point(w*.35,h*.69))
+                        .put("path_points",new JSONArray().put(point(w/2.0,h*.91))
+                                .put(point(w/2.0,Math.min(575*scale,h*.91-60*scale))).put(point(w*.35,h*.69)));
+            },null);
         verify("native_three_choice_middle", BattleDispatchGuardChecks::choice, null);
         verify("native_three_choice_missing_bounds", test -> {choice(test);test.plan.remove("choice_boxes");}, "three_choice_bounds_unconfirmed");
         verify("native_three_choice_wrong_card", test -> {choice(test);test.plan.put("from",point(799,645)).put("to",point(799,645));}, "three_choice_middle_target");
@@ -154,10 +185,12 @@ final class BattleDispatchGuardChecks {
             test.plan.put("kind", "tap").put("context", "end_turn").put("duration_ms", 60)
                     .put("to", test.plan.getJSONArray("from")).put("path_points", new JSONArray());
         }, "path_points_outside_deployment");
-        geometry(1280, 720);
-        geometry(1920, 1080);
-        geometry(2772, 1240);
-        nativeGeometry();
+        if(androidGeometry) {
+            geometry(1280, 720);
+            geometry(1920, 1080);
+            geometry(2772, 1240);
+            nativeGeometry();
+        }
 
         // These emulate evidence writing / IPC occurring between earlier and final gates.
         finalGate("cancel_between_preparation_and_dispatch", test -> test.cancelled = true, "cancelled");

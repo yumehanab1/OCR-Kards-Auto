@@ -294,7 +294,7 @@ public final class ApkBattleSession {
                         cancelled.get(), inputStatusUncertain, maxSeconds * 1000L, maxInputs);
                 recordRound(cancelled.get() ? stopReason : next == null ? "next_round_ready" : next, engineResult);
                 if (next != null) {
-                    finish(cancelled.get() ? stopReason : campaignPlan.matchCount == 1 ? "engine_finished" : next, engineResult);
+                    finish(cancelled.get() ? stopReason : terminalReason(matchMode, readOnly, next), engineResult);
                     return;
                 }
                 if (!advanceRound()) { finish(stopReason, engineResult); return; }
@@ -403,7 +403,11 @@ public final class ApkBattleSession {
         }
     }
 
-    public void cancel(String reason) {
+    static String terminalReason(String mode, boolean readOnly, String next) {
+        return readOnly || MatchEntryOptions.TRAINING.equals(mode) ? "engine_finished" : next;
+    }
+
+    public synchronized void cancel(String reason) {
         if (!active) return;
         stopReason = reason;
         cancelled.set(true);

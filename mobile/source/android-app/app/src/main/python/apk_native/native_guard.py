@@ -1,13 +1,41 @@
 """Local Guard/Protected template verification on source card geometry."""
 import json
+from collections import OrderedDict
 import cv2
 import numpy as np
+
+MAX_SCALE_CACHE=16
 
 
 class Guards:
     def __init__(self,bank):
         self.bank={name:cv2.cvtColor(bank[name],cv2.COLOR_BGR2GRAY)
                    for name in ('guard_unit','guard_hq')}
+        self._scale_cache=OrderedDict()
+
+    def _variants_for(self,height):
+        cached=self._scale_cache.get(height)
+        if cached is not None:
+            self._scale_cache.move_to_end(height)
+            return cached
+        scale=height/720
+        items=[]
+        for name,template in self.bank.items():
+            variants=[]
+            for factor in (.9,1.,1.1):
+                needle=cv2.resize(template,(round(template.shape[1]*scale*factor),round(template.shape[0]*scale*factor)))
+                needle.flags.writeable=False
+                variants.append(needle)
+                if name=='guard_hq':
+                    flipped=cv2.flip(needle,1)
+                    flipped.flags.writeable=False
+                    variants.append(flipped)
+            items.append((name,tuple(variants)))
+        cached=tuple(items)
+        self._scale_cache[height]=cached
+        if len(self._scale_cache)>MAX_SCALE_CACHE:
+            self._scale_cache.popitem(last=False)
+        return cached
 
     def inspect(self,frame,box,features,geometry_verified=False):
         x,y,w,h=box;scale=frame.shape[0]/720
@@ -16,14 +44,12 @@ class Guards:
         win=features.get('gray')[y0:y1,x0:x1]
         if win.size==0 or float(win.std())<5:return {'state':'unknown','scores':{}}
         scores={};locations={}
-        for name,template in self.bank.items():
+        for name,variants in self._variants_for(frame.shape[0]):
             best=(-1.,None)
-            for factor in (.9,1.,1.1):
-                needle=cv2.resize(template,(round(template.shape[1]*scale*factor),round(template.shape[0]*scale*factor)))
-                for variant in (needle,cv2.flip(needle,1)) if name=='guard_hq' else (needle,):
-                    if variant.shape[0]>win.shape[0] or variant.shape[1]>win.shape[1]:continue
-                    _,score,_,point=cv2.minMaxLoc(cv2.matchTemplate(win,variant,cv2.TM_CCOEFF_NORMED))
-                    if score>best[0]:best=(float(score),[x0+point[0],y0+point[1]])
+            for variant in variants:
+                if variant.shape[0]>win.shape[0] or variant.shape[1]>win.shape[1]:continue
+                _,score,_,point=cv2.minMaxLoc(cv2.matchTemplate(win,variant,cv2.TM_CCOEFF_NORMED))
+                if score>best[0]:best=(float(score),[x0+point[0],y0+point[1]])
             scores[name]=best[0];locations[name]=best[1]
         names=sorted(scores,key=scores.get,reverse=True)
         state='unknown'

@@ -22,6 +22,8 @@ public final class CompatCaptureService extends Service {
     private static volatile CompatCaptureSource activeSource;
     private static volatile String lastStatus = "兼容截图未开启（compat_capture_off）";
     private CompatCaptureSource ownedSource;
+    private CompatCaptureSource retiringSource;
+    private Runnable pendingReplacement;
 
     /** A consent-owned source may be initializing; do not silently bypass it. */
     public static boolean hasSource() { return activeSource != null; }
@@ -57,36 +59,67 @@ public final class CompatCaptureService extends Service {
         try {
             startForeground(NOTIFICATION_ID, notification(),
                     ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION);
-            if (ownedSource != null) return START_NOT_STICKY;
             int resultCode = intent == null ? Activity.RESULT_CANCELED
                     : intent.getIntExtra("result_code", Activity.RESULT_CANCELED);
             Intent resultData = intent == null ? null : intent.getParcelableExtra("result_data");
             if (resultCode != Activity.RESULT_OK || resultData == null) {
+                if (ownedSource != null || retiringSource != null) return START_NOT_STICKY;
                 lastStatus = "兼容截图未获得屏幕共享授权（compat_capture_consent_missing）";
                 stopSelf();
                 return START_NOT_STICKY;
             }
+            pendingReplacement = () -> initializeSource(resultCode, resultData);
+            if (ownedSource != null) {
+                retiringSource = ownedSource;
+                ownedSource = null;
+                retiringSource.close("兼容截图重新授权中（compat_capture_replacing）");
+            } else if (retiringSource == null) {
+                Runnable replacement = pendingReplacement;
+                pendingReplacement = null;
+                replacement.run();
+            }
+        } catch (RuntimeException error) {
+            startupFailed(error);
+        }
+        // A process restart must never recreate a projection without fresh user consent.
+        return START_NOT_STICKY;
+    }
+
+    private void initializeSource(int resultCode, Intent resultData) {
+        try {
             MediaProjectionManager manager = getSystemService(MediaProjectionManager.class);
             if (manager == null) throw new IllegalStateException("projection_manager_missing");
             MediaProjection projection = manager.getMediaProjection(resultCode, resultData);
             if (projection == null) throw new IllegalStateException("projection_missing");
-            ownedSource = new CompatCaptureSource(this, projection, (stopped, reason) -> {
-                if (ownedSource != stopped) return;
-                lastStatus = reason;
-                if (activeSource == stopped) activeSource = null;
-                ownedSource = null;
-                stopSelf();
-            });
+            ownedSource = new CompatCaptureSource(this, projection, this::sourceStopped);
             activeSource = ownedSource;
             lastStatus = ownedSource.status();
         } catch (RuntimeException error) {
-            lastStatus = "兼容截图启动失败（compat_capture_service_"
-                    + error.getClass().getSimpleName() + "）";
-            shutdown(lastStatus);
-            stopSelf();
+            startupFailed(error);
         }
-        // A process restart must never recreate a projection without fresh user consent.
-        return START_NOT_STICKY;
+    }
+
+    void sourceStopped(CompatCaptureSource stopped, String reason) {
+        if (retiringSource == stopped) {
+            if (activeSource == stopped) activeSource = null;
+            retiringSource = null;
+            Runnable replacement = pendingReplacement;
+            pendingReplacement = null;
+            if (replacement != null) replacement.run();
+            return;
+        }
+        if (ownedSource != stopped) return;
+        lastStatus = reason;
+        if (activeSource == stopped) activeSource = null;
+        ownedSource = null;
+        stopSelf();
+    }
+
+    private void startupFailed(RuntimeException error) {
+        lastStatus = "兼容截图启动失败（compat_capture_service_"
+                + error.getClass().getSimpleName() + "）";
+        shutdown(lastStatus);
+        stopSelf();
     }
 
     @Override public void onDestroy() {
@@ -102,6 +135,9 @@ public final class CompatCaptureService extends Service {
     }
 
     private void shutdown(String reason) {
+        pendingReplacement = null;
+        if (activeSource == retiringSource) activeSource = null;
+        retiringSource = null; // Its already-queued close may finish after stop or destruction.
         CompatCaptureSource source = ownedSource;
         ownedSource = null;
         if (activeSource == source) activeSource = null;

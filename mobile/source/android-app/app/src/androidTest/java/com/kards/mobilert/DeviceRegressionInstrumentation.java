@@ -539,12 +539,12 @@ public final class DeviceRegressionInstrumentation extends Instrumentation {
         }
         startPrototypeActivity();
         AtomicReference<String> replayText = new AtomicReference<>();
+        onMain(() -> activity.onActivityResult(4101, Activity.RESULT_OK, new Intent().setData(Uri.fromFile(png))));
+        awaitReplayMessage("回放结果", "IN_GAME", "Activity did not display saved replay result");
         onMain(() -> {
-            activity.onActivityResult(4101, Activity.RESULT_OK, new Intent().setData(Uri.fromFile(png)));
             TextView status = activity.findViewById(android.R.id.message);
             require(status != null, "Result TextView is missing android.R.id.message");
             String text = status.getText().toString();
-            require(text.contains("回放结果") && text.contains("IN_GAME"), "Activity did not display saved replay result");
             require(hasScrollParent(status), "Replay result is not inside a ScrollView");
             replayText.set(text);
             callActivityOnResume(activity);
@@ -560,14 +560,18 @@ public final class DeviceRegressionInstrumentation extends Instrumentation {
         result.put("picker_cancel_preserves_result", true);
         File invalid = new File(outputDirectory, "invalid.png");
         write(invalid, "not a PNG");
+        onMain(() -> activity.onActivityResult(4101, Activity.RESULT_OK, new Intent().setData(Uri.fromFile(invalid))));
+        awaitReplayMessage("回放失败", "有效 PNG", "Invalid PNG was not rejected");
         onMain(() -> {
-            activity.onActivityResult(4101, Activity.RESULT_OK, new Intent().setData(Uri.fromFile(invalid)));
             TextView status = activity.findViewById(android.R.id.message);
             String failure = status.getText().toString();
-            require(failure.contains("回放失败") && failure.contains("有效 PNG"), "Invalid PNG was not rejected");
             callActivityOnResume(activity);
             require(failure.equals(status.getText().toString()), "onResume hid the replay error");
             activity.onActivityResult(4101, Activity.RESULT_OK, new Intent().setData(Uri.fromFile(png)));
+        });
+        awaitReplayMessage("回放结果", "IN_GAME", "Valid replay did not recover after failure");
+        onMain(() -> {
+            TextView status = activity.findViewById(android.R.id.message);
             require(replayText.get().equals(status.getText().toString()), "Valid replay did not recover after failure");
         });
         result.put("invalid_png_rejected_and_error_preserved", true);
@@ -606,6 +610,21 @@ public final class DeviceRegressionInstrumentation extends Instrumentation {
             if (replacement.get() != null) activity = replacement.get();
         }
         result.put("replay_state", "IN_GAME");
+    }
+
+    private void awaitReplayMessage(String first, String second, String failureMessage) throws Exception {
+        long deadline = android.os.SystemClock.elapsedRealtime() + 10000L;
+        AtomicReference<String> last = new AtomicReference<>("");
+        while (android.os.SystemClock.elapsedRealtime() < deadline) {
+            onMain(() -> {
+                TextView status = activity.findViewById(android.R.id.message);
+                last.set(status == null ? "" : status.getText().toString());
+            });
+            String text = last.get();
+            if (text.contains(first) && text.contains(second)) return;
+            Thread.sleep(50);
+        }
+        throw new AssertionError(failureMessage + " (got: " + last.get() + ")");
     }
 
     private void startPrototypeActivity() {

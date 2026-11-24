@@ -116,9 +116,10 @@ def deployment(frame,page,scene,hand,probe):
             'requires':['fresh_own_turn','same_turn_retry_budget','production_vacancy_validation']}
 
 class Pipeline:
-    def __init__(self,page_bank,combat_bank,ocr):
+    def __init__(self,page_bank,combat_bank,ocr,rng=None):
         self.page=FastPage(ocr,page_bank);self.objects=Objects(combat_bank);self.guards=Guards(combat_bank)
         self._effect_cache=None
+        self.rng=rng
 
     @staticmethod
     def _validate(frame):
@@ -232,7 +233,7 @@ class Pipeline:
         probed=time.perf_counter()
         plan=deployment(frame,page['state'],scene,hand,probe) if active else page.get('plan',{})
         fight=combat(frame,{'dataset':'native','file':'current','state':page['state'],'scene':scene},features,self.guards) if active else None
-        fought=time.perf_counter();selected=select({'state':page['state'],'scene':scene,'plan':plan,'combat':fight})
+        fought=time.perf_counter();selected=select({'state':page['state'],'scene':scene,'plan':plan,'combat':fight},rng=self.rng)
         from .current_state import identity
         state_key=identity(frame,hand) if active else None;done=time.perf_counter()
         timings.update(hand=(handed-start)*1000,support=timings.get('support',0.)+(probed-handed)*1000,

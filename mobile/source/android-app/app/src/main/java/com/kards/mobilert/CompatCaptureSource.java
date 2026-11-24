@@ -650,7 +650,8 @@ final class CompatCaptureSource {
         if (request != null) finishFailure(request, state);
         mirrorToken = null;
         capture.removeCallbacksAndMessages(null);
-        context.getSystemService(DisplayManager.class).unregisterDisplayListener(displayListener);
+        try { context.getSystemService(DisplayManager.class).unregisterDisplayListener(displayListener); }
+        catch (RuntimeException error) { Log.w("KardsCompatCapture", "display_unregister_failed", error); }
         if (display != null) {
             try { display.release(); Log.d("KardsCompatCapture", "virtual_display_released"); }
             catch (RuntimeException error) { Log.e("KardsCompatCapture", "virtual_display_release_failed", error); }

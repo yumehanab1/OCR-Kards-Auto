@@ -26,6 +26,8 @@ public final class TrainingDashboardChecks {
         test.numericInput(activity);
         test.manualWithoutDetection(activity);
         test.gameSelection(activity);
+        test.compatCapture(activity);
+        Api29CompatChecks.displayOnDevice(activity);
         return new JSONObject().put("checks", test.checks).put("check_count", test.checks.length())
                 .put("failure_count", test.failures).put("device_inputs", 0)
                 .put("uses_real_service", false).put("activity_content_replaced", false);
@@ -39,6 +41,14 @@ public final class TrainingDashboardChecks {
         FakeActions actions = new FakeActions();
         TrainingDashboard dashboard = new TrainingDashboard(activity, actions, "test");
         View view = dashboard.view();
+        if (android.os.Build.VERSION.SDK_INT < 34) {
+            dashboard.setCompatCaptureState(true, false, false);
+            check("unready_allocated_capture_can_be_stopped", containsText(view, "兼容截图未就绪 · 点击关闭"));
+            dashboard.setCompatCaptureState(false, false, false);
+            check("stopped_capture_can_be_reauthorized", containsText(view, "启用兼容截图"));
+            dashboard.setCompatCaptureState(true, false);
+            check("legacy_ready_state_keeps_stop_control", containsText(view, "兼容截图已启用 · 点击关闭"));
+        }
         Button primary = view.findViewById(R.id.panel_start);
         Button manual = view.findViewWithTag("panel_manual_start");
         Button stop = view.findViewById(R.id.panel_stop);
@@ -184,6 +194,7 @@ public final class TrainingDashboardChecks {
     private void numericInput(Activity activity) throws Exception {
         FakeActions actions = new FakeActions();
         TrainingDashboard dashboard = new TrainingDashboard(activity, actions, "test");
+        dashboard.setCompatCaptureState(true, true, false);
         View view = dashboard.view();
         EditText count = view.findViewWithTag("panel_match_count");
         Button primary = view.findViewById(R.id.panel_start);
@@ -248,6 +259,7 @@ public final class TrainingDashboardChecks {
     private void manualWithoutDetection(Activity activity) throws Exception {
         FakeActions actions = new FakeActions();
         TrainingDashboard dashboard = new TrainingDashboard(activity, actions, "test");
+        dashboard.setCompatCaptureState(true, true, false);
         View view = dashboard.view();
         Button primary = view.findViewById(R.id.panel_start);
         Button manual = view.findViewWithTag("panel_manual_start");
@@ -278,6 +290,56 @@ public final class TrainingDashboardChecks {
             manual.performClick();
             check("undetected_game_busy_manual_cannot_restart_" + checks.length(),
                     !manual.isEnabled() && actions.starts == 2);
+        }
+    }
+
+    private void compatCapture(Activity activity) throws Exception {
+        TrainingPanelState idle = TrainingPanelState.from("{}");
+        FakeActions actions = new FakeActions();
+        TrainingDashboard dashboard = new TrainingDashboard(activity, actions, "test", 29);
+        View view = dashboard.view();
+        Button primary = view.findViewById(R.id.panel_start);
+        Button manual = view.findViewWithTag("panel_manual_start");
+        Button capture = view.findViewWithTag("panel_compat_capture");
+        dashboard.setCompatCaptureState(false, false, false);
+        dashboard.render(idle, true, true, false, "");
+        primary.performClick(); manual.performClick();
+        check("android10_requires_capture_and_explains_authorization",
+                !primary.isEnabled() && !manual.isEnabled() && actions.total() == 0
+                        && containsText(view, "兼容截图 · Android 10 必需")
+                        && containsText(view, TrainingPanelState.CAPTURE_AUTHORIZATION_GUIDE));
+        capture.performClick();
+        check("android10_capture_button_requests_consent_only", capture.isEnabled()
+                && actions.captures == 1 && actions.starts == 0);
+        dashboard.setCompatCaptureState(true, false, false);
+        dashboard.render(idle, true, true, false, "");
+        check("android10_allocated_source_can_stop_but_cannot_start", !primary.isEnabled()
+                && !manual.isEnabled() && capture.isEnabled()
+                && "兼容截图未就绪 · 点击关闭".contentEquals(capture.getText()));
+        dashboard.setCompatCaptureState(true, false, true);
+        capture.performClick();
+        check("android10_capture_control_disabled_while_worker_owned", !capture.isEnabled() && actions.captures == 1);
+        dashboard.setCompatCaptureState(true, true, false);
+        dashboard.render(idle, true, true, false, "");
+        primary.performClick(); manual.performClick();
+        check("android10_ready_enables_both_existing_entries", primary.isEnabled()
+                && manual.isEnabled() && actions.starts == 2 && !actions.lastOpenGame);
+        dashboard.setCompatCaptureState(false, false, false);
+        dashboard.render(idle, true, true, false, "");
+        check("android10_revocation_blocks_both_entries_again", !primary.isEnabled() && !manual.isEnabled());
+
+        for (int sdk : new int[]{30, 33, 34, 35}) {
+            TrainingDashboard modern = new TrainingDashboard(activity, new FakeActions(), "test", sdk);
+            modern.setCompatCaptureState(false, false, false);
+            modern.render(idle, true, true, false, "");
+            View modernView = modern.view();
+            Button modernPrimary = modernView.findViewById(R.id.panel_start);
+            Button modernManual = modernView.findViewWithTag("panel_manual_start");
+            Button modernCapture = modernView.findViewWithTag("panel_compat_capture");
+            check("api" + sdk + "_capture_remains_optional_or_hidden", modernPrimary.isEnabled()
+                    && modernManual.isEnabled() && (sdk >= 34 ? modernCapture == null
+                    : modernCapture != null && modernCapture.isEnabled()
+                            && containsText(modernView, "未启用 · 系统截图黑屏时使用")));
         }
     }
 
@@ -326,7 +388,7 @@ public final class TrainingDashboardChecks {
     }
 
     private static final class FakeActions implements TrainingDashboard.Actions {
-        int stops, permissions, details, starts, modeChanges, countChanges, lastMatchCount, selections;
+        int stops, permissions, details, starts, modeChanges, countChanges, lastMatchCount, selections, captures;
         String lastStartedMode, lastSelectedMode;
         boolean lastOpenGame;
         @Override public void start(String mode, boolean openGame, int matchCount) {
@@ -338,6 +400,7 @@ public final class TrainingDashboardChecks {
         @Override public void permissions() { permissions++; }
         @Override public void details() { details++; }
         @Override public void chooseGame() { selections++; }
-        int total() { return stops + permissions + details + starts + modeChanges + countChanges + selections; }
+        @Override public void compatCapture() { captures++; }
+        int total() { return stops + permissions + details + starts + modeChanges + countChanges + selections + captures; }
     }
 }

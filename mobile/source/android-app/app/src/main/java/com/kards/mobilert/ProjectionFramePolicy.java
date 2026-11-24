@@ -2,6 +2,10 @@ package com.kards.mobilert;
 
 /** Shared, tested eligibility rules for the continuously attached consent-owned producer. */
 final class ProjectionFramePolicy {
+    static final String CONSENT_REQUIRED = "compat_capture_required_api29";
+
+    enum Route { COMPAT, SYSTEM_DISPLAY, GAME_WINDOW, NO_CONSENT }
+
     private ProjectionFramePolicy() { }
 
     static boolean fresh(long freshAfterNanos, long imageTimestampNanos) {
@@ -31,7 +35,14 @@ final class ProjectionFramePolicy {
         return api < 34 && !requestActive && deliver(closed, nowUptime, preparationDeadlineUptime);
     }
 
-    static boolean useConsentSource(int api, boolean sourceExists) {
-        return api < 34 && sourceExists;
+    static boolean requiresConsentSource(int api) {
+        return api < 30;
+    }
+
+    /** Routing depends on source ownership, not its current geometry or readiness. */
+    static Route route(int api, boolean sourceExists) {
+        if (api >= 34) return Route.GAME_WINDOW;
+        if (sourceExists) return Route.COMPAT;
+        return requiresConsentSource(api) ? Route.NO_CONSENT : Route.SYSTEM_DISPLAY;
     }
 }

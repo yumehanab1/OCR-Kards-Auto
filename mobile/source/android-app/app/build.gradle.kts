@@ -24,10 +24,10 @@ android {
 
     defaultConfig {
         applicationId = "com.kards.mobilert"
-        minSdk = 30
+        minSdk = 29
         targetSdk = 35
-          versionCode = 191
-        versionName = "0.2.4"
+        versionCode = 192
+        versionName = "0.3.1"
         testInstrumentationRunner = "com.kards.mobilert.DeviceRegressionInstrumentation"
         ndk {
             abiFilters += listOf("arm64-v8a", "x86_64")

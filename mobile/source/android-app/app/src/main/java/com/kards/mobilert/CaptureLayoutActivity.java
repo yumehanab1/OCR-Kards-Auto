@@ -1,11 +1,13 @@
 package com.kards.mobilert;
 
 import android.app.Activity;
+import android.annotation.TargetApi;
 import android.app.ActivityOptions;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ActivityInfo;
 import android.os.Bundle;
+import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.Display;
@@ -71,7 +73,7 @@ public final class CaptureLayoutActivity extends Activity {
         super.onCreate(state);
         token = getIntent().getLongExtra("layout_token", 0);
         Pending current = pending;
-        Display actual = getDisplay();
+        Display actual = activityDisplay();
         if (current == null || actual == null
                 || !admits(current.displayId, actual.getDisplayId(), current.token, token)) {
             finishAndRemoveTask(); return;
@@ -82,6 +84,18 @@ public final class CaptureLayoutActivity extends Activity {
         // Never request orientation until the OS confirms the secondary display identity.
         setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
         MAIN.postDelayed(() -> complete(token), 250L);
+    }
+
+    @SuppressWarnings("deprecation")
+    private Display activityDisplay() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) return DisplayApi30.get(this);
+        // This activity's window manager belongs to the projection's layout display.
+        return getWindowManager().getDefaultDisplay();
+    }
+
+    @TargetApi(30)
+    private static final class DisplayApi30 {
+        static Display get(Activity activity) { return activity.getDisplay(); }
     }
 
     @Override public void onDestroy() {

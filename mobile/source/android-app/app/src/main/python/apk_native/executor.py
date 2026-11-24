@@ -15,8 +15,9 @@ from apk_battle_runtime import Stop,Replan,_json,_parse
 
 class ActionExecutor:
     def __init__(self,bridge,pipeline,ocr,evidence,deadline,max_inputs,read_only=False,
-                 max_failed_inputs=5):
+                 max_failed_inputs=5,rng=None):
         self.bridge,self.pipeline,self.ocr=bridge,pipeline,ocr
+        self.rng=rng
         self.out=Path(evidence).resolve();self.deadline=deadline;self.max_inputs=max_inputs;self.read_only=read_only
         self.last_id=-1;self.last_capture_time=-1;self.foreground_generation=None;self.shape=None
         self.turn=0;self.previous_state=None;self.isolated=[];self.consumed=set()
@@ -95,7 +96,9 @@ class ActionExecutor:
         entry=dict(state=observed['state'],scene=observed.get('scene'),
                    plan=observed.get('plan',{}),combat=observed.get('combat'))
         self.planning_state_key=observed.get('current_state_key')
-        selected=select(entry,allow=self.allow)
+        # Updated isolation may change the actor, never the observation's roll.
+        selected=select(entry,allow=self.allow,
+                        bomber_roll=(observed.get('selected_action') or {}).get('bomber_roll'),rng=self.rng)
         observed=dict(observed,selected_action=selected)
         if selected.get('action')=='end_turn_candidate':
             # The post-input frame already contains a complete planning scan.
@@ -265,7 +268,9 @@ class ActionExecutor:
         self.observe_turn_state(own_proof,turn_proof)
         entry=dict(state=observed['state'],scene=observed.get('scene'),plan=observed.get('plan',{}),combat=observed.get('combat'))
         self.planning_state_key=observed.get('current_state_key')
-        observed['selected_action']=select(entry,allow=self.allow)
+        # Pipeline already sampled this observation; execution must reuse it.
+        observed['selected_action']=select(entry,allow=self.allow,
+            bomber_roll=(observed.get('selected_action') or {}).get('bomber_roll'),rng=self.rng)
         preparation=self.turn_preparation.observe(observed,packet)
         observed['turn_preparation']=preparation
         # A fast opponent can pass entirely between captures. A fresh own

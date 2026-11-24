@@ -26,6 +26,7 @@ def run():
         def __init__(self,state='battle',choice=False,display=False):
             self.state=state;self.choice=choice;self.display=display;self.calls=Counter();self.features=[]
             self.pipeline=Pipeline.__new__(Pipeline)
+            self.pipeline.rng=None
             self.pipeline.page=self;self.pipeline.objects=self;self.pipeline.guards=object()
 
         def seen(self,name,features):

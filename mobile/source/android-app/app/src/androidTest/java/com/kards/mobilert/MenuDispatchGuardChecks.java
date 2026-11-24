@@ -36,6 +36,23 @@ public final class MenuDispatchGuardChecks {
                 .put("failure_count", test.failures).put("device_inputs", 0);
     }
 
+    /** Host entry point also consumes requests emitted by the real Python recognizer. */
+    public static void main(String[] args) throws Exception {
+        JSONObject result=run();System.out.println(result);
+        if(result.getInt("failure_count")!=0)throw new AssertionError("menu checks failed");
+        int count=0;
+        for(String file:args) for(String line:java.nio.file.Files.readAllLines(java.nio.file.Path.of(file))) {
+            JSONObject fixture=new JSONObject(line);Case t=new Case();
+            t.plan=fixture.getJSONObject("plan");t.frame=fixture.getJSONObject("frame");
+            t.generation=t.frame.getLong("foreground_generation");t.now=t.frame.getLong("captured_elapsed_ms")+100;
+            String expected=fixture.isNull("expected")?null:fixture.getString("expected");
+            String actual=t.verdict();
+            if(!java.util.Objects.equals(expected,actual))throw new AssertionError("Python menu fixture "+count+": "+actual+" expected "+expected);
+            count++;
+        }
+        System.out.println("Python menu fixtures passed: "+count);
+    }
+
     private void matrix() throws Exception {
         for (int[] size:new int[][]{{1280,960},{1600,1200},{1280,720},{1612,720}})
             verify("login_reward_safe_prompt_"+size[0]+"x"+size[1], t -> nativeReward(t,size[0],size[1]), null);
@@ -245,6 +262,22 @@ public final class MenuDispatchGuardChecks {
             nativePopup(t); t.plan.remove("popup_basis");
         }, "popup_evidence_missing");
         verify("native_promotion_six_anchors_allowed", t -> nativeOffer(t), null);
+        verify("native_pass_close_six_anchors_allowed", t -> nativePassClose(t), null);
+        for(String anchor:new String[]{"title","edge_top","edge_bottom","edge_left","edge_right"})
+            verify("native_pass_close_missing_"+anchor,t -> {
+                nativePassClose(t);t.plan.getJSONObject("promotion_evidence").remove(anchor);
+            },"native_promotion_close_unverified");
+        verify("native_pass_close_weak_title",t -> {
+            nativePassClose(t);t.plan.getJSONObject("promotion_evidence").getJSONObject("title").put("score",.92);
+        },"native_promotion_close_unverified");
+        verify("native_pass_blank_wrong_bounds",t -> {
+            nativePopup(t);t.plan.put("state","pass_popup").put("context","menu_dismiss_pass")
+                    .put("popup_basis","pass_title_subtitle_and_panel");
+            t.plan.getJSONArray("target_bounds").put(0,100);
+        },"popup_blank_bounds_mismatch");
+        verify("native_pass_close_wrong_basis",t -> {
+            nativePassClose(t);t.plan.put("popup_basis","pass_title_subtitle_and_panel");
+        },"popup_blank_bounds_mismatch");
         verify("native_generic_popup_allowed", t -> nativeGeneric(t), null);
         verify("native_generic_popup_missing_id_refused", t -> {
             nativeGeneric(t); t.plan.getJSONObject("generic_popup_evidence").remove("popup_id");
@@ -315,6 +348,12 @@ public final class MenuDispatchGuardChecks {
         t.plan.put("state","starter_popup").put("context","menu_dismiss_starter")
                 .put("promotion_evidence",evidence).put("target_bounds",new JSONArray(boxes[1]))
                 .put("from",point(1912,374)).put("to",point(1912,374));
+    }
+
+    private static void nativePassClose(Case t) throws Exception {
+        nativeOffer(t);
+        t.plan.put("state","pass_popup").put("context","menu_dismiss_pass")
+                .put("popup_basis","promotion_six_anchor_close");
     }
 
     private static void nativePopup(Case t) throws Exception {

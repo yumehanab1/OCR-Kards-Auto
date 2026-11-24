@@ -59,8 +59,9 @@ final class FloatingStatus {
             int target=p.optInt("match_count",1);
             long seconds=Math.max(0,p.optLong("elapsed_ms",0))/1000;
             JSONObject totals=p.optJSONObject("round_totals");
-            String unknown=totals!=null && totals.has("unconfirmed_inputs")
-                    ?String.valueOf(totals.optInt("unconfirmed_inputs")):"—";
+            long unknownCount = totals == null || totals.isNull("unconfirmed_inputs") ? -1
+                    : BattleProgressReport.integer(totals.opt("unconfirmed_inputs"));
+            String unknown = unknownCount < 0 ? "—" : Long.toString(unknownCount);
             String detail="已完成 "+closed+" / "+(target==0?"不限":target)+" 局"
                     +"\n本局触控 "+inputs+" 次 · 用时 "+seconds/60+"分"+seconds%60+"秒"
                     +"\n已结束局普通效果未知 "+unknown;

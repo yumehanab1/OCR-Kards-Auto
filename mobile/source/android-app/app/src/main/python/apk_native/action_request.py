@@ -20,6 +20,7 @@ def request(observed,packet,now,remaining_ms):
     if packet.get('ok') is not True or packet.get('coordinate_space')!='source_pixels':
         raise ValueError('native_action_requires_source_capture')
     width,height=packet['source_width'],packet['source_height']
+    scale=height/720.0
     if observed.get('source_shape')!=[height,width,3]:raise ValueError('native_action_geometry_mismatch')
     if observed.get('state')!='battle':raise ValueError('native_action_requires_own_turn')
     choice=observed.get('selected_action',{}).get('action')=='choice_middle'
@@ -48,7 +49,7 @@ def request(observed,packet,now,remaining_ms):
         if not probe.get('vacancy_candidate') or scene.get('support_full_confirmed'):
             raise ValueError('native_action_support_vacancy_unconfirmed')
         origin=point(selected.get('grab_source'),width,height)
-        if origin[1]<height*560/720:raise ValueError('native_action_deployment_origin_not_hand')
+        if origin[1]<560*scale:raise ValueError('native_action_deployment_origin_not_hand')
         if action=='blind_middle':
             from .native_hand import blind_allowed
             if not blind_allowed(origin,observed.get('hand') or [],height,width):
@@ -96,5 +97,5 @@ def request(observed,packet,now,remaining_ms):
                   **{'from':origin,'to':target})
     if choice:result['choice_boxes']=boxes
     if context=='deploy':
-        result['path_points']=[origin,[origin[0],min(height*575/720,origin[1]-height*60/720)],target]
+        result['path_points']=[origin,[origin[0],min(575*scale,origin[1]-60*scale)],target]
     return result

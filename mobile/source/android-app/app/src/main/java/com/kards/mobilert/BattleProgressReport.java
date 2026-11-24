@@ -134,7 +134,7 @@ final class BattleProgressReport {
         return object == null ? -1 : integer(object.opt(key));
     }
 
-    private static long integer(Object value) {
+    static long integer(Object value) {
         if (!(value instanceof Integer || value instanceof Long)) return -1;
         long number = ((Number) value).longValue();
         return number >= 0 ? number : -1;

@@ -17,6 +17,9 @@ import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 import java.util.UUID;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * Explicitly armed, one-input session for keeping the original mulligan hand.
@@ -131,6 +134,9 @@ public final class BoundedMulliganSession {
     private String stopReason = "";
     private Evidence previous;
     private boolean nativePixels;
+    private final Supplier<ExecutorService> workerFactory;
+    private ExecutorService worker;
+    private Runnable pendingRelease;
 
     public BoundedMulliganSession(Context context, FrameSource frameSource,
                                   Platform platform, Consumer<String> onReport) {
@@ -173,6 +179,15 @@ public final class BoundedMulliganSession {
     BoundedMulliganSession(File filesDirectory, FrameSource frameSource,
                            Platform platform, Inspector inspector, Clock clock,
                            Scheduler scheduler, Consumer<String> onReport, GameEntryGate entryGate) {
+        this(filesDirectory, frameSource, platform, inspector, clock, scheduler, onReport, entryGate,
+                () -> Executors.newSingleThreadExecutor(r -> new Thread(r, "kards-opening-inspection")));
+    }
+
+    /** Worker must serialize queued work, never run it inline under the caller's monitor. */
+    BoundedMulliganSession(File filesDirectory, FrameSource frameSource,
+                           Platform platform, Inspector inspector, Clock clock,
+                           Scheduler scheduler, Consumer<String> onReport, GameEntryGate entryGate,
+                           Supplier<ExecutorService> workerFactory) {
         if (filesDirectory == null || frameSource == null || platform == null
                 || inspector == null || clock == null || scheduler == null) {
             throw new IllegalArgumentException("Session dependencies must not be null");
@@ -185,6 +200,7 @@ public final class BoundedMulliganSession {
         this.scheduler = scheduler;
         this.onReport = onReport;
         this.suppliedEntryGate = entryGate;
+        this.workerFactory = workerFactory;
     }
 
     private static Scheduler mainThreadScheduler() {
@@ -193,53 +209,74 @@ public final class BoundedMulliganSession {
     }
 
     /** A stopped instance may be explicitly started again; old callbacks stay invalid. */
-    public synchronized boolean start() {
-        if (active) return false;
-        long token = ++generation;
-        active = true;
-        capturePending = false;
-        foregroundAdmitted = false;
-        dispatchAccepted = false;
-        dispatchReturned = false;
-        gestureCompleted = false;
-        gestureCancelled = false;
-        opponentMulliganWaitObserved = false;
-        firstOpponentMulliganWaitFrameSequence = 0;
-        captureFailures=0;
-        verified = false;
-        previous = null;
-        gameInputs = 0;
-        eventSequence = 0;
-        latestFrameSequence = 0;
-        pendingFrameSequence = 0;
-        lastCapturedAt = 0;
-        dispatchedAtWall = 0;
-        dispatchedAtElapsed = 0;
-        beforeInputFrameSequence = 0;
-        firstVerifiedFrameSequence = 0;
-        secondVerifiedFrameSequence = 0;
-        stopReason = "";
-        startedElapsed = clock.elapsedRealtimeMillis();
-        startedWall = clock.wallTimeMillis();
-        armedForegroundGeneration = -1L;
-        admittedForegroundGeneration = -1;
-        state = State.WAITING_FOR_GAME;
-        sessionId = startedWall + "-" + UUID.randomUUID().toString().substring(0, 8);
-        sessionDirectory = new File(new File(filesDirectory, "single-action"), sessionId);
-        try {
-            entryGate = suppliedEntryGate != null ? suppliedEntryGate
-                    : new GameEntryGate(GameEntryGate.LAUNCH_GAME, platform.currentForegroundPackage(),
-                            platform.foregroundGeneration(), startedElapsed);
-            armedForegroundGeneration = entryGate.armedGeneration;
-            if (!sessionDirectory.mkdirs()) throw new IOException("session_directory_unavailable");
-            saveEvent("armed", null);
-        } catch (IOException | RuntimeException error) {
-            finish(token, State.STOPPED, "evidence_storage_unavailable");
-            return false;
+    public boolean start() {
+        final long token;
+        final File directory;
+        synchronized (this) {
+            if (active) return false;
+            token = ++generation;
+            worker = workerFactory.get();
+            active = true;
+            capturePending = false;
+            foregroundAdmitted = false;
+            dispatchAccepted = false;
+            dispatchReturned = false;
+            gestureCompleted = false;
+            gestureCancelled = false;
+            opponentMulliganWaitObserved = false;
+            firstOpponentMulliganWaitFrameSequence = 0;
+            captureFailures=0;
+            verified = false;
+            previous = null;
+            gameInputs = 0;
+            eventSequence = 0;
+            latestFrameSequence = 0;
+            pendingFrameSequence = 0;
+            lastCapturedAt = 0;
+            dispatchedAtWall = 0;
+            dispatchedAtElapsed = 0;
+            beforeInputFrameSequence = 0;
+            firstVerifiedFrameSequence = 0;
+            secondVerifiedFrameSequence = 0;
+            stopReason = "";
+            startedElapsed = clock.elapsedRealtimeMillis();
+            startedWall = clock.wallTimeMillis();
+            armedForegroundGeneration = -1L;
+            admittedForegroundGeneration = -1;
+            state = State.WAITING_FOR_GAME;
+            sessionId = startedWall + "-" + UUID.randomUUID().toString().substring(0, 8);
+            sessionDirectory = new File(new File(filesDirectory, "single-action"), sessionId);
+            try {
+                entryGate = suppliedEntryGate != null ? suppliedEntryGate
+                        : new GameEntryGate(GameEntryGate.LAUNCH_GAME, platform.currentForegroundPackage(),
+                                platform.foregroundGeneration(), startedElapsed);
+                armedForegroundGeneration = entryGate.armedGeneration;
+            } catch (RuntimeException error) {
+                finish(token, State.STOPPED, "evidence_storage_unavailable");
+                return false;
+            }
+            directory = sessionDirectory;
         }
-        scheduler.postDelayed(() -> watchdog(token), 0L);
-        return active;
+        // Keep start's storage-admission result, without holding the session lock across I/O.
+        boolean created;
+        try { created = directory.mkdirs(); }
+        catch (RuntimeException error) { created = false; }
+        synchronized (this) {
+            if (!isCurrent(token)) return false;
+            if (!created) {
+                finish(token, State.STOPPED, "evidence_storage_unavailable");
+                return false;
+            }
+            try { saveEvent("armed", null); }
+            catch (IOException | RuntimeException error) {
+                finish(token, State.STOPPED, "evidence_storage_unavailable");
+                return false;
+            }
+            scheduler.postDelayed(() -> watchdog(token), 0L);
+            return active;
+        }
     }
+
 
     public synchronized void cancel() {
         if (active) finish(State.CANCELLED, "cancelled");
@@ -371,6 +408,7 @@ public final class BoundedMulliganSession {
     }
 
     private synchronized void receiveFrame(long token, long requestSequence, FrameSnapshot frame) {
+        boolean handedOff = false;
         try {
             if (!isCurrent(token) || !capturePending || requestSequence != pendingFrameSequence) return;
             capturePending = false;
@@ -387,16 +425,12 @@ public final class BoundedMulliganSession {
             if (age < 0L || age > frameAgeLimit() || capturedAt < startedWall || capturedAt <= lastCapturedAt
                     || (gameInputs > 0 && capturedAt <= dispatchedAtWall)) {
                 saveEvent("frame_rejected", json("frameSequence", requestSequence,
-                        "frameAgeMillis", age, "reason", "stale_or_duplicate_frame"));
-                finish(token, State.STOPPED, "stale_or_duplicate_frame");
+                        "frameAgeMillis", age, "reason", "stale_or_duplicate_frame"),
+                        () -> finish(token, State.STOPPED, "stale_or_duplicate_frame"));
                 return;
             }
             lastCapturedAt = capturedAt;
             String frameName = String.format(Locale.ROOT, "frame-%04d", requestSequence);
-            long persistStarted = clock.elapsedRealtimeMillis();
-            File sourcePng = new File(sessionDirectory, frameName + ".png");
-            savePng(sourcePng, frame.bitmap());
-            long persistMillis = clock.elapsedRealtimeMillis() - persistStarted;
             JSONObject report = baseReport("frame");
             put(report, "frameSequence", requestSequence);
             put(report, "capturedAtMillis", capturedAt);
@@ -411,18 +445,40 @@ public final class BoundedMulliganSession {
             put(report, "screenshot", frameName + ".png");
             put(report, "observationPosition", gameInputs == 0 ? "before_input" : "after_input");
             put(report, "recognitionComplete", false);
-            writeJson(new File(sessionDirectory, frameName + ".json"), report);
-            if (!gate(token)) return;
+            File directory = sessionDirectory;
+            Evidence before = previous;
+            long elapsedStart = startedElapsed;
+            worker.execute(() -> inspectFrame(token, requestSequence, frame, directory, frameName,
+                    report, before, elapsedStart, age));
+            handedOff = true;
+        } catch (IOException | RuntimeException error) {
+            if (isCurrent(token)) finish(token, State.STOPPED, "frame_processing_or_evidence_failure");
+        } finally {
+            if (!handedOff && frame != null) frame.close();
+        }
+    }
+
+    private void inspectFrame(long token, long requestSequence, FrameSnapshot frame, File directory,
+                              String frameName, JSONObject report, Evidence before, long elapsedStart, long age) {
+        try {
+            if (!isCurrent(token)) return;
+            long capturedAt = frame.capturedAtMillis();
+            long persistStarted = clock.elapsedRealtimeMillis();
+            File sourcePng = new File(directory, frameName + ".png");
+            savePng(sourcePng, frame.bitmap());
+            long persistMillis = clock.elapsedRealtimeMillis() - persistStarted;
+            writeJson(new File(directory, frameName + ".json"), report);
+            if (!isCurrent(token)) return;
             long inspectStarted = clock.elapsedRealtimeMillis();
             MulliganRecognizer.Result result = inspector.inspectSaved(frame.bitmap(), sourcePng);
             long inspectMillis = clock.elapsedRealtimeMillis() - inspectStarted;
             Evidence current = new Evidence(requestSequence, capturedAt, result, sample(frame.bitmap()), frame.width(), frame.height());
-            Stability stability = compare(previous, current);
+            Stability stability = compare(before, current);
             boolean emptyOpeningFrame = current.phase == MulliganRecognizer.Phase.UNKNOWN
-                    && gameInputs == 0 && state == State.OBSERVING_MULLIGAN
+                    && "before_input".equals(report.optString("observationPosition"))
                     && isOpaqueBlackFrame(frame.bitmap());
             put(report, "recordedAtMillis", clock.wallTimeMillis());
-            put(report, "elapsedMillis", Math.max(0L, clock.elapsedRealtimeMillis() - startedElapsed));
+            put(report, "elapsedMillis", Math.max(0L, clock.elapsedRealtimeMillis() - elapsedStart));
             put(report, "frameAgeMillis", clock.wallTimeMillis() - capturedAt);
             put(report, "recognitionComplete", true);
             put(report, "captureArrivalAgeMillis", age);
@@ -440,10 +496,32 @@ public final class BoundedMulliganSession {
             put(report, "stablePair", stability.stable);
             put(report, "meanChannelDelta", stability.comparable ? stability.mean : JSONObject.NULL);
             put(report, "changedSampleFraction", stability.comparable ? stability.changed : JSONObject.NULL);
-            put(report, "pairedWithFrameSequence", previous == null ? 0L : previous.sequence);
+            put(report, "pairedWithFrameSequence", before == null ? 0L : before.sequence);
             put(report, "emptyOpeningFrame", emptyOpeningFrame);
-            writeJson(new File(sessionDirectory, frameName + ".json"), report);
-            publish(report);
+            writeJson(new File(directory, frameName + ".json"), report);
+            Inspection inspection = new Inspection(current, stability, emptyOpeningFrame,
+                    result == null ? Double.NaN : result.score, report.toString());
+            scheduler.postDelayed(() -> consumeInspection(token, inspection), 0L);
+        } catch (IOException | RuntimeException error) {
+            scheduler.postDelayed(() -> processingFailed(token), 0L);
+        } finally {
+            frame.close();
+        }
+    }
+
+    private synchronized void processingFailed(long token) {
+        finish(token, State.STOPPED, "frame_processing_or_evidence_failure");
+    }
+
+    private synchronized void consumeInspection(long token, Inspection inspection) {
+        if (!isCurrent(token)) return;
+        Evidence current = inspection.evidence;
+        Stability stability = inspection.stability;
+        boolean emptyOpeningFrame = inspection.emptyOpeningFrame;
+        double score = inspection.score;
+        long capturedAt = current.capturedAt;
+        try {
+            publish(new JSONObject(inspection.report));
             if (!gate(token)) return;
             long processedFrameAge = clock.wallTimeMillis() - capturedAt;
             if (processedFrameAge < 0L || processedFrameAge > frameAgeLimit()) {
@@ -461,8 +539,8 @@ public final class BoundedMulliganSession {
                     finish(token, State.STOPPED, "opponent_mulligan_wait_without_completed_confirm");
                     return;
                 }
-                if (result == null || !Double.isFinite(result.score) || result.score < .90
-                        || result.score > 1.0 || current.templateId.isEmpty()) {
+                if (!Double.isFinite(score) || score < .90
+                        || score > 1.0 || current.templateId.isEmpty()) {
                     finish(token, State.STOPPED, "invalid_recognition_result");
                     return;
                 }
@@ -504,8 +582,8 @@ public final class BoundedMulliganSession {
                 finish(token, State.STOPPED, "unknown_screen");
                 return;
             }
-            if (result == null || !Double.isFinite(result.score) || result.score < 0.0
-                    || result.score > 1.0 || current.templateId.isEmpty() || !validTarget(current.target,current.width,current.height)) {
+            if (!Double.isFinite(score) || score < 0.0
+                    || score > 1.0 || current.templateId.isEmpty() || !validTarget(current.target,current.width,current.height)) {
                 finish(token, State.STOPPED, "invalid_recognition_result");
                 return;
             }
@@ -520,13 +598,13 @@ public final class BoundedMulliganSession {
                     finish(token, State.STOPPED, "invalid_confirm_target");
                     return;
                 }
-                if (stability.stable || nativePixels && result.score >= .90) {
+                if (stability.stable || nativePixels && score >= .90) {
                     dispatchOnce(token, current);
                     return;
                 }
             } else if ((current.phase == MulliganRecognizer.Phase.CONFIRMED_MY_TURN
                     || current.phase == MulliganRecognizer.Phase.CONFIRMED_OPPONENT_TURN)
-                    && (stability.stable || nativePixels && result.score >= .90) && dispatchAccepted && gestureCompleted && !gestureCancelled) {
+                    && (stability.stable || nativePixels && score >= .90) && dispatchAccepted && gestureCompleted && !gestureCancelled) {
                 firstVerifiedFrameSequence = previous == null ? current.sequence : previous.sequence;
                 secondVerifiedFrameSequence = current.sequence;
                 verified = true;
@@ -537,22 +615,26 @@ public final class BoundedMulliganSession {
             }
             previous = current;
             if (isCurrent(token)) scheduler.postDelayed(() -> capture(token), SAMPLE_INTERVAL_MS);
-        } catch (IOException | RuntimeException error) {
+        } catch (IOException | JSONException | RuntimeException error) {
             if (isCurrent(token)) finish(token, State.STOPPED, "frame_processing_or_evidence_failure");
-        } finally {
-            if (frame != null) frame.close();
         }
     }
 
     private void dispatchOnce(long token, Evidence current) throws IOException {
         if (gameInputs != 0 || !preDispatchGate(token, current)) return;
         platform.prepareInput(release -> {
-            try {
-                if (gameInputs != 0 || !preDispatchGate(token,current)) return;
-                dispatchPrepared(token,current,release);
-            } catch(IOException | RuntimeException error) {
-                if(isCurrent(token)) finish(token,State.STOPPED,"dispatch_preparation_error");
-            } finally { if(!dispatchAccepted)release.run(); }
+            synchronized (BoundedMulliganSession.this) {
+                java.util.concurrent.atomic.AtomicBoolean released = new java.util.concurrent.atomic.AtomicBoolean();
+                Runnable once = () -> { if (released.compareAndSet(false, true)) release.run(); };
+                try {
+                    if (gameInputs != 0 || !preDispatchGate(token,current)) { once.run(); return; }
+                    pendingRelease = once;
+                    dispatchPrepared(token,current,once);
+                } catch(IOException | RuntimeException error) {
+                    once.run();
+                    if(isCurrent(token)) finish(token,State.STOPPED,"dispatch_preparation_error");
+                }
+            }
         });
     }
 
@@ -564,7 +646,18 @@ public final class BoundedMulliganSession {
                 "previousFrameSequence", previous == null ? 0 : previous.sequence, "xNormalized", x,
                 "yNormalized", y, "targetBounds", rectJson(current.target),
                 "templateId", current.templateId, "capturedAtMillis", current.capturedAt,
-                "frameAgeMillis", clock.wallTimeMillis() - current.capturedAt));
+                "frameAgeMillis", clock.wallTimeMillis() - current.capturedAt), () -> {
+                    synchronized (BoundedMulliganSession.this) {
+                        try { submitPrepared(token, current, release, x, y); }
+                        catch (IOException | RuntimeException error) {
+                            finish(token, State.STOPPED, "dispatch_preparation_error");
+                        } finally { if (!dispatchAccepted) release.run(); }
+                    }
+                });
+    }
+
+    private void submitPrepared(long token, Evidence current, Runnable release, float x, float y) throws IOException {
+
         if (!preDispatchGate(token, current)) return;
         beforeInputFrameSequence = current.sequence;
         previous = null;
@@ -653,22 +746,37 @@ public final class BoundedMulliganSession {
         previous = null;
         state = terminalState;
         stopReason = reason;
-        generation++; // Invalidate pending frame, gesture, and timer callbacks before publishing.
+        long terminalToken = ++generation; // Invalidate frame, gesture, and timer callbacks first.
+        if (pendingRelease != null) { pendingRelease.run(); pendingRelease = null; }
         JSONObject summary = baseReport("finished");
-        try {
-            if (sessionDirectory != null && sessionDirectory.isDirectory()) {
-                writeJson(new File(sessionDirectory, "summary.json"), summary);
-            }
-        } catch (IOException | RuntimeException error) {
-            verified = false;
-            state = State.STOPPED;
-            stopReason = "summary_write_failed";
-            put(summary, "verified", false);
-            put(summary, "state", state.name());
-            put(summary, "stopReason", stopReason);
-            put(summary, "summaryWriteFailed", true);
-        }
-        publish(summary);
+        File directory = sessionDirectory;
+        // Cancellation remains responsive even if an inference cannot be interrupted.
+        ExecutorService finishingWorker = worker;
+        finishingWorker.execute(() -> {
+            boolean failed = false;
+            try {
+                if (directory.isDirectory()) writeJson(new File(directory, "summary.json"), summary);
+                else if (Boolean.TRUE.equals(summary.opt("verified"))) failed = true;
+            } catch (IOException | RuntimeException error) { failed = true; }
+            boolean writeFailed = failed;
+            scheduler.postDelayed(() -> {
+                synchronized (BoundedMulliganSession.this) {
+                    if (generation != terminalToken || active) return;
+                    if (writeFailed) {
+                        verified = false;
+                        state = State.STOPPED;
+                        stopReason = "summary_write_failed";
+                        put(summary, "verified", false);
+                        put(summary, "state", state.name());
+                        put(summary, "stopReason", stopReason);
+                        put(summary, "summaryWriteFailed", true);
+                    }
+                    if (writeFailed || verified) publish(summary);
+                }
+            }, 0L);
+        });
+        finishingWorker.shutdown(); // Drain owned frame/summary work; never await it on the UI thread.
+        if (!verified) publish(summary);
     }
 
     private JSONObject baseReport(String event) {
@@ -715,12 +823,37 @@ public final class BoundedMulliganSession {
     }
 
     private void saveEvent(String event, JSONObject detail) throws IOException {
+        saveEvent(event, detail, null);
+    }
+
+    private void saveEvent(String event, JSONObject detail, Runnable afterPersist) throws IOException {
         JSONObject report = baseReport(event);
         if (detail != null) put(report, "detail", detail);
         File file = new File(sessionDirectory,
                 String.format(Locale.ROOT, "event-%04d-%s.json", ++eventSequence, event));
-        writeJson(file, report);
-        publish(report);
+        long token = generation;
+        worker.execute(() -> {
+            if (!isCurrent(token)) return;
+            try {
+                File directory = file.getParentFile();
+                if (!directory.isDirectory() && !directory.mkdirs()) throw new IOException("session_directory_unavailable");
+                writeJson(file, report);
+                scheduler.postDelayed(() -> {
+                    synchronized (BoundedMulliganSession.this) {
+                        if (!isCurrent(token)) return;
+                        publish(report);
+                        if (isCurrent(token) && afterPersist != null) afterPersist.run();
+                    }
+                }, 0L);
+            } catch (IOException | RuntimeException error) {
+                scheduler.postDelayed(() -> {
+                    synchronized (BoundedMulliganSession.this) {
+                        finish(token, State.STOPPED, "armed".equals(event)
+                                ? "evidence_storage_unavailable" : "frame_processing_or_evidence_failure");
+                    }
+                }, 0L);
+            }
+        });
     }
 
     private void publish(JSONObject report) {
@@ -825,6 +958,21 @@ public final class BoundedMulliganSession {
     private static void put(JSONObject object, String key, Object value) {
         try { object.put(key, value == null ? JSONObject.NULL : value); }
         catch (JSONException error) { throw new IllegalArgumentException("Invalid report field", error); }
+    }
+
+    private static final class Inspection {
+        final Evidence evidence;
+        final Stability stability;
+        final boolean emptyOpeningFrame;
+        final double score;
+        final String report;
+        Inspection(Evidence evidence, Stability stability, boolean emptyOpeningFrame, double score, String report) {
+            this.evidence = evidence;
+            this.stability = stability;
+            this.emptyOpeningFrame = emptyOpeningFrame;
+            this.score = score;
+            this.report = report;
+        }
     }
 
     private static final class Evidence {

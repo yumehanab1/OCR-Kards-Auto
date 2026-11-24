@@ -67,14 +67,15 @@ final class OpeningEvidenceReplayChecks {
         Python.getInstance().getModule("sys").get("path").callAttr("insert",0,new File(core,"src").getAbsolutePath());
         Bitmap bitmap=BitmapFactory.decodeFile(source.getAbsolutePath());
         if(bitmap==null)throw new IllegalStateException("opponent_wait_review_decode");
+        NativeOpeningInspector inspector=new NativeOpeningInspector(target);
         MulliganRecognizer.Result result;
-        try { result=new NativeOpeningInspector(target).inspectSaved(bitmap,source); }
+        try { result=inspector.inspectSaved(bitmap,source); }
         finally { bitmap.recycle(); }
         if(result.phase!=MulliganRecognizer.Phase.WAITING_OPPONENT_MULLIGAN || result.score<.90)
             throw new IllegalStateException("opponent_wait_review_unrecognized:"+result.phase+":"+result.reason);
         JSONObject semantics=new JSONObject(Python.getInstance().getModule("json").callAttr("dumps",
                 Python.getInstance().getModule("apk_native.opening_wait_test").callAttr("run",
-                    new File(target.getFilesDir(),"native-opening-component").getAbsolutePath())).toString());
+                    inspector.assetDirectory().getAbsolutePath())).toString());
         if(!semantics.getBoolean("passed"))throw new IllegalStateException("opponent_wait_semantics");
         return new JSONObject().put("passed",true).put("phase",result.phase.name())
                 .put("reason",result.reason).put("score",result.score).put("review_jpeg_sha256",sourceHash)

@@ -458,12 +458,21 @@ class NativeMenuRecognizer:
         result['targets']={k:[round(v[0]*factors[0]),round(v[1]*factors[1]),round(v[2]*factors[0]),round(v[3]*factors[1])] for k,v in result.get('targets',{}).items()}
         # Exact reviewed blank target follows source height, avoiding rounding drift.
         for action in ('menu_clear_login_popup','menu_dismiss_blocking_popup','menu_dismiss_pass'):
-            if action in result.get('targets',{}):
+            if (action in result.get('targets',{})
+                    and result.get('popup_basis')!='promotion_six_anchor_close'):
                 h,w=frame.shape[:2];size=max(8,round(h*24/720));cx=w/2;cy=round(h*665/720)
                 result['targets'][action]=[cx-size/2,cy-size/2,size,size]
         return result
 
     def observe_pixels(self, frame, packet):
+        self.daily_return_probe=None
+        result=self._observe_pixels(frame,packet)
+        if self.daily_return_probe is not None:
+            items,ok=self.daily_return_probe
+            result.update(daily_reward_probe=items,daily_scoped_ocr=ok)
+        return result
+
+    def _observe_pixels(self, frame, packet):
         started=time.perf_counter()
         if frame is None or packet.get('coordinate_space') != 'source_pixels' or frame.shape[:2] != (
                 packet.get('source_height'),packet.get('source_width')):
@@ -603,16 +612,10 @@ class NativeMenuRecognizer:
                 daily_reward_evidence=proof,coordinate_space='source_pixels',selected_mode='',action_ready=True,
                 timings_ms=dict(total=(time.perf_counter()-started)*1000),ocr_metrics=self.ocr.last_metrics,
                 ocr_items=items,start_control=dict(ok=False,visible=False,bounds=None,score=0.))
+        # The scoped daily probe above may find no next reward stage after a
+        # ticket collect. Continue recognizing a real destination; absence alone
+        # is not completion, and MenuFlow still requires two fresh captures.
         # Fast path for the stable home screen. Checking the two independent
-        if getattr(self,'daily_phase',False) and not self.settlement and getattr(self.ocr,'bridge',None) is not None:
-            self.ocr.bind(packet.get('ocr_source_packet',packet))
-            found,_=self.ocr.regions(frame,daily_reward_regions(frame),scope='menu_controls')
-            current=[dict(box=np.asarray(b).tolist(),text=t,score=float(s)) for b,t,s in found or []]
-            daily=daily_reward(frame,current)
-            if daily:return daily_result(daily,current)
-            return dict(state='unknown',targets={},coordinate_space='source_pixels',selected_mode='',
-                        ocr_items=current,ocr_metrics=self.ocr.last_metrics,
-                        timings_ms=dict(total=(time.perf_counter()-started)*1000))
         # fixed controls first avoids scanning unrelated popup templates and
         # avoids OCR on every unchanged menu frame.
         # The independent current Tasks proof permits the same fine Start
@@ -797,6 +800,7 @@ class NativeMenuRecognizer:
                 offer=self.promotion(frame,items)
                 if offer:
                     popup,promotion_evidence=offer
+                    basis='promotion_six_anchor_close'
                     state,targets=popup+'_popup',{'menu_dismiss_'+popup:promotion_evidence['close']['bounds']}
                 if not offer:
                     semantic=menu_from_text(frame,items)

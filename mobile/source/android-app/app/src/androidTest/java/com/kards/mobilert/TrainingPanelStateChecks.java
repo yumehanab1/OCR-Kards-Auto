@@ -15,6 +15,7 @@ public final class TrainingPanelStateChecks {
     /** A host runner can additionally pass the original, unmodified live20 summary. */
     public static JSONObject run(String originalLive20Report) throws Exception {
         TrainingPanelStateChecks test = new TrainingPanelStateChecks();
+        test.captureReadiness();
         test.emptyAndMalformed();
         test.live20(originalLive20Report == null ? live20Projection() : originalLive20Report);
         test.activeStates();
@@ -31,6 +32,22 @@ public final class TrainingPanelStateChecks {
                 .put("failure_count", test.failures).put("test_count", test.checks.length()).put("device_inputs", 0)
                 .put("uses_real_service", false)
                 .put("original_live20_report_supplied", originalLive20Report != null);
+    }
+
+    private void captureReadiness() throws Exception {
+        check("api29_missing_compat_blocks_start", !TrainingPanelState.captureAllowsBattleStart(29, false));
+        check("api29_allocated_but_unready_blocks_start", !TrainingPanelState.captureAllowsBattleStart(29,
+                ProjectionFramePolicy.ready(false, false)));
+        check("api29_ready_compat_allows_start", TrainingPanelState.captureAllowsBattleStart(29,
+                ProjectionFramePolicy.ready(false, true)));
+        for (int sdk = 30; sdk <= 35; sdk++) {
+            check("api" + sdk + "_compat_readiness_not_required", TrainingPanelState.captureAllowsBattleStart(sdk, false)
+                    && TrainingPanelState.captureAllowsBattleStart(sdk, true));
+        }
+        TrainingPanelState stopped = TrainingPanelState.from(campaign("finished", false,
+                "menu_entry_failed:" + ProjectionFramePolicy.CONSENT_REQUIRED).toString());
+        check("api29_revoked_capture_explains_how_to_reauthorize",
+                TrainingPanelState.CAPTURE_AUTHORIZATION_GUIDE.equals(stopped.stopReason));
     }
 
     private void boundedCampaignProgress() throws Exception {

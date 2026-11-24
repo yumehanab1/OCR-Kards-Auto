@@ -2,6 +2,7 @@
 import cv2
 import numpy as np
 from pathlib import Path
+from collections import OrderedDict
 from .page_detector import Detector
 
 SOURCE_LABEL_FACTORS=(.80,.85,.90,.95,1.,1.05,1.10,1.15,1.20,1.25,1.30,1.35,1.40)
@@ -354,13 +355,29 @@ class OpeningRecognizer:
                     reason='current_enemy_text_without_own_control',evidence=evidence,resources=resources)
         return dict(unknown,reason='native_opening_unconfirmed',evidence=evidence,resources=resources)
 
-_recognizers={}
-def observe(path,assets,packet_json,bridge=None):
-    import json
-    packet=json.loads(str(packet_json));key=str(assets)
+MAX_RECOGNIZER_CACHE=4
+_recognizers=OrderedDict()
+
+def release_recognizer(assets_dir):
+    """Drop a finished session's cached templates, if still resident."""
+    _recognizers.pop(str(assets_dir),None)
+
+def _recognizer(assets):
+    key=str(assets)
     recognizer=_recognizers.get(key)
     if recognizer is None:
-        recognizer=OpeningRecognizer(assets);_recognizers[key]=recognizer
+        recognizer=OpeningRecognizer(assets)
+        _recognizers[key]=recognizer
+        if len(_recognizers)>MAX_RECOGNIZER_CACHE:
+            _recognizers.popitem(last=False)
+    else:
+        _recognizers.move_to_end(key)
+    return recognizer
+
+def observe(path,assets,packet_json,bridge=None):
+    import json
+    packet=json.loads(str(packet_json))
+    recognizer=_recognizer(assets)
     frame=cv2.imdecode(np.frombuffer(Path(path).read_bytes(),np.uint8),1)
     ocr=None
     if bridge is not None:

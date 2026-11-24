@@ -16,11 +16,10 @@ public final class TemplateMatcher {
         final int[] luma;
         Image(Bitmap bitmap) {
             width = bitmap.getWidth(); height = bitmap.getHeight();
-            int[] pixels = new int[width * height];
-            bitmap.getPixels(pixels, 0, width, 0, 0, width, height);
-            luma = new int[pixels.length];
-            for (int i = 0; i < pixels.length; i++) {
-                int p = pixels[i];
+            luma = new int[width * height];
+            bitmap.getPixels(luma, 0, width, 0, 0, width, height);
+            for (int i = 0; i < luma.length; i++) {
+                int p = luma[i];
                 luma[i] = (((p >>> 16) & 255) * 30 + ((p >>> 8) & 255) * 59
                         + (p & 255) * 11) / 100;
             }
@@ -78,18 +77,21 @@ public final class TemplateMatcher {
     }
 
     private double[] templateStats(int step) {
-        double sum = 0, squared = 0, count = 0;
+        // Even the largest int[] has at most (2^31 - 1) * 255^2 < 2^47
+        // accumulated, so both long and the original double sums are exact.
+        long sum = 0, squared = 0;
+        int count = 0;
         for (int y = 0; y < template.height; y += step) {
             for (int x = 0; x < template.width; x += step) {
                 int value = template.luma[y * template.width + x];
                 sum += value; squared += value * value; count++;
             }
         }
-        return new double[]{count, sum, squared - sum * sum / count};
+        return new double[]{count, sum, squared - (double) sum * sum / count};
     }
 
     private double correlation(Image frame, int left, int top, int step, double[] stats) {
-        double sum = 0, squared = 0, product = 0;
+        long sum = 0, squared = 0, product = 0;
         for (int y = 0; y < template.height; y += step) {
             int frameOffset = (top + y) * frame.width + left;
             int templateOffset = y * template.width;
@@ -99,7 +101,7 @@ public final class TemplateMatcher {
                 product += value * template.luma[templateOffset + x];
             }
         }
-        double variance = squared - sum * sum / stats[0];
+        double variance = squared - (double) sum * sum / stats[0];
         if (variance < 1.0) return -1.0;
         return (product - sum * stats[1] / stats[0]) / Math.sqrt(variance * stats[2]);
     }

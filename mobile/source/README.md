@@ -1,8 +1,8 @@
 # 手机版源码
 
-Android **0.2.4 / versionCode 191** 的独立源码位于 [`android-app/`](android-app/)；此版本固定于 [`v0.2.4` 标签](https://github.com/yumehanab1/OCR-Kards-Auto/tree/v0.2.4/mobile/source/android-app)。仓库根目录 `src/` 是独立维护的 PC 线，本次没有 Windows 更新。
+Android **0.3.1 / versionCode 192** 的独立源码位于 [`android-app/`](android-app/)；当前最新版本位于 `main` 分支 [`mobile/source/android-app/`](android-app/)，与 PC 端同步对齐为 **v0.3.1**。
 
-普通用户请参阅[安装说明](../README.md)，或直接下载 [APK](https://github.com/yumehanab1/OCR-Kards-Auto/releases/download/v0.2.4/KARDS-AUTO-Mobile-v0.2.4.apk)。本次变更、校验值和测试范围见[版本说明](../releases/0.2.4.md)。
+普通用户请参阅[安装说明](../README.md)，或直接下载 [APK](https://github.com/yumehanab1/OCR-Kards-Auto/releases/download/v0.3.1/KARDS-AUTO-Mobile-v0.3.1.apk)。本次变更、校验值和测试范围见[版本说明](../releases/0.3.1.md)。
 
 ## 从标签构建
 

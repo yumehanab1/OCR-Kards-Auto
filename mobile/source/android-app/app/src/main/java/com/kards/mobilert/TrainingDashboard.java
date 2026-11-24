@@ -1,11 +1,13 @@
 package com.kards.mobilert;
 
 import android.app.Activity;
+import android.annotation.TargetApi;
 import android.content.res.ColorStateList;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.RippleDrawable;
+import android.os.Build;
 import android.text.Editable;
 import android.text.InputType;
 import android.text.TextWatcher;
@@ -49,6 +51,8 @@ final class TrainingDashboard {
     private final Actions actions;
     private final ScrollView scroll;
     private final boolean wide;
+    private final int captureSdk;
+    private boolean compatCaptureExists, compatCaptureReady;
     final LinearLayout diagnostics;
     private final TextView heroTitle, heroBody, readiness, gameValue, serviceValue;
     private final TextView gameSymbol, serviceSymbol, resultTitle, resultBody, resultPill;
@@ -72,8 +76,13 @@ final class TrainingDashboard {
     private String gameTargetText = "";
 
     TrainingDashboard(Activity activity, Actions actions, String version) {
+        this(activity, actions, version, Build.VERSION.SDK_INT);
+    }
+
+    TrainingDashboard(Activity activity, Actions actions, String version, int captureSdk) {
         this.activity = activity;
         this.actions = actions;
+        this.captureSdk = captureSdk;
         wide = activity.getResources().getConfiguration().screenWidthDp >= 760
                 && activity.getResources().getConfiguration().fontScale < 1.35f;
         scroll = new ScrollView(activity);
@@ -81,9 +90,8 @@ final class TrainingDashboard {
         scroll.setFillViewport(true);
         scroll.setClipToPadding(true);
         scroll.setOnApplyWindowInsetsListener((v, insets) -> {
-            android.graphics.Insets bars = insets.getInsets(WindowInsets.Type.systemBars()
-                    | WindowInsets.Type.displayCutout());
-            v.setPadding(bars.left, bars.top, bars.right, bars.bottom);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) InsetsApi30.apply(v, insets);
+            else applyLegacyInsets(v, insets);
             return insets;
         });
         LinearLayout root = column();
@@ -236,7 +244,7 @@ final class TrainingDashboard {
             add(workspace, preparation, 14);
         }
         add(root, workspace, 24);
-          if (android.os.Build.VERSION.SDK_INT < 34) {
+          if (captureSdk < 34) {
               compatCaptureCard = card(Color.rgb(255, 250, 240), 20);
               compatCaptureCard.setBackground(shape(Color.rgb(255, 250, 240), 18, Color.rgb(230, 190, 120)));
               LinearLayout compatTop = row();
@@ -244,14 +252,18 @@ final class TrainingDashboard {
               compatIcon.setPadding(0, 0, dp(10), 0);
               compatTop.addView(compatIcon);
               LinearLayout compatLabel = column();
-              compatLabel.addView(text("兼容截图", 15, Color.rgb(100, 65, 10), true));
-              add(compatLabel, text("系统截图黑屏时，启用此通道", 12, Color.rgb(150, 110, 50), false), 3);
+              boolean required = ProjectionFramePolicy.requiresConsentSource(captureSdk);
+              compatLabel.addView(text(required ? "兼容截图 · Android 10 必需" : "兼容截图",
+                      15, Color.rgb(100, 65, 10), true));
+              if (!required)
+                  add(compatLabel, text("系统截图黑屏时，启用此通道", 12, Color.rgb(150, 110, 50), false), 3);
               compatTop.addView(compatLabel, new LinearLayout.LayoutParams(0, -2, 1));
               compatCaptureCard.addView(compatTop);
               compatCaptureBody = text("未启用", 12, Color.rgb(150, 110, 50), false);
               add(compatCaptureCard, compatCaptureBody, 8);
               compatCaptureButton = button("启用兼容截图", Color.rgb(222, 158, 54), Color.rgb(60, 35, 5), 0);
-              compatCaptureButton.setOnClickListener(v -> actions.compatCapture());
+              compatCaptureButton.setTag("panel_compat_capture");
+              compatCaptureButton.setOnClickListener(v -> { if (v.isEnabled()) actions.compatCapture(); });
               add(compatCaptureCard, compatCaptureButton, 12);
               add(root, compatCaptureCard, 14);
           }
@@ -330,6 +342,25 @@ final class TrainingDashboard {
     }
 
     View view() { return scroll; }
+
+    @TargetApi(30)
+    private static final class InsetsApi30 {
+        static void apply(View view, WindowInsets insets) {
+            android.graphics.Insets bars = insets.getInsets(WindowInsets.Type.systemBars()
+                    | WindowInsets.Type.displayCutout());
+            view.setPadding(bars.left, bars.top, bars.right, bars.bottom);
+        }
+    }
+
+    @SuppressWarnings("deprecation")
+    private static void applyLegacyInsets(View view, WindowInsets insets) {
+        android.view.DisplayCutout cutout = insets.getDisplayCutout();
+        view.setPadding(
+                Math.max(insets.getSystemWindowInsetLeft(), cutout == null ? 0 : cutout.getSafeInsetLeft()),
+                Math.max(insets.getSystemWindowInsetTop(), cutout == null ? 0 : cutout.getSafeInsetTop()),
+                Math.max(insets.getSystemWindowInsetRight(), cutout == null ? 0 : cutout.getSafeInsetRight()),
+                Math.max(insets.getSystemWindowInsetBottom(), cutout == null ? 0 : cutout.getSafeInsetBottom()));
+    }
     String selectedMode() { return selectedMode; }
     int selectedMatchCount() {
         Integer value = parseMatchCount(countText);
@@ -414,17 +445,21 @@ final class TrainingDashboard {
         settings.setText(connected ? "管理权限" : "开启无障碍权限");
         boolean stopping = "stopping".equals(state.statusKind) || (busy && !state.active);
         boolean waiting = state.active && "waiting".equals(state.statusKind);
+        boolean captureBlocked = connected && !TrainingPanelState.captureAllowsBattleStart(captureSdk, compatCaptureReady);
+        boolean captureConnecting = captureBlocked && compatCaptureExists;
         readiness.setText(stopping ? "●  正在停止" : waiting ? "●  辅助已待命" : state.active ? "●  辅助运行中"
-                : !connected ? "○  等待授权" : !gameInstalled ? "●  可手动打开游戏" : "●  权限已就绪");
+                : !connected ? "○  等待授权" : captureConnecting ? "○  截图尚未就绪" : captureBlocked ? "○  等待截图授权"
+                : !gameInstalled ? "●  可手动打开游戏" : "●  权限已就绪");
         heroTitle.setText(stopping ? "正在结束本次辅助" : state.active ? state.title
-                : !connected ? "开启你的对战助手" : !gameInstalled ? "可以手动启动辅助" : "准备好下一场对战");
+                : !connected ? "开启你的对战助手" : captureConnecting ? "等待兼容截图连接" : captureBlocked ? "请先启用兼容截图"
+                : !gameInstalled ? "可以手动启动辅助" : "准备好下一场对战");
         heroBody.setText(stopping ? "正在收尾并保存运行记录。\n结束后可以再次开始。" : state.active ? state.summary
-                : idleDescription());
+                : captureBlocked ? "兼容截图连接后，即可开始辅助。" : idleDescription());
         permissionRequired = !connected;
-        primaryCanStart = !state.active && !stopping && !busy && gameInstalled && connected;
+        primaryCanStart = !state.active && !stopping && !busy && gameInstalled && connected && !captureBlocked;
         start.setText(stopping ? "正在停止…" : waiting ? "等待游戏" : state.active ? "正在运行" : !connected ? "开启权限"
                 : "ranked".equals(selectedMode) ? "开始排位辅助" : "开始休闲辅助");
-        manualEntryAvailable = !state.active && !stopping && !busy;
+        manualEntryAvailable = !state.active && !stopping && !busy && !captureBlocked;
         entryAvailable = manualEntryAvailable && gameInstalled;
         updateCountValidation();
         casual.setEnabled(!state.active && !stopping && !busy);
@@ -465,19 +500,26 @@ final class TrainingDashboard {
          updateBanner.setVisibility(android.view.View.VISIBLE);
      }
      void setCompatCaptureState(boolean ready, boolean busy) {
+         setCompatCaptureState(ready, ready, busy);
+     }
+
+     void setCompatCaptureState(boolean exists, boolean ready, boolean busy) {
          if (compatCaptureCard == null) return;
+         compatCaptureExists = exists;
+         compatCaptureReady = exists && ready;
          compatCaptureButton.setEnabled(!busy);
          compatCaptureButton.setAlpha(!busy ? 1f : .48f);
-         if (ready) {
-             compatCaptureButton.setText("兼容截图已启用 · 点击关闭");
+         if (exists) {
+             compatCaptureButton.setText(ready ? "兼容截图已启用 · 点击关闭" : "兼容截图未就绪 · 点击关闭");
              compatCaptureButton.setBackground(ripple(DANGER_TINT, 11, DANGER));
              compatCaptureButton.setTextColor(DANGER);
-             compatCaptureBody.setText("已连接，截图通道正常");
+             compatCaptureBody.setText(ready ? "已连接，截图通道正常" : "截图尚未就绪；关闭后可重新授权");
          } else {
              compatCaptureButton.setText("启用兼容截图");
              compatCaptureButton.setBackground(ripple(Color.rgb(222, 158, 54), 11, 0));
              compatCaptureButton.setTextColor(Color.rgb(60, 35, 5));
-             compatCaptureBody.setText("未启用 · 系统截图黑屏时使用");
+             compatCaptureBody.setText(ProjectionFramePolicy.requiresConsentSource(captureSdk)
+                     ? TrainingPanelState.CAPTURE_AUTHORIZATION_GUIDE : "未启用 · 系统截图黑屏时使用");
          }
      }
 

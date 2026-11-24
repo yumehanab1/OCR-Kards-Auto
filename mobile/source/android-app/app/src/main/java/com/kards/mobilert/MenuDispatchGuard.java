@@ -221,6 +221,7 @@ final class MenuDispatchGuard {
         }
         if ("menu_dismiss_blocking_popup".equals(context)
                 || nativePixels && ("menu_dismiss_pass".equals(context)
+                        && !"promotion_six_anchor_close".equals(plan.optString("popup_basis"))
                     || "menu_dismiss_weekend".equals(context) && "weekend_title_subtitle_and_panel".equals(plan.optString("popup_basis")))) {
             if (!nativePixels) return "popup_requires_source_pixels";
             double size = Math.max(8, Math.round(frameHeight * 24 / 720.0));
@@ -236,6 +237,7 @@ final class MenuDispatchGuard {
         // These startup offers expose one measured white X. Even a malformed
         // named request cannot substitute the offer body/price as its target.
         if (nativePixels && ("menu_dismiss_airdrop".equals(context) || "menu_dismiss_starter".equals(context)
+                || "menu_dismiss_pass".equals(context) && "promotion_six_anchor_close".equals(plan.optString("popup_basis"))
                 || "menu_dismiss_weekend".equals(context) && !"weekend_title_subtitle_and_panel".equals(plan.optString("popup_basis")))) {
             JSONObject evidence = plan.optJSONObject("promotion_evidence");
             if (evidence == null) return "native_promotion_close_unverified";

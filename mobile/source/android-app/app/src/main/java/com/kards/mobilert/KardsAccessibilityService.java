@@ -10,10 +10,9 @@ import android.graphics.Canvas;
 import android.os.Build;
 import android.app.KeyguardManager;
 import android.view.accessibility.AccessibilityWindowInfo;
-import android.hardware.HardwareBuffer;
 import android.os.Handler;
 import android.os.Looper;
-import android.view.Display;
+import android.view.WindowManager;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
 
@@ -311,6 +310,8 @@ public final class KardsAccessibilityService extends AccessibilityService implem
     private synchronized boolean startBattle(String options, boolean currentBattle) {
         // A previous Python worker must finish before its process-global core can be reused.
         if (!admitStart("battle")) return false;
+        if (!captureAllowsBattleStart())
+            return answerStart(false, "battle", "compat_capture_required", TrainingPanelState.CAPTURE_AUTHORIZATION_GUIDE);
         GamePackageDiscovery.refresh(this);
         ApkBattleSession campaign = null;
         try {
@@ -405,13 +406,14 @@ public final class KardsAccessibilityService extends AccessibilityService implem
     }
 
     /** UI clicks are the only callers; polling/rendering never starts a worker. */
-    boolean startFromFloatingControl(boolean currentBattle) {
+    synchronized boolean startFromFloatingControl(boolean currentBattle) {
         try {
-            if(Build.VERSION.SDK_INT<34 && !CompatCaptureService.isReady()) {
+            if (!captureAllowsBattleStart()) {
+                if (!admitStart("battle")) return false;
                 startActivity(new Intent(this,MainActivity.class)
                         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP)
                         .putExtra("show_compat_capture",true));
-                return answerStart(false,"battle","compat_capture_required","Confirm screen capture, return to game and click Start again.");
+                return answerStart(false, "battle", "compat_capture_required", TrainingPanelState.CAPTURE_AUTHORIZATION_GUIDE);
             }
             android.content.SharedPreferences prefs=getSharedPreferences("floating-control",MODE_PRIVATE);
             String mode=prefs.getString("mode",MatchEntryOptions.CASUAL);
@@ -421,6 +423,10 @@ public final class KardsAccessibilityService extends AccessibilityService implem
             if(currentBattle)config.put("start_with_opening",false);
             return startBattle(config.toString(),currentBattle);
         } catch(Exception error) { return startError("battle",error); }
+    }
+
+    private static boolean captureAllowsBattleStart() {
+        return TrainingPanelState.captureAllowsBattleStart(Build.VERSION.SDK_INT, CompatCaptureService.isReady());
     }
 
     void withoutOverlay(java.util.function.Consumer<Runnable> work) {
@@ -438,6 +444,8 @@ public final class KardsAccessibilityService extends AccessibilityService implem
      * foreground transition is fabricated. */
     public synchronized boolean startSettleOnce(String options) {
         if (!admitStart("settle")) return false;
+        if (!captureAllowsBattleStart())
+            return answerStart(false, "settle", "compat_capture_required", TrainingPanelState.CAPTURE_AUTHORIZATION_GUIDE);
         GamePackageDiscovery.refresh(this);
         ApkBattleSession campaign = null;
         try {
@@ -516,6 +524,10 @@ public final class KardsAccessibilityService extends AccessibilityService implem
             callback.onFailure("截图能力：服务已断开。");
             return;
         }
+        if (ProjectionFramePolicy.requiresConsentSource(Build.VERSION.SDK_INT) && !CompatCaptureService.hasSource()) {
+            callback.onFailure(ProjectionFramePolicy.CONSENT_REQUIRED);
+            return;
+        }
         long delay = screenshotPacer.acquireDelay(android.os.SystemClock.elapsedRealtime());
         if (delay > 0) {
             screenshotHandler.postDelayed(() -> requestFrameWhenAllowed(callback, requestedAtMillis, preserveSourcePixels), delay);
@@ -541,15 +553,28 @@ public final class KardsAccessibilityService extends AccessibilityService implem
 
     private void takeFrameNow(FrameSource.Callback callback,long requestedAtMillis,boolean preserveSourcePixels) {
         if(screenshotRequestsClosed){callback.onFailure("截图能力：服务已断开。");return;}
-        // Every admitted request takes a new native screenshot. Keep the original
-        // request time as the conservative age bound; waiting never refreshes it.
+        // Every admitted request takes a new screenshot. Waiting never refreshes its age.
+        final int sdk = Build.VERSION.SDK_INT;
+        final ProjectionFramePolicy.Route route = ProjectionFramePolicy.route(sdk, CompatCaptureService.hasSource());
+        if (route == ProjectionFramePolicy.Route.NO_CONSENT) {
+            callback.onFailure(ProjectionFramePolicy.CONSENT_REQUIRED);
+            return;
+        }
+        final GameWindowState selected;
+        final Rect displayBounds;
         try {
-        final GameWindowState selected=gameWindowState();
-        if(selected.occluded){callback.onFailure(GameWindowState.OCCLUDED);return;}
-        final Rect displayBounds=new Rect();
-        displayBounds.set(getSystemService(android.view.WindowManager.class).getCurrentWindowMetrics().getBounds());
-        displayBounds.offsetTo(0,0);
-        if(ProjectionFramePolicy.useConsentSource(Build.VERSION.SDK_INT,CompatCaptureService.hasSource())) {
+            selected = gameWindowState();
+            displayBounds = selected.occluded ? null : DisplayBounds.get(getSystemService(WindowManager.class));
+            if (displayBounds != null) displayBounds.offsetTo(0, 0);
+        } catch (RuntimeException error) {
+            callback.onFailure("截图能力：请求失败，" + error.getClass().getSimpleName());
+            return;
+        }
+        if (selected.occluded) {
+            callback.onFailure(GameWindowState.OCCLUDED);
+            return;
+        }
+        if (route == ProjectionFramePolicy.Route.COMPAT) {
             if(selected.game==null){callback.onFailure("game_window_missing");return;}
             CompatCaptureService.requestFrame(new FrameSource.Callback(){
                 @Override public void onFrame(FrameSnapshot frame) {
@@ -593,105 +618,93 @@ public final class KardsAccessibilityService extends AccessibilityService implem
             },requestedAtMillis);
             return;
         }
-        final boolean windowCapture=Build.VERSION.SDK_INT>=34 && selected.game!=null;
-        if(preserveSourcePixels && Build.VERSION.SDK_INT>=34 && !windowCapture) {
-            callback.onFailure("game_window_missing");return;
+        final boolean windowCapture = route == ProjectionFramePolicy.Route.GAME_WINDOW && selected.game != null;
+        if (route == ProjectionFramePolicy.Route.GAME_WINDOW && preserveSourcePixels && !windowCapture) {
+            callback.onFailure("game_window_missing");
+            return;
         }
-        TakeScreenshotCallback receiver=new TakeScreenshotCallback() {
-            @Override
-            public void onSuccess(ScreenshotResult screenshot) {
-                HardwareBuffer hardwareBuffer = screenshot.getHardwareBuffer();
-                if (hardwareBuffer == null) {
-                    callback.onFailure("截图能力：系统返回空 HardwareBuffer。");
-                    return;
-                }
-                Bitmap hardwareBitmap = null;
-                try {
-                    hardwareBitmap = Bitmap.wrapHardwareBuffer(hardwareBuffer, screenshot.getColorSpace());
-                    if (hardwareBitmap == null) {
-                        callback.onFailure("截图能力：无法包装 HardwareBuffer。");
-                        return;
-                    }
-                    int sourceWidth = hardwareBitmap.getWidth();
-                    int sourceHeight = hardwareBitmap.getHeight();
-                    Bitmap softwareBitmap = hardwareBitmap.copy(Bitmap.Config.ARGB_8888, false);
-                    if (softwareBitmap == null) {
-                        callback.onFailure("截图能力：无法复制为软件 Bitmap。");
-                        return;
-                    }
-                    if(CapturePixelQuality.isAllBlack(softwareBitmap)) {
-                        softwareBitmap.recycle();callback.onFailure("capture_black_frame");return;
-                    }
-                    if(windowCapture) {
-                        GameWindowState after=gameWindowState();
-                        Rect area=selected.game.bounds;
-                        if(after.game==null || after.game.id!=selected.game.id || !area.equals(after.game.bounds)) {
-                            softwareBitmap.recycle();callback.onFailure("game_window_changed");return;
-                        }
-                        if(after.occluded) {softwareBitmap.recycle();callback.onFailure(GameWindowState.OCCLUDED);return;}
-                        // Some window inventories round the bottom edge down by
-                        // one pixel (2520x1079) while the platform supplies the
-                        // complete 2520x1080 surface. Accept only that full-display
-                        // raster case, never an arbitrary cropped/scaled buffer.
-                        boolean exactWindow=softwareBitmap.getWidth()==area.width()
-                                && softwareBitmap.getHeight()==area.height();
-                        boolean fullDisplayRaster=area.left==0 && area.top==0
-                                && displayBounds.right-area.right>=0 && displayBounds.right-area.right<=1
-                                && displayBounds.bottom-area.bottom>=0 && displayBounds.bottom-area.bottom<=1
-                                && softwareBitmap.getWidth()==displayBounds.width()
-                                && softwareBitmap.getHeight()==displayBounds.height();
-                        if(area.left<0 || area.top<0 || !displayBounds.contains(area)
-                            || (!exactWindow && !fullDisplayRaster)) {
-                            android.util.Log.w("KardsCaptureTrace","geometry_rejected window="+area
-                                    +" display="+displayBounds+" bitmap="+sourceWidth+"x"+sourceHeight);
-                            softwareBitmap.recycle();callback.onFailure("game_window_geometry_unconfirmed");return;
-                        }
-                        if(!CapturePixelQuality.isFullyOpaque(softwareBitmap)) {
-                            softwareBitmap.recycle();callback.onFailure("capture_incomplete_frame");return;
-                        }
-                        if(!area.equals(displayBounds) && !fullDisplayRaster) {
-                            Bitmap display=Bitmap.createBitmap(displayBounds.width(),displayBounds.height(),Bitmap.Config.ARGB_8888);
-                            new Canvas(display).drawBitmap(softwareBitmap,area.left,area.top,null);
-                            softwareBitmap.recycle();softwareBitmap=display;
-                        }
-                        sourceWidth=displayBounds.width();sourceHeight=displayBounds.height();
-                    }
-                    Bitmap normalized = preserveSourcePixels ? softwareBitmap : normalize(softwareBitmap);
-                    KardsAccessibilityService.this.sourceWidth = sourceWidth;
-                    KardsAccessibilityService.this.sourceHeight = sourceHeight;
-                    if ((getApplicationInfo().flags & android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0)
-                        android.util.Log.d("KardsCaptureTrace", "route=" + (windowCapture?"game_window":"display")
-                                + " requested_at_wall_ms=" + requestedAtMillis
-                                + " screenshot_timestamp_ms=" + screenshot.getTimestamp()
-                                + " output_width=" + normalized.getWidth() + " output_height=" + normalized.getHeight()
-                                + " window_id=" + (windowCapture?selected.game.id:-1));
-                    // Use request start as a conservative age bound, including capture/conversion latency.
-                    callback.onFrame(new FrameSnapshot(normalized, requestedAtMillis,
-                            sourceWidth, sourceHeight,windowCapture?"game_window":"display",
-                            windowCapture?selected.game.id:-1,windowCapture?selected.game.bounds:displayBounds,screenshot.getTimestamp()));
-                } catch (RuntimeException error) {
-                    callback.onFailure("截图能力：Bitmap 转换失败：" + error.getClass().getSimpleName());
-                } finally {
-                    if (hardwareBitmap != null && !hardwareBitmap.isRecycled()) {
-                        hardwareBitmap.recycle();
-                    }
-                    hardwareBuffer.close();
-                }
+        SystemScreenshotApi30.PixelsCallback receiver = new SystemScreenshotApi30.PixelsCallback() {
+            @Override public void onPixels(Bitmap pixels, long timestampMs) {
+                finishSystemFrame(callback, pixels, timestampMs, requestedAtMillis, preserveSourcePixels,
+                        windowCapture ? selected.game : null, displayBounds);
             }
 
-            @Override
-            public void onFailure(int errorCode) {
-                if(errorCode==ERROR_TAKE_SCREENSHOT_INTERNAL_ERROR || errorCode==ERROR_TAKE_SCREENSHOT_INTERVAL_TIME_SHORT) {
-                    callback.onFailure("temporary_window_capture_error");return;
-                }
-                callback.onFailure("截图能力：失败，错误码=" + errorCode + "；后续接入 MediaProjection 备用通道。");
-            }
+            @Override public void onFailure(String reason) { callback.onFailure(reason); }
         };
-        if(windowCapture)takeScreenshotOfWindow(selected.game.id,mainExecutor,receiver);
-        else takeScreenshot(Display.DEFAULT_DISPLAY,mainExecutor,receiver);
-        } catch (RuntimeException error) {
-            callback.onFailure("截图能力：请求失败：" + error.getClass().getSimpleName());
+        if (sdk >= 34 && windowCapture) {
+            WindowScreenshotApi34.capture(this, selected.game.id, mainExecutor, receiver);
+        } else if (sdk >= Build.VERSION_CODES.R) {
+            // Preserve the legacy non-native display probe when no game window is available.
+            SystemScreenshotApi30.capture(this, mainExecutor, receiver);
         }
+    }
+
+    private void finishSystemFrame(FrameSource.Callback callback, Bitmap pixels, long timestampMs,
+                                   long requestedAtMillis, boolean preserveSourcePixels,
+                                   GameWindowState.Window window, Rect displayBounds) {
+        FrameSnapshot prepared = null;
+        String failure = null;
+        try {
+            int capturedWidth = pixels.getWidth();
+            int capturedHeight = pixels.getHeight();
+            Rect area = window == null ? displayBounds : window.bounds;
+            if (CapturePixelQuality.isAllBlack(pixels)) failure = "capture_black_frame";
+            else if (window != null) {
+                GameWindowState after = gameWindowState();
+                if (after.game == null || after.game.id != window.id || !area.equals(after.game.bounds)) {
+                    failure = "game_window_changed";
+                } else if (after.occluded) {
+                    failure = GameWindowState.OCCLUDED;
+                } else {
+                    // A one-pixel window inventory discrepancy is allowed only for a full-display raster.
+                    boolean exactWindow = capturedWidth == area.width() && capturedHeight == area.height();
+                    boolean fullDisplayRaster = area.left == 0 && area.top == 0
+                            && displayBounds.right - area.right >= 0 && displayBounds.right - area.right <= 1
+                            && displayBounds.bottom - area.bottom >= 0 && displayBounds.bottom - area.bottom <= 1
+                            && capturedWidth == displayBounds.width() && capturedHeight == displayBounds.height();
+                    if (area.left < 0 || area.top < 0 || !displayBounds.contains(area)
+                            || (!exactWindow && !fullDisplayRaster)) {
+                        android.util.Log.w("KardsCaptureTrace", "geometry_rejected window=" + area
+                                + " display=" + displayBounds + " bitmap=" + capturedWidth + "x" + capturedHeight);
+                        failure = "game_window_geometry_unconfirmed";
+                    } else if (!CapturePixelQuality.isFullyOpaque(pixels)) {
+                        failure = "capture_incomplete_frame";
+                    } else if (!area.equals(displayBounds) && !fullDisplayRaster) {
+                        Bitmap windowPixels = pixels;
+                        pixels = Bitmap.createBitmap(displayBounds.width(), displayBounds.height(), Bitmap.Config.ARGB_8888);
+                        try {
+                            new Canvas(pixels).drawBitmap(windowPixels, area.left, area.top, null);
+                        } finally {
+                            windowPixels.recycle();
+                        }
+                    }
+                }
+                capturedWidth = displayBounds.width();
+                capturedHeight = displayBounds.height();
+            }
+            if (failure == null) {
+                if (!preserveSourcePixels) pixels = normalize(pixels);
+                String scope = window == null ? "display" : "game_window";
+                int id = window == null ? -1 : window.id;
+                if ((getApplicationInfo().flags & android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0)
+                    android.util.Log.d("KardsCaptureTrace", "route=" + scope
+                            + " requested_at_wall_ms=" + requestedAtMillis
+                            + " screenshot_timestamp_ms=" + timestampMs
+                            + " output_width=" + pixels.getWidth() + " output_height=" + pixels.getHeight()
+                            + " window_id=" + id);
+                // Use request start as a conservative age bound, including capture/conversion latency.
+                prepared = new FrameSnapshot(pixels, requestedAtMillis, capturedWidth, capturedHeight,
+                        scope, id, area, timestampMs);
+                sourceWidth = capturedWidth;
+                sourceHeight = capturedHeight;
+            }
+        } catch (RuntimeException error) {
+            failure = "截图能力：Bitmap 转换失败，" + error.getClass().getSimpleName();
+        } finally {
+            if (prepared == null && !pixels.isRecycled()) pixels.recycle();
+        }
+        if (prepared == null) callback.onFailure(failure);
+        else callback.onFrame(prepared);
     }
 
     /** Normalize every supported landscape profile into the logical 1280x720 canvas. */

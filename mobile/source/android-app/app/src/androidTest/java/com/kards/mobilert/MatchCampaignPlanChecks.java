@@ -8,6 +8,10 @@ public final class MatchCampaignPlanChecks {
     private final JSONArray checks = new JSONArray();
     private int failures;
     private interface Check { void run() throws Exception; }
+    public static void main(String[] args) throws Exception {
+        JSONObject result=run();System.out.println(result);
+        if(result.getInt("failure_count")!=0)throw new AssertionError("campaign checks failed");
+    }
     public static JSONObject run() throws Exception {
         MatchCampaignPlanChecks test = new MatchCampaignPlanChecks(); test.matrix();
         return new JSONObject().put("checks", test.checks).put("check_count", test.checks.length())
@@ -157,7 +161,7 @@ public final class MatchCampaignPlanChecks {
             JSONObject value = ledger("deploy","unconfirmed");
             value.getJSONArray("inputs").getJSONObject(0).getJSONObject("reply").put("completed",false); unsafe(value);
         });
-        for (String reason : new String[]{"frame_age_expired","input_frame_age_exceeded","frame_expired"})
+        for (String reason : new String[]{"frame_age_expired","input_frame_age_exceeded","frame_expired","temporary_game_window_occluded"})
             check("explicit_no_touch_age_replan_keeps_existing_behavior_"+reason, () -> {
                 JSONObject value = ledger("deploy","unconfirmed");
                 value.getJSONArray("inputs").put(receipt("deploy").put("reply",new JSONObject().put("accepted",false)
@@ -170,6 +174,24 @@ public final class MatchCampaignPlanChecks {
             JSONObject value = ledger("deploy","unconfirmed");
             value.getJSONArray("inputs").put(receipt("deploy").put("reply",new JSONObject().put("accepted",false)
                     .put("completed",false).put("reason","dispatcher_failed"))); unsafe(value);
+        });
+        check("occlusion_then_success_and_return_can_continue", () -> {
+            JSONObject value=ledger("deploy","confirmed");
+            JSONObject rejected=receipt("deploy").put("reply",new JSONObject().put("accepted",false)
+                    .put("completed",false).put("reason","temporary_game_window_occluded"));
+            value.put("inputs",new JSONArray().put(rejected).put(receipt("deploy")));
+            value.put("hooks",new JSONArray().put(hook("deploy","no_input",0).put("terminated",true)
+                    .put("exception_type","Replan").put("detail","temporary_game_window_occluded"))
+                    .put(hook("deploy","confirmed",1)));
+            MatchCampaignPlan twoRounds=new MatchCampaignPlan(new JSONObject().put("match_count",2),"casual");
+            JSONObject settled=new JSONObject().put("final_state","home").put("reason_after_return","return_reached:home");
+            require(twoRounds.continuationReason(1,value,settled,false,false,300000,20)==null);
+        });
+        for (boolean accepted : new boolean[]{true,false}) check("occlusion_inconsistent_receipt_"+accepted, () -> {
+            JSONObject value=ledger("deploy","confirmed");
+            value.getJSONArray("inputs").getJSONObject(0).getJSONObject("reply")
+                    .put("accepted",accepted).put("completed",!accepted).put("reason","temporary_game_window_occluded");
+            unsafe(value);
         });
         for (Object bad : new Object[]{"false",0,JSONObject.NULL}) for (int count : new int[]{0,1})
             check("terminated_requires_boolean_count_"+count+"_"+bad, () -> {

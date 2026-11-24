@@ -205,7 +205,7 @@ public final class CombatPolicy {
             this.hq = hq;
             this.hqHp = hqHp;
             this.enemyFront = immutable(enemyFront);
-            this.guard = guard == null ? new GuardInfo(GuardStatus.UNKNOWN, List.of()) : guard;
+            this.guard = guard == null ? new GuardInfo(GuardStatus.UNKNOWN, Collections.emptyList()) : guard;
         }
 
         public Owner owner() {
@@ -538,7 +538,7 @@ public final class CombatPolicy {
 
     private static <T> List<T> immutable(List<T> values) {
         if (values == null || values.isEmpty()) {
-            return List.of();
+            return Collections.emptyList();
         }
         return Collections.unmodifiableList(new ArrayList<>(values));
     }

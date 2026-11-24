@@ -93,7 +93,7 @@ install.cmd
 
 ## 手机端 / Android
 
-当前手机版：[Android 0.2.4 下载与安装](mobile/README.md) · [v0.2.4 Release](https://github.com/yumehanab1/OCR-Kards-Auto/releases/tag/v0.2.4) · [此版本源码](https://github.com/yumehanab1/OCR-Kards-Auto/tree/v0.2.4/mobile/source/android-app)。本次 `v0.3.1` 仅更新 PC 客户端（含模拟器多开），手机版请继续下载 Android `0.2.4`（versionCode 191）。
+当前手机版：[Android 0.3.1 下载与安装](mobile/README.md) · [直链下载 APK](https://github.com/yumehanab1/OCR-Kards-Auto/releases/download/v0.3.1/KARDS-AUTO-Mobile-v0.3.1.apk) · [v0.3.1 Release](https://github.com/yumehanab1/OCR-Kards-Auto/releases/tag/v0.3.1) · [源码目录](mobile/source/android-app/)。手机版现已与 PC 端对齐为 **`0.3.1`（versionCode 192，最低 Android 10 / API 29）**，支持同签名覆盖升级。
 
 ### 历史：Android 0.2.2
 
